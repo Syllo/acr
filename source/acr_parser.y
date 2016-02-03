@@ -1,6 +1,8 @@
 
 %{
 
+
+
 %}
 
 %token  IDENTIFIER I_CONSTANT F_CONSTANT STRING_LITERAL FUNC_NAME SIZEOF
@@ -13,7 +15,7 @@
 %token  TYPEDEF EXTERN STATIC AUTO REGISTER INLINE
 %token  CONST RESTRICT VOLATILE
 %token  BOOL CHAR SHORT INT LONG SIGNED UNSIGNED FLOAT DOUBLE VOID
-%token  COMPLEX IMAGINARY 
+%token  COMPLEX IMAGINARY
 %token  STRUCT UNION ENUM ELLIPSIS
 
 %token  CASE DEFAULT IF ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
@@ -22,6 +24,9 @@
 
 %token IGNORE
 %token PRAGMA_ACR
+%token ACR_INIT ACR_DESTROY ACR_STRATEGY ACR_ALTERNATIVE ACR_MONITOR ACR_GRID
+%token ACR_PARAMETER ACR_FUNCTION
+%token ACR_MIN ACR_MAX ACR_DIRECT ACR_RANGE
 
 %start acr_start
 
@@ -33,8 +38,86 @@ acr_start
   ;
 
 acr_option
-  :
+  : ACR_ALTERNATIVE acr_alternative_options
+  | ACR_DESTROY
+  | ACR_GRID '(' I_CONSTANT ')'
+  | ACR_INIT acr_init_option
+  | ACR_MONITOR acr_monitor_options
+  | ACR_STRATEGY acr_strategy_options
   ;
+
+acr_alternative_options
+  : IDENTIFIER '(' ACR_PARAMETER ',' acr_alternative_parameter_swap ')'
+  | IDENTIFIER '(' ACR_FUNCTION ',' acr_alternative_function_swap ')'
+  ;
+
+acr_alternative_parameter_swap
+  : IDENTIFIER '=' I_CONSTANT
+  ;
+
+acr_alternative_function_swap
+  : IDENTIFIER '=' IDENTIFIER
+  ;
+
+acr_init_option
+  : VOID IDENTIFIER '(' parameter_declaration ')'
+  ;
+
+parameter_declaration
+  : IDENTIFIER '*' parameter_declaration
+  | IDENTIFIER parameter_declaration
+  | IDENTIFIER '*'
+  | IDENTIFIER
+  ;
+
+acr_monitor_options
+  : '(' acr_monitor_data_monitored ',' acr_monitor_processing_function ')'
+  | '(' acr_monitor_data_monitored ',' acr_monitor_processing_function ',' acr_monitor_filter ')'
+  ;
+acr_monitor_data_monitored
+  : type_specifier array_declaration
+  ;
+
+type_specifier
+  : CHAR
+  | SHORT
+  | INT
+  | LONG
+  | FLOAT
+  | DOUBLE
+  | SIGNED
+  | UNSIGNED
+  | BOOL
+  ;
+
+array_declaration
+  : IDENTIFIER array_dimensions
+  ;
+
+array_dimensions
+  : '[' I_CONSTANT ']' array_dimensions
+  | '[' I_CONSTANT ']'
+  ;
+
+acr_monitor_filter
+  : IDENTIFIER
+  ;
+
+acr_monitor_processing_function
+  : ACR_MIN
+  | ACR_MAX
+  ;
+
+acr_strategy_options
+  : ACR_DIRECT '(' constant ',' IDENTIFIER ')'
+  | ACR_RANGE '(' constant ',' constant ',' IDENTIFIER ')'
+  ;
+
+constant
+  : I_CONSTANT
+  | F_CONSTANT
+  ;
+
 
 %%
 
