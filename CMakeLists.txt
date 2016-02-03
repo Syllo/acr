@@ -113,6 +113,10 @@ else()
     "${CLAN_INCLUDE_DIRS}")
 endif()
 
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr.h.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/acr/acr.h"
+  IMMEDIATE @ONLY)
+
 include_directories(${CURRENT_INCLUDE_DIRECTORIES})
 
 list(APPEND ACR_LIBRARY_C_FILES

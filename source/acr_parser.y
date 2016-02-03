@@ -60,14 +60,24 @@ acr_alternative_function_swap
   ;
 
 acr_init_option
-  : VOID IDENTIFIER '(' parameter_declaration ')'
+  : VOID IDENTIFIER '(' parameter_declaration_list ')'
+  ;
+
+parameter_declaration_list
+  : parameter_declaration
+  | parameter_declaration_list ',' parameter_declaration
   ;
 
 parameter_declaration
-  : IDENTIFIER '*' parameter_declaration
-  | IDENTIFIER parameter_declaration
-  | IDENTIFIER '*'
+  : parameter_declaration IDENTIFIER pointer
+  | parameter_declaration IDENTIFIER
+  | IDENTIFIER pointer
   | IDENTIFIER
+  ;
+
+pointer
+  : '*'
+  | pointer '*'
   ;
 
 acr_monitor_options
@@ -75,27 +85,11 @@ acr_monitor_options
   | '(' acr_monitor_data_monitored ',' acr_monitor_processing_function ',' acr_monitor_filter ')'
   ;
 acr_monitor_data_monitored
-  : type_specifier array_declaration
-  ;
-
-type_specifier
-  : CHAR
-  | SHORT
-  | INT
-  | LONG
-  | FLOAT
-  | DOUBLE
-  | SIGNED
-  | UNSIGNED
-  | BOOL
-  ;
-
-array_declaration
-  : IDENTIFIER array_dimensions
+  : parameter_declaration array_dimensions
   ;
 
 array_dimensions
-  : '[' I_CONSTANT ']' array_dimensions
+  : array_dimensions '[' I_CONSTANT ']'
   | '[' I_CONSTANT ']'
   ;
 
