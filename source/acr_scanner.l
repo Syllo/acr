@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2016 Maxime Schmitt
+ *
+ * ACR is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 O   [0-7]
 D   [0-9]
 NZ  [1-9]
@@ -15,149 +33,157 @@ ES  (\\(['"\?\\abfnrtv]|[0-7]{1,3}|x[a-fA-F0-9]+))
 WS  [ \t\v\n\f]
 
 %{
-#include <stdio.h>
+
 #include "acr_parser.h"
 
-  extern void yyerror(const char *);  /* prints grammar violation message */
+#include <stdbool.h>
+#include <stdio.h>
 
-  extern int sym_type(const char *);  /* returns type from symbol table */
-
-#define sym_type(identifier) IDENTIFIER /* with no symbol table, fake it */
+extern void yyerror(const char *);  /* prints grammar violation message */
 
 static void comment(void);
-static int check_type(void);
+
+extern bool parsing_pragma_acr;
+
+static int acr_token_filter(int token);
+
 %}
 
 %%
 "/*"                { comment(); }
 "//".*              { /* consume //-comment */ }
 
-"auto"           { return(AUTO); }
-"break"          { return(BREAK); }
-"case"           { return(CASE); }
-"char"           { return(CHAR); }
-"const"          { return(CONST); }
-"continue"       { return(CONTINUE); }
-"default"        { return(DEFAULT); }
-"do"             { return(DO); }
-"double"         { return(DOUBLE); }
-"else"           { return(ELSE); }
-"enum"           { return(ENUM); }
-"extern"         { return(EXTERN); }
-"float"          { return(FLOAT); }
-"for"            { return(FOR); }
-"goto"           { return(GOTO); }
-"if"             { return(IF); }
-"inline"         { return(INLINE); }
-"int"            { return(INT); }
-"long"           { return(LONG); }
-"register"       { return(REGISTER); }
-"restrict"       { return(RESTRICT); }
-"return"         { return(RETURN); }
-"short"          { return(SHORT); }
-"signed"         { return(SIGNED); }
-"sizeof"         { return(SIZEOF); }
-"static"         { return(STATIC); }
-"struct"         { return(STRUCT); }
-"switch"         { return(SWITCH); }
-"typedef"        { return(TYPEDEF); }
-"union"          { return(UNION); }
-"unsigned"       { return(UNSIGNED); }
-"void"           { return(VOID); }
-"volatile"       { return(VOLATILE); }
-"while"          { return(WHILE); }
-"_Alignas"       { return ALIGNAS; }
-"_Alignof"       { return ALIGNOF; }
-"_Atomic"        { return ATOMIC; }
-"_Bool"          { return BOOL; }
-"_Complex"       { return COMPLEX; }
-"_Generic"       { return GENERIC; }
-"_Imaginary"     { return IMAGINARY; }
-"_Noreturn"      { return NORETURN; }
-"_Static_assert" { return STATIC_ASSERT; }
-"_Thread_local"  { return THREAD_LOCAL; }
-"__func__"       { return FUNC_NAME; }
+ /*
+"auto"           { return acr_token_filter(AUTO); }
+"break"          { return acr_token_filter(BREAK); }
+"case"           { return acr_token_filter(CASE); }
+"char"           { return acr_token_filter(CHAR); }
+"const"          { return acr_token_filter(CONST); }
+"continue"       { return acr_token_filter(CONTINUE); }
+"default"        { return acr_token_filter(DEFAULT); }
+"do"             { return acr_token_filter(DO); }
+"double"         { return acr_token_filter(DOUBLE); }
+"else"           { return acr_token_filter(ELSE); }
+"enum"           { return acr_token_filter(ENUM); }
+"extern"         { return acr_token_filter(EXTERN); }
+"float"          { return acr_token_filter(FLOAT); }
+"for"            { return acr_token_filter(FOR); }
+"goto"           { return acr_token_filter(GOTO); }
+"if"             { return acr_token_filter(IF); }
+"inline"         { return acr_token_filter(INLINE); }
+"int"            { return acr_token_filter(INT); }
+"long"           { return acr_token_filter(LONG); }
+"register"       { return acr_token_filter(REGISTER); }
+"restrict"       { return acr_token_filter(RESTRICT); }
+"return"         { return acr_token_filter(RETURN); }
+"short"          { return acr_token_filter(SHORT); }
+"signed"         { return acr_token_filter(SIGNED); }
+"sizeof"         { return acr_token_filter(SIZEOF); }
+"static"         { return acr_token_filter(STATIC); }
+"struct"         { return acr_token_filter(STRUCT); }
+"switch"         { return acr_token_filter(SWITCH); }
+"typedef"        { return acr_token_filter(TYPEDEF); }
+"union"          { return acr_token_filter(UNION); }
+"unsigned"       { return acr_token_filter(UNSIGNED); }
+"void"           { return acr_token_filter(VOID); }
+"volatile"       { return acr_token_filter(VOLATILE); }
+"while"          { return acr_token_filter(WHILE); }
+"_Alignas"       { return acr_token_filter(ALIGNAS); }
+"_Alignof"       { return acr_token_filter(ALIGNOF); }
+"_Atomic"        { return acr_token_filter(ATOMIC); }
+"_Bool"          { return acr_token_filter(BOOL); }
+"_Complex"       { return acr_token_filter(COMPLEX); }
+"_Generic"       { return acr_token_filter(GENERIC); }
+"_Imaginary"     { return acr_token_filter(IMAGINARY); }
+"_Noreturn"      { return acr_token_filter(NORETURN); }
+"_Static_assert" { return acr_token_filter(STATIC_ASSERT); }
+"_Thread_local"  { return acr_token_filter(THREAD_LOCAL); }
+"__func__"       { return acr_token_filter(FUNC_NAME); }
+*/
 
-{L}{A}*          { return check_type(); }
+"#pragma"[ ]+"acr" { parsing_pragma_acr = true; return PRAGMA_ACR; }
 
-{HP}{H}+{IS}?               { return I_CONSTANT; }
-{NZ}{D}*{IS}?               { return I_CONSTANT; }
-"0"{O}*{IS}?                { return I_CONSTANT; }
-{CP}?"'"([^'\\\n]|{ES})+"'" { return I_CONSTANT; }
+{L}{A}*          { return acr_token_filter(IDENTIFIER); }
 
-{D}+{E}{FS}?            { return F_CONSTANT; }
-{D}*"."{D}+{E}?{FS}?    { return F_CONSTANT; }
-{D}+"."{E}?{FS}?        { return F_CONSTANT; }
-{HP}{H}+{P}{FS}?        { return F_CONSTANT; }
-{HP}{H}*"."{H}+{P}{FS}? { return F_CONSTANT; }
-{HP}{H}+"."{P}{FS}?     { return F_CONSTANT; }
+{HP}{H}+{IS}?               { return acr_token_filter(I_CONSTANT); }
+{NZ}{D}*{IS}?               { return acr_token_filter(I_CONSTANT); }
+"0"{O}*{IS}?                { return acr_token_filter(I_CONSTANT); }
+{CP}?"'"([^'\\\n]|{ES})+"'" { return acr_token_filter(I_CONSTANT); }
+
+{D}+{E}{FS}?            { return acr_token_filter(F_CONSTANT); }
+{D}*"."{D}+{E}?{FS}?    { return acr_token_filter(F_CONSTANT); }
+{D}+"."{E}?{FS}?        { return acr_token_filter(F_CONSTANT); }
+{HP}{H}+{P}{FS}?        { return acr_token_filter(F_CONSTANT); }
+{HP}{H}*"."{H}+{P}{FS}? { return acr_token_filter(F_CONSTANT); }
+{HP}{H}+"."{P}{FS}?     { return acr_token_filter(F_CONSTANT); }
 
 ({SP}?\"([^"\\\n]|{ES})*\"{WS}*)+ { return STRING_LITERAL; }
 
-"..."       { return ELLIPSIS; }
-">>="       { return RIGHT_ASSIGN; }
-"<<="       { return LEFT_ASSIGN; }
-"+="        { return ADD_ASSIGN; }
-"-="        { return SUB_ASSIGN; }
-"*="        { return MUL_ASSIGN; }
-"/="        { return DIV_ASSIGN; }
-"%="        { return MOD_ASSIGN; }
-"&="        { return AND_ASSIGN; }
-"^="        { return XOR_ASSIGN; }
-"|="        { return OR_ASSIGN; }
-">>"        { return RIGHT_OP; }
-"<<"        { return LEFT_OP; }
-"++"        { return INC_OP; }
-"--"        { return DEC_OP; }
-"->"        { return PTR_OP; }
-"&&"        { return AND_OP; }
-"||"        { return OR_OP; }
-"<="        { return LE_OP; }
-">="        { return GE_OP; }
-"=="        { return EQ_OP; }
-"!="        { return NE_OP; }
-";"         { return ';'; }
-("{"|"<%")  { return '{'; }
-("}"|"%>")  { return '}'; }
-","         { return ','; }
-":"         { return ':'; }
-"="         { return '='; }
-"("         { return '('; }
-")"         { return ')'; }
-("["|"<:")  { return '['; }
-("]"|":>")  { return ']'; }
-"."         { return '.'; }
-"&"         { return '&'; }
-"!"         { return '!'; }
-"~"         { return '~'; }
-"-"         { return '-'; }
-"+"         { return '+'; }
-"*"         { return '*'; }
-"/"         { return '/'; }
-"%"         { return '%'; }
-"<"         { return '<'; }
-">"         { return '>'; }
-"^"         { return '^'; }
-"|"         { return '|'; }
-"?"         { return '?'; }
+"..."       { return acr_token_filter(ELLIPSIS); }
+">>="       { return acr_token_filter(RIGHT_ASSIGN); }
+"<<="       { return acr_token_filter(LEFT_ASSIGN); }
+"+="        { return acr_token_filter(ADD_ASSIGN); }
+"-="        { return acr_token_filter(SUB_ASSIGN); }
+"*="        { return acr_token_filter(MUL_ASSIGN); }
+"/="        { return acr_token_filter(DIV_ASSIGN); }
+"%="        { return acr_token_filter(MOD_ASSIGN); }
+"&="        { return acr_token_filter(AND_ASSIGN); }
+"^="        { return acr_token_filter(XOR_ASSIGN); }
+"|="        { return acr_token_filter(OR_ASSIGN); }
+">>"        { return acr_token_filter(RIGHT_OP); }
+"<<"        { return acr_token_filter(LEFT_OP); }
+"++"        { return acr_token_filter(INC_OP); }
+"--"        { return acr_token_filter(DEC_OP); }
+"->"        { return acr_token_filter(PTR_OP); }
+"&&"        { return acr_token_filter(AND_OP); }
+"||"        { return acr_token_filter(OR_OP); }
+"<="        { return acr_token_filter(LE_OP); }
+">="        { return acr_token_filter(GE_OP); }
+"=="        { return acr_token_filter(EQ_OP); }
+"!="        { return acr_token_filter(NE_OP); }
+";"         { return acr_token_filter(';'); }
+("{"|"<%")  { return acr_token_filter('{'); }
+("}"|"%>")  { return acr_token_filter('}'); }
+","         { return acr_token_filter(','); }
+":"         { return acr_token_filter(':'); }
+"="         { return acr_token_filter('='); }
+"("         { return acr_token_filter('('); }
+")"         { return acr_token_filter(')'); }
+("["|"<:")  { return acr_token_filter('['); }
+("]"|":>")  { return acr_token_filter(']'); }
+"."         { return acr_token_filter('.'); }
+"&"         { return acr_token_filter('&'); }
+"!"         { return acr_token_filter('!'); }
+"~"         { return acr_token_filter('~'); }
+"-"         { return acr_token_filter('-'); }
+"+"         { return acr_token_filter('+'); }
+"*"         { return acr_token_filter('*'); }
+"/"         { return acr_token_filter('/'); }
+"%"         { return acr_token_filter('%'); }
+"<"         { return acr_token_filter('<'); }
+">"         { return acr_token_filter('>'); }
+"^"         { return acr_token_filter('^'); }
+"|"         { return acr_token_filter('|'); }
+"?"         { return acr_token_filter('?'); }
 
 {WS}+     { /* whitespace separates tokens */ }
 .         { /* discard bad characters */ }
 
 %%
 
-int yywrap(void)        /* called at end of input */
-{
+int yywrap(void) {    /* called at end of input */
   return 1;           /* terminate now */
 }
 
-static void comment(void)
-{
+int acr_token_filter(int token) {
+  return parsing_pragma_acr ? token : IGNORE;
+}
+
+static void comment(void) {
   int c;
 
   while ((c = input()) != 0)
-    if (c == '*')
-    {
+    if (c == '*') {
       while ((c = input()) == '*')
         ;
 
@@ -168,17 +194,4 @@ static void comment(void)
         break;
     }
   yyerror("unterminated comment");
-}
-
-static int check_type(void)
-{
-  switch (sym_type(yytext))
-  {
-    case TYPEDEF_NAME:                /* previously defined */
-      return TYPEDEF_NAME;
-    case ENUMERATION_CONSTANT:        /* previously defined */
-      return ENUMERATION_CONSTANT;
-    default:                          /* includes undefined */
-      return IDENTIFIER;
-  }
 }

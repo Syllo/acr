@@ -1,7 +1,32 @@
+/*
+ * Copyright (C) 2016 Maxime Schmitt
+ *
+ * ACR is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
 
 %{
 
+#include <stdbool.h>
+#include <string.h>
 
+#include "acr/pragma_struct.h"
+
+void yyerror(const char *);  /* prints grammar violation message */
+int yylex(void);
+
+bool parsing_pragma_acr;
 
 %}
 
@@ -33,8 +58,16 @@
 %%
 
 acr_start
-  : IGNORE
+  : IGNORE {  }
   | PRAGMA_ACR acr_option
+    {
+      parsing_pragma_acr = false;
+    }
+  | acr_start IGNORE {  }
+  | acr_start PRAGMA_ACR acr_option
+    {
+      parsing_pragma_acr = false;
+    }
   ;
 
 acr_option
@@ -60,7 +93,13 @@ acr_alternative_function_swap
   ;
 
 acr_init_option
-  : VOID IDENTIFIER '(' parameter_declaration_list ')'
+  : IDENTIFIER
+    { /* test si void */
+      if (strcmp(yylval, "void") != 0) {
+        yyerror("Error: acr init fonction must return void\n");
+      }
+    }
+    IDENTIFIER '(' parameter_declaration_list ')'
   ;
 
 parameter_declaration_list
