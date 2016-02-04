@@ -78,7 +78,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/autogen)
 set(COMMON_C_FLAGS "-Wall -Wextra -std=c99 -pedantic")
 
 set(CMAKE_C_FLAGS_RELEASE "${COMMON_C_FLAGS} -O3")
-set(CMAKE_C_FLAGS_DEBUG "${COMMON_C_FLAGS} -O0 -g3")
+set(CMAKE_C_FLAGS_DEBUG "${COMMON_C_FLAGS} -O0 -g")
 
 # Use full RPATH on build tree
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
@@ -120,6 +120,8 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr.h.in"
 include_directories(${CURRENT_INCLUDE_DIRECTORIES})
 
 list(APPEND ACR_LIBRARY_C_FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/source/utils.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/source/pragma_struct.c
   ${FLEX_acr_scanner_OUTPUTS}
   ${BISON_acr_parser_OUTPUTS})
 #  ${CMAKE_CURRENT_SOURCE_DIR}/source/)
