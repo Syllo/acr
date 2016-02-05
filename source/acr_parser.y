@@ -28,9 +28,10 @@
 
 const char* current_file = "test.c"; //placeholder
 
-extern void scanner_clean_until_char(char delimiter);
+extern void scanner_clean_until_new_line(void);
 void yyerror(const char *);  /* prints grammar violation message */
 int yylex(void);
+static void error_print_last_pragma(void);
 
 bool parsing_pragma_acr;
 extern size_t position_in_file;
@@ -39,6 +40,7 @@ extern size_t position_scanning_row;
 extern size_t position_scanning_column;
 extern size_t position_start_current_token;
 extern size_t last_token_size;
+extern size_t last_pragma_start_line;
 
 %}
 
@@ -90,13 +92,11 @@ acr_start
     {
       parsing_pragma_acr = false;
     }
+  | {  }
   ;
 
 acr_option
-  : ACR_ALTERNATIVE
-    {
-    }
-    acr_alternative_options
+  : ACR_ALTERNATIVE acr_alternative_options
     {
       acr_print_debug(stdout, "Rule accepted acr_option alternative");
     }
@@ -104,9 +104,14 @@ acr_option
     {
       acr_print_debug(stdout, "Rule accepted acr_option destroy");
     }
-  | ACR_GRID acr_grid_option
+  | ACR_GRID '(' I_CONSTANT ')'
     {
       acr_print_debug(stdout, "Rule accepted acr_option grid");
+    }
+  | ACR_GRID '(' error ')'
+    {
+      fprintf(stderr, "[ACR] Hint: define the grid using an integer\n");
+      error_print_last_pragma();
     }
   | ACR_INIT acr_init_option
     {
@@ -122,7 +127,10 @@ acr_option
     }
   | error
     {
-      fprintf(stderr, "WTF\n");
+      fprintf(stderr, "[ACR] Warning: unrecognized pragma\n");
+      error_print_last_pragma();
+      scanner_clean_until_new_line();
+      yyclearin;
       yyerrok;
     }
   ;
@@ -134,19 +142,22 @@ acr_alternative_options
     {
       fprintf(stderr,
         "[ACR] Hint: give a name to your alternative construct.\n");
+      error_print_last_pragma();
       yyerrok;
     }
   | error '(' ACR_FUNCTION ',' acr_alternative_function_swap ')'
     {
       fprintf(stderr,
         "[ACR] Hint: give a name to your alternative construct.\n");
+      error_print_last_pragma();
       yyerrok;
     }
   | error
     {
       fprintf(stderr, "[ACR] Hint: did you forget the name or a parameter"
       " in the alternative construct?\n");
-      scanner_clean_untill_char('\n');
+      scanner_clean_until_new_line();
+      error_print_last_pragma();
       yyclearin;
       yyerrok;
     }
@@ -158,23 +169,14 @@ acr_alternative_parameter_swap
     }
   | IDENTIFIER '=' error
     {
+      fprintf(stderr, "[ACR] Hint: parameter swap needs an integer");
+      yyerrok;
     }
   ;
 
 acr_alternative_function_swap
   : IDENTIFIER '=' IDENTIFIER
     {
-    }
-  ;
-
-acr_grid_option
-  : '(' I_CONSTANT ')'
-    {
-    }
-  | '(' error ')'
-    {
-      fprintf(stderr, "[ACR] Hint: ACR grid takes an integer\n");
-      yyerrok;
     }
   ;
 
@@ -285,6 +287,30 @@ constant
 
 #include <stdio.h>
 
+static void error_print_last_pragma(void) {
+  FILE* file;
+  file = fopen(current_file, "r");
+  fseek(file, last_pragma_start_line, SEEK_SET);
+  char c;
+  char previous;
+
+  fprintf(stderr, "[ACR] Ignoring following pragma:\n*\n");
+
+  fscanf(file, "%c", &c);
+  fprintf(stderr, "* %c", c);
+  while(previous = c, fscanf(file, "%c", &c), c != EOF) {
+    fprintf(stderr, "%c", c);
+    if (previous != '\\' && c == '\n') {
+      break;
+    } else {
+      if (c == '\n')
+        fprintf(stderr, "* ");
+    }
+  }
+  fflush(stderr);
+  fclose(file);
+}
+
 void yyerror(const char *s)
 {
   FILE* file;
@@ -323,4 +349,5 @@ void yyerror(const char *s)
     fprintf(stderr, "%c", '~');
   }
   fprintf(stderr, "\n");
+  fclose(file);
 }

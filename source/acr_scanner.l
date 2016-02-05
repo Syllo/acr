@@ -30,7 +30,7 @@ IS  (((u|U)(l|L|ll|LL)?)|((l|L|ll|LL)(u|U)?))
 CP  (u|U|L)
 SP  (u8|u|U|L)
 ES  (\\(['"\?\\abfnrtv]|[0-7]{1,3}|x[a-fA-F0-9]+))
-WS  [ \t\v\n\f]
+WS  [ \t\n\v\f]
 
 %{
 
@@ -50,7 +50,7 @@ extern bool parsing_pragma_acr;
 static int acr_token_filter(int token);
 static void comment(void);
 static int pragma_option_to_token(void);
-void scanner_clean_untill_char(char delimiter);
+void scanner_clean_until_new_line(void);
 
 size_t position_in_file;
 size_t position_of_last_starting_row;
@@ -58,7 +58,8 @@ size_t position_scanning_row;
 size_t position_scanning_column;
 size_t position_start_current_token;
 size_t last_token_size;
-static parsing_pragma_acr_name;
+size_t last_pragma_start_line;
+static bool parsing_pragma_acr_name;
 
 %}
 
@@ -125,10 +126,9 @@ static parsing_pragma_acr_name;
 "#pragma"[ ]+"acr"  {
                       parsing_pragma_acr = true;
                       parsing_pragma_acr_name = true;
+                      last_pragma_start_line = position_of_last_starting_row;
                       return acr_token_filter(PRAGMA_ACR);
                     }
-
-
 
 {L}{A}*           {
                     yylval.identifier = yytext;
@@ -202,11 +202,19 @@ static parsing_pragma_acr_name;
 "|"         { return acr_token_filter('|'); }
 "?"         { return acr_token_filter('?'); }
 
+"\\\n"    {
+            position_in_file += 2;
+            position_of_last_starting_row = position_in_file;
+            ++position_scanning_row;
+            position_scanning_column = 0;
+          }
+
 {WS}+     {
             /* whitespace separates tokens */
             for(size_t i = 0; yytext[i] != '\0'; ++i) {
               ++position_in_file;
               if (yytext[i] == '\n') {
+                parsing_pragma_acr = false;
                 position_of_last_starting_row = position_in_file;
                 ++position_scanning_row;
                 position_scanning_column = 0;
@@ -247,7 +255,7 @@ static void comment_error(size_t position_row_start_of_string,
   position_scanning_column      = position_start_current_token + 1;
   position_scanning_row         = row_start_of_string;
   last_token_size = 1;
-  fprintf(stderr, "[ACR] Error: Unterminated string\n");
+  yyerror("[ACR] Error: Unterminated string");
 }
 
 static void comment(void) {
@@ -315,22 +323,41 @@ static int pragma_option_to_token(void) {
   return ACR_UNKNOWN;
 }
 
-void scanner_clean_untill_char(char delimiter) {
+void scanner_clean_until_new_line(void) {
   int c;
+  int previous;
 
-  if (delimiter == '\n') {
-    while((c = input()) != EOF && c != '\n') {
-      ++position_in_file;
-      ++position_scanning_column;
-    }
+  c = input();
+
+  if(c == EOF)
+    return;
+
+  if (c == '\n') {
+    ++position_in_file;
+    position_of_last_starting_row = position_in_file;
+    ++position_scanning_row;
+    position_scanning_column = 0;
+    return;
   } else {
-    while((c = input()) != EOF && c != delimiter) {
-      ++position_in_file;
+    ++position_in_file;
+    ++position_scanning_column;
+  }
+
+  while(previous = c, (c = input()) != EOF) {
+    if (previous == '\\' && c == '\n') {
+      position_in_file += 2;
+      position_of_last_starting_row = position_in_file;
+      ++position_scanning_row;
+      position_scanning_column = 0;
+    } else {
       if(c == '\n') {
+        ++position_in_file;
         position_of_last_starting_row = position_in_file;
         ++position_scanning_row;
         position_scanning_column = 0;
+        return;
       } else {
+        ++position_in_file;
         ++position_scanning_column;
       }
     }
