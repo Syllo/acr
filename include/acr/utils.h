@@ -23,6 +23,12 @@
 
 #define acr_try_or_die(A,B) {if(!(A)){perror(B); exit(EXIT_FAILURE);}}
 
+#ifdef ACR_DEBUG
+  #define acr_print_debug(A,B)  { fprintf(A, "%s\n", B); }
+#else
+  #define acr_print_debug(A,B)  {  }
+#endif // ACR_DEBUG
+
 char* acr_strdup(const char* to_duplicate);
 
 #endif // __ACR_UTILS_H

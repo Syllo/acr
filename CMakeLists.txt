@@ -55,11 +55,11 @@ endif()
 find_package(BISON REQUIRED)
 find_package(FLEX REQUIRED)
 set(BISON_EXTRA_COMPILE_FLAGS "-L c")
-set(FLEX_EXTRA_COMPILE_FLAGS "")
+set(FLEX_EXTRA_COMPILE_FLAGS " ")
 if(CMAKE_BUILD_TYPE MATCHES Debug)
   set(BISON_EXTRA_COMPILE_FLAGS
     "${BISON_EXTRA_COMPILE_FLAGS} -r all --report-file=${CMAKE_CURRENT_BINARY_DIR}/bison_debug")
-  set(FLEX_EXTRA_COMPILE_FLAGS "-d")
+  #set(FLEX_EXTRA_COMPILE_FLAGS "-d")
 endif()
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/autogen)
 BISON_TARGET(acr_parser
@@ -79,6 +79,10 @@ set(COMMON_C_FLAGS "-Wall -Wextra -std=c99 -pedantic")
 
 set(CMAKE_C_FLAGS_RELEASE "${COMMON_C_FLAGS} -O3")
 set(CMAKE_C_FLAGS_DEBUG "${COMMON_C_FLAGS} -O0 -g")
+
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+  add_definitions(-DACR_DEBUG)
+endif()
 
 # Use full RPATH on build tree
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
@@ -121,13 +125,11 @@ include_directories(${CURRENT_INCLUDE_DIRECTORIES})
 
 list(APPEND ACR_LIBRARY_C_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/source/utils.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/source/pragma_struct.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/source/pragma_struct.c)
+
+list(APPEND ACR_EXECUTABLE_C_FILES
   ${FLEX_acr_scanner_OUTPUTS}
   ${BISON_acr_parser_OUTPUTS})
-#  ${CMAKE_CURRENT_SOURCE_DIR}/source/)
-
-#list(APPEND ACR_EXECUTABLE_C_FILES
-#  ${CMAKE_CURRENT_SOURCE_DIR}/source/)
 
 #///////////////////////////////////////////////////////////////////#
 #                             LIBRARIES                             #
@@ -150,13 +152,13 @@ message(STATUS "Add acr library (static)"
 #                            EXECUTABLE                             #
 #///////////////////////////////////////////////////////////////////#
 
-#add_executable(acr_exe ${ACR_EXECUTABLE_C_FILES})
-#set_target_properties(clan_exe PROPERTIES OUTPUT_NAME "clan")
-#if(USING_OSL_GIT)
-#  target_link_libraries(clan_exe clan osl)
-#else()
-#  target_link_libraries(clan_exe clan ${OSL_LIBRARIES})
-#endif()
+add_executable(acr_exe ${ACR_EXECUTABLE_C_FILES})
+set_target_properties(acr_exe PROPERTIES OUTPUT_NAME "acr")
+if(USING_OSL_GIT)
+  target_link_libraries(acr_exe acr clan osl)
+else()
+  target_link_libraries(acr_exe acr ${CLAN_LIBRARIES} ${OSL_LIBRARIES})
+endif()
 
 #///////////////////////////////////////////////////////////////////#
 #                           DOCUMENTATION                           #

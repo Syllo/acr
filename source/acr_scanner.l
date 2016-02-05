@@ -39,19 +39,40 @@ WS  [ \t\v\n\f]
 #include <stdbool.h>
 #include <stdio.h>
 
-extern void yyerror(const char *);  /* prints grammar violation message */
+#include "acr/utils.h"
 
-static void comment(void);
+extern char* current_file; // placeholder
+
+extern void yyerror(const char *);  /* prints grammar violation message */
 
 extern bool parsing_pragma_acr;
 
 static int acr_token_filter(int token);
+static void comment(void);
+static int pragma_option_to_token(void);
+void scanner_clean_untill_char(char delimiter);
+
+size_t position_in_file;
+size_t position_of_last_starting_row;
+size_t position_scanning_row;
+size_t position_scanning_column;
+size_t position_start_current_token;
+size_t last_token_size;
+static parsing_pragma_acr_name;
 
 %}
 
 %%
-"/*"                { comment(); }
-"//".*              { /* consume //-comment */ }
+"/*"              {
+                    comment();
+                  }
+"//".*            {
+                    /* consume //-comment */
+                    for (size_t i = 0; yytext[i] != '\0'; ++i) {
+                      ++position_in_file;
+                      ++position_scanning_column;
+                    }
+                  }
 
  /*
 "auto"           { return acr_token_filter(AUTO); }
@@ -101,9 +122,22 @@ static int acr_token_filter(int token);
 "__func__"       { return acr_token_filter(FUNC_NAME); }
 */
 
-"#pragma"[ ]+"acr" { parsing_pragma_acr = true; return PRAGMA_ACR; }
+"#pragma"[ ]+"acr"  {
+                      parsing_pragma_acr = true;
+                      parsing_pragma_acr_name = true;
+                      return acr_token_filter(PRAGMA_ACR);
+                    }
 
-{L}{A}*          { return acr_token_filter(IDENTIFIER); }
+
+
+{L}{A}*           {
+                    yylval.identifier = yytext;
+                    if (parsing_pragma_acr_name == true) {
+                      parsing_pragma_acr_name = false;
+                      return acr_token_filter(pragma_option_to_token());
+                    }
+                    return acr_token_filter(IDENTIFIER);
+                  }
 
 {HP}{H}+{IS}?               { return acr_token_filter(I_CONSTANT); }
 {NZ}{D}*{IS}?               { return acr_token_filter(I_CONSTANT); }
@@ -117,7 +151,9 @@ static int acr_token_filter(int token);
 {HP}{H}*"."{H}+{P}{FS}? { return acr_token_filter(F_CONSTANT); }
 {HP}{H}+"."{P}{FS}?     { return acr_token_filter(F_CONSTANT); }
 
-({SP}?\"([^"\\\n]|{ES})*\"{WS}*)+ { return STRING_LITERAL; }
+({SP}?\"([^"\\\n]|{ES})*\"{WS}*)+ {
+                                    return acr_token_filter(STRING_LITERAL);
+                                  }
 
 "..."       { return acr_token_filter(ELLIPSIS); }
 ">>="       { return acr_token_filter(RIGHT_ASSIGN); }
@@ -166,8 +202,25 @@ static int acr_token_filter(int token);
 "|"         { return acr_token_filter('|'); }
 "?"         { return acr_token_filter('?'); }
 
-{WS}+     { /* whitespace separates tokens */ }
-.         { /* discard bad characters */ }
+{WS}+     {
+            /* whitespace separates tokens */
+            for(size_t i = 0; yytext[i] != '\0'; ++i) {
+              ++position_in_file;
+              if (yytext[i] == '\n') {
+                position_of_last_starting_row = position_in_file;
+                ++position_scanning_row;
+                position_scanning_column = 0;
+              }
+              else
+                ++position_scanning_column;
+            }
+          }
+
+.         {
+            /* discard bad characters */
+            ++position_scanning_column;
+            ++position_in_file;
+          }
 
 %%
 
@@ -175,23 +228,127 @@ int yywrap(void) {    /* called at end of input */
   return 1;           /* terminate now */
 }
 
+static void update_scanner_positions(void) {
+  last_token_size = 0;
+  position_start_current_token = position_scanning_column;
+  position_scanning_column += yyleng;
+  position_in_file += yyleng;
+  last_token_size = yyleng;
+}
+
 int acr_token_filter(int token) {
+  update_scanner_positions();
   return parsing_pragma_acr ? token : IGNORE;
+}
+
+static void comment_error(size_t position_row_start_of_string,
+                          size_t row_start_of_string) {
+  position_of_last_starting_row = position_row_start_of_string;
+  position_scanning_column      = position_start_current_token + 1;
+  position_scanning_row         = row_start_of_string;
+  last_token_size = 1;
+  fprintf(stderr, "[ACR] Error: Unterminated string\n");
+  yyterminate();
 }
 
 static void comment(void) {
   int c;
+  size_t start_of_row            = position_of_last_starting_row;
+  size_t comment_starting_row    = position_scanning_row;
 
-  while ((c = input()) != 0)
+  position_start_current_token = position_scanning_column;
+  position_in_file += 2;
+  position_scanning_column += 2;
+
+
+  while ((c = input()) != EOF) {
+    ++position_in_file;
+
+    if (c == '\n') {
+      position_of_last_starting_row = position_in_file;
+      ++position_scanning_row;
+      position_scanning_column = 0;
+      continue;
+    }
+
+    ++position_scanning_column;
+
     if (c == '*') {
-      while ((c = input()) == '*')
-        ;
+      while ((c = input()) == '*') {
+        ++position_in_file;
+        ++position_scanning_column;
+      }
 
-      if (c == '/')
+      ++position_in_file;
+
+      if (c == '/') {
+        ++position_scanning_column;
         return;
+      }
 
-      if (c == 0)
+      if (c == '\n') {
+        position_of_last_starting_row = position_in_file;
+        ++position_scanning_row;
+        position_scanning_column = 0;
+        continue;
+      }
+
+      if (c == EOF)
         break;
     }
-  yyerror("unterminated comment");
+  }
+  comment_error(start_of_row, comment_starting_row);
+}
+
+static int pragma_option_to_token(void) {
+  if (strcmp(yytext, "alternative") == 0)
+    return ACR_ALTERNATIVE;
+  if (strcmp(yytext, "destroy") == 0)
+    return ACR_DESTROY;
+  if (strcmp(yytext, "grid") == 0)
+    return ACR_GRID;
+  if (strcmp(yytext, "init") == 0)
+    return ACR_INIT;
+  if (strcmp(yytext, "monitor") == 0)
+    return ACR_MONITOR;
+  if (strcmp(yytext, "strategy") == 0)
+    return ACR_STRATEGY;
+  return ACR_UNKNOWN;
+}
+
+void scanner_clean_untill_char(char delimiter) {
+  int c;
+
+  if (delimiter == '\n') {
+    while((c = input()) != EOF && c != '\n') {
+      ++position_in_file;
+      ++position_scanning_column;
+    }
+  } else {
+    while((c = input()) != EOF && c != delimiter) {
+      ++position_in_file;
+      if(c == '\n') {
+        position_of_last_starting_row = position_in_file;
+        ++position_scanning_row;
+        position_scanning_column = 0;
+      } else {
+        ++position_scanning_column;
+      }
+    }
+  }
+}
+
+int main() {
+  position_in_file = 0;
+  position_of_last_starting_row = 0;
+  position_scanning_row = 0;
+  position_scanning_column = 0;
+  position_start_current_token = 0;
+  last_token_size = 0;
+  parsing_pragma_acr_name = false;
+  printf("opening %s\n", current_file);
+  yyin = fopen(current_file, "r");
+  if (yyin == NULL)
+    printf("WTF NULL\n");
+  return yyparse();
 }

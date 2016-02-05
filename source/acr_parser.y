@@ -19,18 +19,34 @@
 %{
 
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 
-#include "acr/pragma_struct.h"
 
+#include "acr/pragma_struct.h"
+#include "acr/utils.h"
+
+const char* current_file = "test.c"; //placeholder
+
+extern void scanner_clean_until_char(char delimiter);
 void yyerror(const char *);  /* prints grammar violation message */
 int yylex(void);
 
 bool parsing_pragma_acr;
+extern size_t position_in_file;
+extern size_t position_of_last_starting_row;
+extern size_t position_scanning_row;
+extern size_t position_scanning_column;
+extern size_t position_start_current_token;
+extern size_t last_token_size;
 
 %}
 
-%token  IDENTIFIER I_CONSTANT F_CONSTANT STRING_LITERAL FUNC_NAME SIZEOF
+%union {
+  char* identifier;
+}
+
+%token  I_CONSTANT F_CONSTANT STRING_LITERAL FUNC_NAME SIZEOF
 %token  PTR_OP INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP
 %token  AND_OP OR_OP MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN
 %token  SUB_ASSIGN LEFT_ASSIGN RIGHT_ASSIGN AND_ASSIGN
@@ -50,20 +66,26 @@ bool parsing_pragma_acr;
 %token IGNORE
 %token PRAGMA_ACR
 %token ACR_INIT ACR_DESTROY ACR_STRATEGY ACR_ALTERNATIVE ACR_MONITOR ACR_GRID
-%token ACR_PARAMETER ACR_FUNCTION
+%token ACR_PARAMETER ACR_FUNCTION ACR_UNKNOWN
 %token ACR_MIN ACR_MAX ACR_DIRECT ACR_RANGE
+
+%token <identifier> IDENTIFIER
 
 %start acr_start
 
 %%
 
 acr_start
-  : IGNORE {  }
+  : IGNORE
+    {
+    }
   | PRAGMA_ACR acr_option
     {
       parsing_pragma_acr = false;
     }
-  | acr_start IGNORE {  }
+  | acr_start IGNORE
+    {
+    }
   | acr_start PRAGMA_ACR acr_option
     {
       parsing_pragma_acr = false;
@@ -71,17 +93,63 @@ acr_start
   ;
 
 acr_option
-  : ACR_ALTERNATIVE acr_alternative_options
+  : ACR_ALTERNATIVE
+    {
+    }
+    acr_alternative_options
+    {
+      acr_print_debug(stdout, "Rule accepted acr_option alternative");
+    }
   | ACR_DESTROY
-  | ACR_GRID '(' I_CONSTANT ')'
+    {
+      acr_print_debug(stdout, "Rule accepted acr_option destroy");
+    }
+  | ACR_GRID acr_grid_option
+    {
+      acr_print_debug(stdout, "Rule accepted acr_option grid");
+    }
   | ACR_INIT acr_init_option
+    {
+      acr_print_debug(stdout, "Rule accepted acr_option init");
+    }
   | ACR_MONITOR acr_monitor_options
+    {
+      acr_print_debug(stdout, "Rule accepted acr_option monitor");
+    }
   | ACR_STRATEGY acr_strategy_options
+    {
+      acr_print_debug(stdout, "Rule accepted acr_option strategy");
+    }
+  | error
+    {
+      fprintf(stderr, "WTF\n");
+      yyerrok;
+    }
   ;
 
 acr_alternative_options
   : IDENTIFIER '(' ACR_PARAMETER ',' acr_alternative_parameter_swap ')'
   | IDENTIFIER '(' ACR_FUNCTION ',' acr_alternative_function_swap ')'
+  | error '(' ACR_PARAMETER ',' acr_alternative_parameter_swap ')'
+    {
+      fprintf(stderr,
+        "[ACR] Hint: give a name to your alternative construct.\n");
+      yyerrok;
+    }
+  | error '(' ACR_FUNCTION ',' acr_alternative_function_swap ')'
+    {
+      fprintf(stderr,
+        "[ACR] Hint: give a name to your alternative construct.\n");
+      yyerrok;
+    }
+  | error
+    {
+      fprintf(stderr, "[ACR] Hint: did you forget the name or a parameter"
+      " in the alternative construct?\n");
+      scanner_clean_untill_char('\n');
+      yyclearin;
+      yyerrok;
+    }
   ;
 
 acr_alternative_parameter_swap
@@ -92,11 +160,21 @@ acr_alternative_function_swap
   : IDENTIFIER '=' IDENTIFIER
   ;
 
+acr_grid_option
+  : '(' I_CONSTANT ')'
+  | '(' error ')'
+    {
+      fprintf(stderr, "[ACR] Hint: ACR grid takes an integer\n");
+      yyerrok;
+    }
+  ;
+
 acr_init_option
   : IDENTIFIER
     { /* test si void */
-      if (strcmp(yylval, "void") != 0) {
-        yyerror("Error: acr init fonction must return void\n");
+      if (strcmp($1, "void") != 0) {
+        yyerror("ACR init fonction must return void\n");
+        YYERROR;
       }
     }
     IDENTIFIER '(' parameter_declaration_list ')'
@@ -158,6 +236,40 @@ constant
 
 void yyerror(const char *s)
 {
+  FILE* file;
+  char row_buffer[100]; // most rows should be less than that
+
   fflush(stdout);
-  fprintf(stderr, "*** %s\n", s);
+  fprintf(stderr, "[ACR] Error: %s\n", s);
+  fprintf(stderr, "[ACR] Error occured at line %zu column %zu\n",
+      position_scanning_row + 1,
+      position_scanning_column + 1 - last_token_size);
+
+  file = fopen(current_file, "r");
+  fseek(file, position_of_last_starting_row, SEEK_SET);
+
+  unsigned int i = 101;
+  do {
+    if (i == 101) {
+      fscanf(file, "%100c", row_buffer);
+      i = 1;
+    }
+    else
+      ++i;
+
+    fprintf(stderr, "%c", row_buffer[i - 1]);
+  } while (row_buffer[i] != '\0' && row_buffer[i] != '\n');
+
+  fprintf(stderr, "\n");
+
+  for (unsigned int j = 0; j < position_start_current_token; ++j) {
+    fprintf(stderr, "%c", ' ');
+  }
+
+  fprintf(stderr, "%c", '^');
+
+  for (unsigned int j = 0; j < last_token_size - 1; ++j) {
+    fprintf(stderr, "%c", '~');
+  }
+  fprintf(stderr, "\n");
 }
