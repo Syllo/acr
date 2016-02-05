@@ -154,14 +154,23 @@ acr_alternative_options
 
 acr_alternative_parameter_swap
   : IDENTIFIER '=' I_CONSTANT
+    {
+    }
+  | IDENTIFIER '=' error
+    {
+    }
   ;
 
 acr_alternative_function_swap
   : IDENTIFIER '=' IDENTIFIER
+    {
+    }
   ;
 
 acr_grid_option
   : '(' I_CONSTANT ')'
+    {
+    }
   | '(' error ')'
     {
       fprintf(stderr, "[ACR] Hint: ACR grid takes an integer\n");
@@ -178,55 +187,97 @@ acr_init_option
       }
     }
     IDENTIFIER '(' parameter_declaration_list ')'
+    {
+    }
   ;
 
 parameter_declaration_list
   : parameter_declaration
+    {
+    }
   | parameter_declaration_list ',' parameter_declaration
+    {
+    }
   ;
 
 parameter_declaration
   : parameter_declaration IDENTIFIER pointer
+    {
+    }
   | parameter_declaration IDENTIFIER
+    {
+    }
   | IDENTIFIER pointer
+    {
+    }
   | IDENTIFIER
+    {
+    }
   ;
 
 pointer
   : '*'
+    {
+    }
   | pointer '*'
+    {
+    }
   ;
 
 acr_monitor_options
   : '(' acr_monitor_data_monitored ',' acr_monitor_processing_function ')'
+    {
+    }
   | '(' acr_monitor_data_monitored ',' acr_monitor_processing_function ',' acr_monitor_filter ')'
+    {
+    }
   ;
 acr_monitor_data_monitored
   : parameter_declaration array_dimensions
+    {
+    }
   ;
 
 array_dimensions
   : array_dimensions '[' I_CONSTANT ']'
+    {
+    }
   | '[' I_CONSTANT ']'
+    {
+    }
   ;
 
 acr_monitor_filter
   : IDENTIFIER
+    {
+    }
   ;
 
 acr_monitor_processing_function
   : ACR_MIN
+    {
+    }
   | ACR_MAX
+    {
+    }
   ;
 
 acr_strategy_options
   : ACR_DIRECT '(' constant ',' IDENTIFIER ')'
+    {
+    }
   | ACR_RANGE '(' constant ',' constant ',' IDENTIFIER ')'
+    {
+    }
   ;
 
 constant
   : I_CONSTANT
+    {
+    }
   | F_CONSTANT
+    {
+    }
   ;
 
 

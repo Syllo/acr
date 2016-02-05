@@ -248,7 +248,6 @@ static void comment_error(size_t position_row_start_of_string,
   position_scanning_row         = row_start_of_string;
   last_token_size = 1;
   fprintf(stderr, "[ACR] Error: Unterminated string\n");
-  yyterminate();
 }
 
 static void comment(void) {
