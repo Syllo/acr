@@ -49,7 +49,6 @@ typedef struct acr_grid {
 typedef struct acr_parameter_specifier {
   unsigned int pointer_depth;
   char* specifier;
-  bool is_pointer;
 } acr_parameter_specifier;
 
 typedef struct acr_parameter_declaration {
@@ -247,14 +246,13 @@ acr_parameter_specifier* acr_new_parameter_specifier_list(
     unsigned int list_size);
 
 void acr_set_parameter_specifier(const char* specifier_name,
-                                 bool is_pointer,
                                  unsigned int pointer_depth,
                                  acr_parameter_specifier* specifier);
 
 static inline bool acr_parameter_specifier_is_pointer(
     const acr_parameter_specifier* specifier,
     unsigned int position_in_list) {
-  return specifier[position_in_list].is_pointer;
+  return specifier[position_in_list].pointer_depth > 0;
 }
 
 static inline unsigned int acr_parameter_specifier_get_pointer_depth(
@@ -269,7 +267,7 @@ static inline char* acr_parameter_specifier_get_specifier(
   return specifier[position_in_list].specifier;
 }
 
-acr_option new_acr_monitor(
+acr_option acr_new_monitor(
     const struct acr_array_declaration* array_declaration,
     enum acr_monitor_processing_funtion processing_function,
     const char* filter_name);

@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef __ACR_SCANNER_UTILS_H
-#define __ACR_SCANNER_UTILS_H
+#ifndef __ACR_PARSER_UTILS_H
+#define __ACR_PARSER_UTILS_H
 
 #include "acr/pragma_struct.h"
 
@@ -68,4 +68,54 @@ static const struct acr_pragma_parser_name_error_utils
                                         " range construct?\n"},
   };
 
-#endif // __ACR_SCANNER_UTILS_H
+struct parameter_declaration {
+  struct parameter_declaration* next;
+  struct parameter_declaration* previous;
+  char* name;
+  unsigned int pointer_depth;
+};
+
+struct parameter_declaration_list {
+  struct parameter_declaration* declaration;
+  struct parameter_declaration_list* next;
+  struct parameter_declaration_list* previous;
+};
+
+struct parameter_declaration* add_param_declaration(
+    struct parameter_declaration* current, char* name,
+    unsigned int pointer_depth);
+
+struct parameter_declaration_list* add_declaration_to_list(
+    struct parameter_declaration_list* current,
+    struct parameter_declaration* declaration);
+
+unsigned int translate_and_free_param_declaration_list(
+    struct parameter_declaration_list* list,
+    acr_parameter_declaration** list_to_initialize);
+
+unsigned int get_name_and_specifiers_and_free_parameter_declaration(
+    struct parameter_declaration* declaration,
+    char** parameter_name,
+    acr_parameter_specifier** specifier_list);
+
+static inline void free_param_declarations(struct parameter_declaration* dec) {
+  while(dec && dec->next) {
+    dec = dec->next;
+    free(dec->previous->name);
+    free(dec->previous);
+  }
+  free(dec->name);
+  free(dec);
+}
+
+static inline void free_param_decl_list(struct parameter_declaration_list* dec) {
+  while(dec && dec->next) {
+    dec = dec->next;
+    free_param_declarations(dec->previous->declaration);
+    free(dec->previous);
+  }
+  free_param_declarations(dec->declaration);
+  free(dec);
+}
+
+#endif // __ACR_PARSER_UTILS_H

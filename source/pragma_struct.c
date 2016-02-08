@@ -111,11 +111,9 @@ acr_parameter_specifier* acr_new_parameter_specifier_list(
 }
 
 void acr_set_parameter_specifier(const char* specifier_name,
-                                 bool is_pointer,
                                  unsigned int pointer_depth,
                                  acr_parameter_specifier* specifier) {
   specifier->specifier = acr_strdup(specifier_name);
-  specifier->is_pointer = is_pointer;
   specifier->pointer_depth = pointer_depth;
 }
 

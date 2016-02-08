@@ -19,8 +19,8 @@
 #ifndef __ACR_SCANNER_UTILS_H
 #define __ACR_SCANNER_UTILS_H
 
-#include "acr_parser.h"
 #include "acr/pragma_struct.h"
+#include "acr_parser.h"
 
 struct acr_pragma_options_utils {
   const char* name;

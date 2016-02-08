@@ -22,9 +22,8 @@
 #include <stdio.h>
 #include <string.h>
 
-
-#include "acr/pragma_struct.h"
 #include "acr/parser_utils.h"
+#include "acr/pragma_struct.h"
 #include "acr/utils.h"
 
 const char* current_file = "test.c"; //placeholder
@@ -47,9 +46,25 @@ extern size_t last_pragma_start_line;
 
 %union {
   char* identifier;
+  union {
+    int integer;
+    float floating_point;
+    unsigned uinteger;
+  } constant_value;
+  acr_option option;
+  struct {
+    char* param;
+    int val;
+  } alternative_parameter;
+  struct {
+    char* function_to_swap;
+    char* replacement_function;
+  } alternative_function;
+  struct parameter_declaration* parameter_decl;
+  struct parameter_declaration_list* parameter_decl_list;
 }
 
-%token  I_CONSTANT F_CONSTANT STRING_LITERAL FUNC_NAME SIZEOF
+%token  STRING_LITERAL FUNC_NAME SIZEOF
 %token  PTR_OP INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP
 %token  AND_OP OR_OP MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN
 %token  SUB_ASSIGN LEFT_ASSIGN RIGHT_ASSIGN AND_ASSIGN
@@ -73,6 +88,24 @@ extern size_t last_pragma_start_line;
 %token ACR_MIN ACR_MAX
 
 %token <identifier> IDENTIFIER
+%token <constant_value> I_CONSTANT F_CONSTANT
+
+%type <constant_value> constant pointer
+%type <option> acr_alternative_options acr_option
+%type <option> acr_strategy_options acr_monitor_options acr_init_option
+%type <alternative_parameter> acr_alternative_parameter_swap
+%type <alternative_function> acr_alternative_function_swap
+%type <parameter_decl> parameter_declaration
+%type <parameter_decl_list> parameter_declaration_list
+
+%destructor { acr_free_option(&$$); } <option>
+%destructor { free(&$$); } IDENTIFIER
+%destructor { free($$.param); } <alternative_parameter>
+%destructor {
+              free($$.function_to_swap); free($$.replacement_function);
+            } <alternative_function>
+%destructor { free_param_declarations($$); } <parameter_decl>
+%destructor { free_param_decl_list($$); } <parameter_decl_list>
 
 %start acr_start
 
@@ -85,6 +118,7 @@ acr_start
   | PRAGMA_ACR acr_option
     {
       parsing_pragma_acr = false;
+      free($2);
     }
   | acr_start IGNORE
     {
@@ -92,6 +126,7 @@ acr_start
   | acr_start PRAGMA_ACR acr_option
     {
       parsing_pragma_acr = false;
+      free($3);
     }
   | error
     {
@@ -103,13 +138,16 @@ acr_option
   : ACR_ALTERNATIVE acr_alternative_options
     {
       acr_print_debug(stdout, "Rule accepted acr_option alternative");
+      $$ = $2;
     }
   | ACR_DESTROY
     {
       acr_print_debug(stdout, "Rule accepted acr_option destroy");
+      $$ = acr_new_destroy(last_pragma_start_line);
     }
   | ACR_DESTROY error
     {
+      $$ = NULL;
       fprintf(stderr, "%s",
         acr_pragma_options_error_messages[acr_type_destroy]);
       scanner_clean_until_new_line();
@@ -120,9 +158,17 @@ acr_option
   | ACR_GRID '(' I_CONSTANT ')'
     {
       acr_print_debug(stdout, "Rule accepted acr_option grid");
+      if ($3.integer <= 0) {
+        fprintf(stderr, "[ACR] Error: the grid size must be positive\n");
+        error_print_last_pragma();
+        $$ = NULL;
+      } else {
+        $$ = acr_new_grid($3.integer);
+      }
     }
   | ACR_GRID error
     {
+      $$ = NULL;
       fprintf(stderr, "%s",
         acr_pragma_options_error_messages[acr_type_grid]);
       scanner_clean_until_new_line();
@@ -133,17 +179,21 @@ acr_option
   | ACR_INIT acr_init_option
     {
       acr_print_debug(stdout, "Rule accepted acr_option init");
+      $$ = $2;
     }
   | ACR_MONITOR acr_monitor_options
     {
       acr_print_debug(stdout, "Rule accepted acr_option monitor");
+      $$ = $2;
     }
   | ACR_STRATEGY acr_strategy_options
     {
       acr_print_debug(stdout, "Rule accepted acr_option strategy");
+      $$ = $2;
     }
   | error
     {
+      $$ = NULL;
       fprintf(stderr, "%s",
         acr_pragma_options_error_messages[acr_type_unknown]);
       scanner_clean_until_new_line();
@@ -160,9 +210,16 @@ acr_alternative_options
           acr_pragma_alternative_names[acr_alternative_parameter].name) != 0) {
           fprintf(stderr, "%s",
           acr_pragma_alternative_names[acr_alternative_parameter].error_message);
+          $$ = NULL;
+          free($1);
+          free($3);
+          free($5.param);
           YYERROR;
       } else {
-
+        $$ = acr_new_alternative_parameter($1, $5.param, $5.val);
+        free($1);
+        free($3);
+        free($5.param);
       }
     }
   | IDENTIFIER '(' IDENTIFIER ',' acr_alternative_function_swap ')'
@@ -171,14 +228,27 @@ acr_alternative_options
           acr_pragma_alternative_names[acr_alternative_function].name) != 0) {
           fprintf(stderr, "%s",
           acr_pragma_alternative_names[acr_alternative_function].error_message);
+          $$ = NULL;
+          free($1);
+          free($3);
+          free($5.function_to_swap);
+          free($5.replacement_function);
           YYERROR;
       } else {
-
+        $$ = acr_new_alternative_function($1, $5.function_to_swap,
+            $5.replacement_function);
+        free($1);
+        free($3);
+        free($5.function_to_swap);
+        free($5.replacement_function);
       }
     }
 
   | error '(' IDENTIFIER ',' acr_alternative_parameter_swap ')'
     {
+      $$ = NULL;
+      free($3);
+      free($5.param);
       fprintf(stderr,
         "[ACR] Hint: give a name to your alternative construct.\n");
       error_print_last_pragma();
@@ -186,6 +256,10 @@ acr_alternative_options
     }
   | error '(' IDENTIFIER ',' acr_alternative_function_swap ')'
     {
+      $$ = NULL;
+      free($3);
+      free($5.function_to_swap);
+      free($5.replacement_function);
       fprintf(stderr,
         "[ACR] Hint: give a name to your alternative construct.\n");
       error_print_last_pragma();
@@ -193,18 +267,26 @@ acr_alternative_options
     }
   | IDENTIFIER '(' error ',' acr_alternative_parameter_swap ')'
     {
+      $$ = NULL;
+      free($1);
+      free($5.param);
       fprintf(stderr, "[ACR] Hint: did you mean to use \"parameter\"?\n");
       error_print_last_pragma();
       yyerrok;
     }
   | IDENTIFIER '(' error ',' acr_alternative_function_swap ')'
     {
+      $$ = NULL;
+      free($1);
+      free($5.function_to_swap);
+      free($5.replacement_function);
       fprintf(stderr, "[ACR] Hint: did you mean to use \"function\"?\n");
       error_print_last_pragma();
       yyerrok;
     }
   | error
     {
+      $$ = NULL;
       fprintf(stderr, "%s",
         acr_pragma_options_error_messages[acr_type_alternative]);
       scanner_clean_until_new_line();
@@ -217,12 +299,16 @@ acr_alternative_options
 acr_alternative_parameter_swap
   : IDENTIFIER '=' I_CONSTANT
     {
+      $$.param = $1;
+      $$.val = $3.integer;
     }
   ;
 
 acr_alternative_function_swap
   : IDENTIFIER '=' IDENTIFIER
     {
+      $$.function_to_swap = $1;
+      $$.replacement_function = $3;
     }
   ;
 
@@ -231,11 +317,18 @@ acr_init_option
     { /* test si void */
       if (strcmp($2, "void") != 0) {
         yyerror("ACR init fonction must return void\n");
+        free($2);
         YYERROR;
       }
     }
     IDENTIFIER '(' parameter_declaration_list ')' ')'
     {
+      if ($6) {
+
+      } else {
+        free($2);
+        free($4);
+      }
     }
   | error
     {
@@ -251,12 +344,15 @@ acr_init_option
 parameter_declaration_list
   : parameter_declaration
     {
+      $$ = add_declaration_to_list(NULL, $1);
     }
   | parameter_declaration_list ',' parameter_declaration
     {
+      $$ = add_declaration_to_list($1, $3);
     }
   | error
     {
+      $$ = NULL;
       fprintf(stderr, "[ACR] Hint: take a look at the init function"
       " declaration");
       error_print_last_pragma();
@@ -267,24 +363,30 @@ parameter_declaration_list
 parameter_declaration
   : parameter_declaration IDENTIFIER pointer
     {
+      $$ = add_param_declaration($1, $2, $3.uinteger);
     }
   | parameter_declaration IDENTIFIER
     {
+      $$ = add_param_declaration($1, $2, 0u);
     }
   | IDENTIFIER pointer
     {
+      $$ = add_param_declaration(NULL, $1, $2.uinteger);
     }
   | IDENTIFIER
     {
+      $$ = add_param_declaration(NULL, $1, 0u);
     }
   ;
 
 pointer
   : '*'
     {
+      $$.uinteger = 1;
     }
   | pointer '*'
     {
+      $$.uinteger = $1.uinteger + 1;
     }
   ;
 
