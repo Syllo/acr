@@ -34,7 +34,7 @@ WS  [ \t\n\v\f]
 
 %{
 
-#include "acr_parser.h"
+#include "acr/scanner_utils.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -308,19 +308,11 @@ static void comment(void) {
 }
 
 static int pragma_option_to_token(void) {
-  if (strcmp(yytext, "alternative") == 0)
-    return ACR_ALTERNATIVE;
-  if (strcmp(yytext, "destroy") == 0)
-    return ACR_DESTROY;
-  if (strcmp(yytext, "grid") == 0)
-    return ACR_GRID;
-  if (strcmp(yytext, "init") == 0)
-    return ACR_INIT;
-  if (strcmp(yytext, "monitor") == 0)
-    return ACR_MONITOR;
-  if (strcmp(yytext, "strategy") == 0)
-    return ACR_STRATEGY;
-  return ACR_UNKNOWN;
+  for(int i = acr_type_alternative; i < acr_type_unknown; ++i) {
+    if (strcmp(yytext, acr_pragma_options_name_list[i].name) == 0)
+      return acr_pragma_options_name_list[i].token_id;
+  }
+  return ACR_UNKNOWN; // parse error
 }
 
 void scanner_clean_until_new_line(void) {

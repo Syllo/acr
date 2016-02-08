@@ -23,8 +23,9 @@
 #include <stdlib.h>
 
 enum acr_alternative_type {
-  acr_alternative_parameter,
+  acr_alternative_parameter = 0,
   acr_alternative_function,
+  acr_alternative_unknown,
 };
 
 typedef struct acr_alternative {
@@ -73,8 +74,9 @@ struct acr_array_declaration {
 };
 
 enum acr_monitor_processing_funtion {
-  min,
-  max,
+  acr_monitor_function_min = 0,
+  acr_monitor_function_max,
+  acr_monitor_function_unknown,
 };
 
 typedef struct acr_monitor {
@@ -84,12 +86,13 @@ typedef struct acr_monitor {
 } acr_monitor;
 
 enum acr_strategy_type {
-  acr_strategy_direct,
+  acr_strategy_direct = 0,
   acr_strategy_range,
+  acr_strategy_unknown,
 };
 
 enum acr_strategy_value_type {
-  acr_strategy_integer,
+  acr_strategy_integer = 0,
   acr_strategy_floating_point,
 };
 
@@ -104,12 +107,13 @@ typedef struct acr_strategy {
 } acr_strategy;
 
 enum acr_type {
-  acr_type_alternative,
+  acr_type_alternative = 0,
   acr_type_destroy,
   acr_type_grid,
   acr_type_init,
   acr_type_monitor,
   acr_type_strategy,
+  acr_type_unknown,
 };
 
 typedef struct acr_option {

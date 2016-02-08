@@ -24,6 +24,7 @@
 
 
 #include "acr/pragma_struct.h"
+#include "acr/parser_utils.h"
 #include "acr/utils.h"
 
 const char* current_file = "test.c"; //placeholder
@@ -68,8 +69,8 @@ extern size_t last_pragma_start_line;
 %token IGNORE
 %token PRAGMA_ACR
 %token ACR_INIT ACR_DESTROY ACR_STRATEGY ACR_ALTERNATIVE ACR_MONITOR ACR_GRID
-%token ACR_PARAMETER ACR_FUNCTION ACR_UNKNOWN
-%token ACR_MIN ACR_MAX ACR_DIRECT ACR_RANGE
+%token ACR_UNKNOWN
+%token ACR_MIN ACR_MAX
 
 %token <identifier> IDENTIFIER
 
@@ -92,7 +93,10 @@ acr_start
     {
       parsing_pragma_acr = false;
     }
-  | {  }
+  | error
+    {
+      fprintf(stderr, "Empty file\n");
+    }
   ;
 
 acr_option
@@ -104,14 +108,27 @@ acr_option
     {
       acr_print_debug(stdout, "Rule accepted acr_option destroy");
     }
+  | ACR_DESTROY error
+    {
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_destroy]);
+      scanner_clean_until_new_line();
+      error_print_last_pragma();
+      yyclearin;
+      yyerrok;
+    }
   | ACR_GRID '(' I_CONSTANT ')'
     {
       acr_print_debug(stdout, "Rule accepted acr_option grid");
     }
-  | ACR_GRID '(' error ')'
+  | ACR_GRID error
     {
-      fprintf(stderr, "[ACR] Hint: define the grid using an integer\n");
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_grid]);
+      scanner_clean_until_new_line();
       error_print_last_pragma();
+      yyclearin;
+      yyerrok;
     }
   | ACR_INIT acr_init_option
     {
@@ -127,35 +144,69 @@ acr_option
     }
   | error
     {
-      fprintf(stderr, "[ACR] Warning: unrecognized pragma\n");
-      error_print_last_pragma();
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_unknown]);
       scanner_clean_until_new_line();
+      error_print_last_pragma();
       yyclearin;
       yyerrok;
     }
   ;
 
 acr_alternative_options
-  : IDENTIFIER '(' ACR_PARAMETER ',' acr_alternative_parameter_swap ')'
-  | IDENTIFIER '(' ACR_FUNCTION ',' acr_alternative_function_swap ')'
-  | error '(' ACR_PARAMETER ',' acr_alternative_parameter_swap ')'
+  : IDENTIFIER '(' IDENTIFIER ',' acr_alternative_parameter_swap ')'
+    {
+      if (strcmp($1,
+          acr_pragma_alternative_names[acr_alternative_parameter].name) != 0) {
+          fprintf(stderr, "%s",
+          acr_pragma_alternative_names[acr_alternative_parameter].error_message);
+          YYERROR;
+      } else {
+
+      }
+    }
+  | IDENTIFIER '(' IDENTIFIER ',' acr_alternative_function_swap ')'
+    {
+      if (strcmp($1,
+          acr_pragma_alternative_names[acr_alternative_function].name) != 0) {
+          fprintf(stderr, "%s",
+          acr_pragma_alternative_names[acr_alternative_function].error_message);
+          YYERROR;
+      } else {
+
+      }
+    }
+
+  | error '(' IDENTIFIER ',' acr_alternative_parameter_swap ')'
     {
       fprintf(stderr,
         "[ACR] Hint: give a name to your alternative construct.\n");
       error_print_last_pragma();
       yyerrok;
     }
-  | error '(' ACR_FUNCTION ',' acr_alternative_function_swap ')'
+  | error '(' IDENTIFIER ',' acr_alternative_function_swap ')'
     {
       fprintf(stderr,
         "[ACR] Hint: give a name to your alternative construct.\n");
+      error_print_last_pragma();
+      yyerrok;
+    }
+  | IDENTIFIER '(' error ',' acr_alternative_parameter_swap ')'
+    {
+      fprintf(stderr, "[ACR] Hint: did you mean to use \"parameter\"?\n");
+      error_print_last_pragma();
+      yyerrok;
+    }
+  | IDENTIFIER '(' error ',' acr_alternative_function_swap ')'
+    {
+      fprintf(stderr, "[ACR] Hint: did you mean to use \"function\"?\n");
       error_print_last_pragma();
       yyerrok;
     }
   | error
     {
-      fprintf(stderr, "[ACR] Hint: did you forget the name or a parameter"
-      " in the alternative construct?\n");
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_alternative]);
       scanner_clean_until_new_line();
       error_print_last_pragma();
       yyclearin;
@@ -167,11 +218,6 @@ acr_alternative_parameter_swap
   : IDENTIFIER '=' I_CONSTANT
     {
     }
-  | IDENTIFIER '=' error
-    {
-      fprintf(stderr, "[ACR] Hint: parameter swap needs an integer");
-      yyerrok;
-    }
   ;
 
 acr_alternative_function_swap
@@ -181,15 +227,24 @@ acr_alternative_function_swap
   ;
 
 acr_init_option
-  : IDENTIFIER
+  : '(' IDENTIFIER
     { /* test si void */
-      if (strcmp($1, "void") != 0) {
+      if (strcmp($2, "void") != 0) {
         yyerror("ACR init fonction must return void\n");
         YYERROR;
       }
     }
-    IDENTIFIER '(' parameter_declaration_list ')'
+    IDENTIFIER '(' parameter_declaration_list ')' ')'
     {
+    }
+  | error
+    {
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_init]);
+      scanner_clean_until_new_line();
+      error_print_last_pragma();
+      yyclearin;
+      yyerrok;
     }
   ;
 
@@ -199,6 +254,13 @@ parameter_declaration_list
     }
   | parameter_declaration_list ',' parameter_declaration
     {
+    }
+  | error
+    {
+      fprintf(stderr, "[ACR] Hint: take a look at the init function"
+      " declaration");
+      error_print_last_pragma();
+      yyerrok;
     }
   ;
 
@@ -233,6 +295,15 @@ acr_monitor_options
   | '(' acr_monitor_data_monitored ',' acr_monitor_processing_function ',' acr_monitor_filter ')'
     {
     }
+  | error
+    {
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_monitor]);
+      scanner_clean_until_new_line();
+      error_print_last_pragma();
+      yyclearin;
+      yyerrok;
+    }
   ;
 acr_monitor_data_monitored
   : parameter_declaration array_dimensions
@@ -247,6 +318,18 @@ array_dimensions
   | '[' I_CONSTANT ']'
     {
     }
+  | array_dimensions '[' error ']'
+    {
+      fprintf(stderr, "[ACR] Hint: declare the array dimensions with integers\n");
+      error_print_last_pragma();
+      yyerrok;
+    }
+  | '[' error ']'
+    {
+      fprintf(stderr, "[ACR] Hint: declare the array dimensions with integers\n");
+      error_print_last_pragma();
+      yyerrok;
+    }
   ;
 
 acr_monitor_filter
@@ -256,20 +339,43 @@ acr_monitor_filter
   ;
 
 acr_monitor_processing_function
-  : ACR_MIN
+  : IDENTIFIER
     {
-    }
-  | ACR_MAX
-    {
+      for(int i = acr_monitor_function_min; i < acr_monitor_function_unknown;
+      ++i) {
+        if (strcmp($1, acr_pragma_processing_functions[i]) == 0) {
+        }
+        else {
+          fprintf(stderr, "[ACR] Error: ACR monitor does not handle %s\n", $1);
+          YYERROR;
+        }
+      }
     }
   ;
 
 acr_strategy_options
-  : ACR_DIRECT '(' constant ',' IDENTIFIER ')'
+  : IDENTIFIER '(' constant ',' IDENTIFIER ')'
     {
+      if (strcmp($1, acr_pragma_strategy_names[acr_strategy_direct].name) != 0) {
+        fprintf(stderr, "%s",
+          acr_pragma_strategy_names[acr_strategy_direct].error_message);
+      }
     }
-  | ACR_RANGE '(' constant ',' constant ',' IDENTIFIER ')'
+  | IDENTIFIER '(' constant ',' constant ',' IDENTIFIER ')'
     {
+      if (strcmp($1, acr_pragma_strategy_names[acr_strategy_range].name) != 0) {
+        fprintf(stderr, "%s",
+          acr_pragma_strategy_names[acr_strategy_range].error_message);
+      }
+    }
+  | error
+    {
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_strategy]);
+      scanner_clean_until_new_line();
+      error_print_last_pragma();
+      yyclearin;
+      yyerrok;
     }
   ;
 
@@ -314,7 +420,7 @@ static void error_print_last_pragma(void) {
 void yyerror(const char *s)
 {
   FILE* file;
-  char row_buffer[100]; // most rows should be less than that
+  char row_buffer[100]; // Buffered read
 
   fflush(stdout);
   fprintf(stderr, "[ACR] Error: %s\n", s);
@@ -345,7 +451,8 @@ void yyerror(const char *s)
 
   fprintf(stderr, "%c", '^');
 
-  for (unsigned int j = 0; j < last_token_size - 1; ++j) {
+  unsigned int underline_size = last_token_size > 0 ? last_token_size - 1 : 0;
+  for (unsigned int j = 0; j < underline_size; ++j) {
     fprintf(stderr, "%c", '~');
   }
   fprintf(stderr, "\n");
