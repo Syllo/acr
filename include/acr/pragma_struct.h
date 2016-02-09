@@ -64,13 +64,13 @@ typedef struct acr_init {
   acr_parameter_declaration* parameters_list;
 } acr_init;
 
-struct acr_array_declaration {
+typedef struct acr_array_declaration {
   unsigned int num_specifiers;
   acr_parameter_specifier* parameter_specifiers_list;
   char* array_name;
   unsigned int num_dimensions;
   unsigned int* array_dimensions_list;
-};
+} acr_array_declaration;
 
 enum acr_monitor_processing_funtion {
   acr_monitor_function_min = 0,
@@ -79,7 +79,7 @@ enum acr_monitor_processing_funtion {
 };
 
 typedef struct acr_monitor {
-  struct acr_array_declaration data_monitored;
+  acr_array_declaration data_monitored;
   enum acr_monitor_processing_funtion processing_function;
   char* filter_name;
 } acr_monitor;
@@ -268,11 +268,11 @@ static inline char* acr_parameter_specifier_get_specifier(
 }
 
 acr_option acr_new_monitor(
-    const struct acr_array_declaration* array_declaration,
+    const acr_array_declaration* array_declaration,
     enum acr_monitor_processing_funtion processing_function,
     const char* filter_name);
 
-static inline struct acr_array_declaration* acr_monitor_get_array_declaration(
+static inline acr_array_declaration* acr_monitor_get_array_declaration(
     acr_option option) {
   return &option->options.monitor.data_monitored;
 }
@@ -282,12 +282,41 @@ static inline enum acr_monitor_processing_funtion acr_monitor_get_function(
   return option->options.monitor.processing_function;
 }
 
+static inline char* acr_monitor_get_filter_name(acr_option option) {
+  return option->options.monitor.filter_name;
+}
+
 void acr_set_array_declaration(unsigned int num_specifiers,
                                acr_parameter_specifier* parameters_list,
                                const char* array_name,
                                unsigned int num_dimensions,
                                unsigned int* array_dimensions,
-                               struct acr_array_declaration* array_declaration);
+                               acr_array_declaration* array_declaration);
+
+static inline unsigned int acr_array_decl_get_num_specifiers(
+    acr_array_declaration* declaration) {
+  return declaration->num_specifiers;
+}
+
+static inline acr_parameter_specifier* acr_array_decl_get_specifiers_list(
+    acr_array_declaration* declaration) {
+  return declaration->parameter_specifiers_list;
+}
+
+static inline char* acr_array_decl_get_array_name(
+    acr_array_declaration* declaration) {
+  return declaration->array_name;
+}
+
+static inline unsigned int acr_array_decl_get_num_dimensions(
+    acr_array_declaration* declaration) {
+  return declaration->num_dimensions;
+}
+
+static inline unsigned int* acr_array_decl_get_dimensions_array(
+    acr_array_declaration* declaration) {
+  return declaration->array_dimensions_list;
+}
 
 acr_option acr_new_strategy_direct_int(const char* strategy_name,
                                        int matching_value);

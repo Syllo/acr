@@ -129,6 +129,7 @@ list(APPEND ACR_LIBRARY_C_FILES
 
 list(APPEND ACR_EXECUTABLE_C_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/source/parser_utils.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/source/print.c
   ${FLEX_acr_scanner_OUTPUTS}
   ${BISON_acr_parser_OUTPUTS})
 
