@@ -21,7 +21,7 @@
 
 #include <stdio.h>
 
-#define acr_try_or_die(A,B) {if(!(A)){perror(B); exit(EXIT_FAILURE);}}
+#define acr_try_or_die(A,B) {if((A)){perror(B); exit(EXIT_FAILURE);}}
 
 #ifdef ACR_DEBUG
   #define acr_print_debug(A,B)  { fprintf(A, "%s\n", B); }

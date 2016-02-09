@@ -69,7 +69,7 @@ static const struct acr_pragma_parser_name_error_utils
   };
 
 struct array_dimensions {
-  unsigned int dimension;
+  unsigned long int dimension;
   struct array_dimensions* next;
   struct array_dimensions* previous;
 };
@@ -78,7 +78,7 @@ struct parameter_declaration {
   struct parameter_declaration* next;
   struct parameter_declaration* previous;
   char* name;
-  unsigned int pointer_depth;
+  unsigned long int pointer_depth;
 };
 
 struct parameter_declaration_list {
@@ -89,17 +89,17 @@ struct parameter_declaration_list {
 
 struct parameter_declaration* add_param_declaration(
     struct parameter_declaration* current, char* name,
-    unsigned int pointer_depth);
+    unsigned long int pointer_depth);
 
 struct parameter_declaration_list* add_declaration_to_list(
     struct parameter_declaration_list* current,
     struct parameter_declaration* declaration);
 
-unsigned int translate_and_free_param_declaration_list(
+unsigned long int translate_and_free_param_declaration_list(
     struct parameter_declaration_list* list,
     acr_parameter_declaration** list_to_initialize);
 
-unsigned int get_name_and_specifiers_and_free_parameter_declaration(
+unsigned long int get_name_and_specifiers_and_free_parameter_declaration(
     struct parameter_declaration* declaration,
     char** parameter_name,
     acr_parameter_specifier** specifier_list);
@@ -125,11 +125,11 @@ static inline void free_param_decl_list(struct parameter_declaration_list* dec) 
 }
 
 struct array_dimensions* add_dimension(struct array_dimensions* previous,
-    unsigned int dimension_size);
+    unsigned long int dimension_size);
 
-unsigned int get_size_and_dimensions_and_free(
+unsigned long int get_size_and_dimensions_and_free(
     struct array_dimensions* dimension,
-    unsigned int** dimension_list);
+    unsigned long int** dimension_list);
 
 static inline void free_dimensions(struct array_dimensions* dimension) {
   while(dimension && dimension->next) {

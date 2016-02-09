@@ -25,6 +25,7 @@
 #include "acr/parser_utils.h"
 #include "acr/pragma_struct.h"
 #include "acr/utils.h"
+#include "acr/print.h" // for debug
 
 const char* current_file = "test.c"; //placeholder
 
@@ -49,7 +50,7 @@ extern size_t last_pragma_start_line;
   struct {
     enum {integer_value, floating_point_value, uinteger_value} type;
     union {
-      int integer;
+      long int integer;
       float floating_point;
       unsigned uinteger;
     } value;
@@ -57,7 +58,7 @@ extern size_t last_pragma_start_line;
   acr_option option;
   struct {
     char* param;
-    int val;
+    long int val;
   } alternative_parameter;
   struct {
     char* function_to_swap;
@@ -108,15 +109,16 @@ extern size_t last_pragma_start_line;
 %type <array_dimensions> array_dimensions
 %type <monitor_processing_function> acr_monitor_processing_function
 
-%destructor { acr_free_option(&$$); } <option>
-%destructor { free(&$$); } IDENTIFIER
-%destructor { free($$.param); } <alternative_parameter>
+%destructor { acr_free_option($$); $$ = NULL;} <option>
+%destructor { free($$); $$ = NULL;} IDENTIFIER
+%destructor { free($$.param); $$.param = NULL;} <alternative_parameter>
 %destructor {
-              free($$.function_to_swap); free($$.replacement_function);
+              free($$.function_to_swap); $$.function_to_swap = NULL;
+              free($$.replacement_function); $$.replacement_function = NULL;
             } <alternative_function>
-%destructor { free_param_declarations($$); } <parameter_decl>
-%destructor { free_param_decl_list($$); } <parameter_decl_list>
-%destructor { free_dimensions($$); } <array_dimensions>
+%destructor { free_param_declarations($$); $$ = NULL;} <parameter_decl>
+%destructor { free_param_decl_list($$); $$ = NULL;} <parameter_decl_list>
+%destructor { free_dimensions($$); $$ = NULL;} <array_dimensions>
 
 %start acr_start
 
@@ -129,7 +131,10 @@ acr_start
   | PRAGMA_ACR acr_option
     {
       parsing_pragma_acr = false;
-      free($2);
+      if ($2) {
+        pprint_acr_option(stdout, $2);
+        acr_free_option($2);
+      }
     }
   | acr_start IGNORE
     {
@@ -137,7 +142,10 @@ acr_start
   | acr_start PRAGMA_ACR acr_option
     {
       parsing_pragma_acr = false;
-      free($3);
+      if ($3) {
+        pprint_acr_option(stdout, $3);
+        acr_free_option($3);
+      }
     }
   | error
     {
@@ -155,16 +163,6 @@ acr_option
     {
       acr_print_debug(stdout, "Rule accepted acr_option destroy");
       $$ = acr_new_destroy(last_pragma_start_line);
-    }
-  | ACR_DESTROY error
-    {
-      $$ = NULL;
-      fprintf(stderr, "%s",
-        acr_pragma_options_error_messages[acr_type_destroy]);
-      scanner_clean_until_new_line();
-      error_print_last_pragma();
-      yyclearin;
-      yyerrok;
     }
   | ACR_GRID '(' I_CONSTANT ')'
     {
@@ -336,7 +334,7 @@ acr_init_option
     {
       if ($6) {
         acr_parameter_declaration* parameter_list;
-        unsigned int num_parameters =
+        unsigned long int num_parameters =
             translate_and_free_param_declaration_list($6, &parameter_list);
         $$ = acr_new_init($4, last_pragma_start_line, num_parameters,
                           parameter_list);
@@ -531,7 +529,7 @@ acr_strategy_options
           bounds[1] = $5.value.floating_point;
         $$ = acr_new_strategy_range_float($7, bounds);
       } else {  // integer
-        int bounds[2];
+        long int bounds[2];
         bounds[0] = $3.value.integer;
         bounds[1] = $5.value.integer;
         $$ = acr_new_strategy_range_int($7, bounds);
@@ -605,7 +603,10 @@ void yyerror(const char *s)
   file = fopen(current_file, "r");
   fseek(file, position_of_last_starting_row, SEEK_SET);
 
-  unsigned int i = 101;
+  if(position_in_file == 0)
+    return;
+
+  size_t i = 101;
   do {
     if (i == 101) {
       fscanf(file, "%100c", row_buffer);
@@ -619,14 +620,14 @@ void yyerror(const char *s)
 
   fprintf(stderr, "\n");
 
-  for (unsigned int j = 0; j < position_start_current_token; ++j) {
+  for (size_t j = 0; j < position_start_current_token; ++j) {
     fprintf(stderr, "%c", ' ');
   }
 
   fprintf(stderr, "%c", '^');
 
-  unsigned int underline_size = last_token_size > 0 ? last_token_size - 1 : 0;
-  for (unsigned int j = 0; j < underline_size; ++j) {
+  size_t underline_size = last_token_size > 0 ? last_token_size - 1 : 0;
+  for (size_t j = 0; j < underline_size; ++j) {
     fprintf(stderr, "%c", '~');
   }
   fprintf(stderr, "\n");

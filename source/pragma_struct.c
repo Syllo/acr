@@ -40,7 +40,7 @@ acr_option acr_new_alternative_function(const char* alternative_name,
 
 acr_option acr_new_alternative_parameter(const char* alternative_name,
                                          const char* parameter_to_swap,
-                                         int replacement_value){
+                                         long int replacement_value){
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
@@ -53,7 +53,7 @@ acr_option acr_new_alternative_parameter(const char* alternative_name,
   return option;
 }
 
-acr_option acr_new_destroy(unsigned int pragma_row_position){
+acr_option acr_new_destroy(size_t pragma_row_position){
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
@@ -62,7 +62,7 @@ acr_option acr_new_destroy(unsigned int pragma_row_position){
   return option;
 }
 
-acr_option acr_new_grid(unsigned int grid_size){
+acr_option acr_new_grid(unsigned long int grid_size){
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
@@ -72,8 +72,8 @@ acr_option acr_new_grid(unsigned int grid_size){
 }
 
 acr_option acr_new_init(const char* function_name,
-                        unsigned int pragma_row_position,
-                        unsigned int num_parameters,
+                        size_t pragma_row_position,
+                        unsigned long int num_parameters,
                         acr_parameter_declaration* parameters_list) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
@@ -87,7 +87,7 @@ acr_option acr_new_init(const char* function_name,
 }
 
 acr_parameter_declaration* acr_new_parameter_declaration_list(
-    unsigned int list_size) {
+    unsigned long int list_size) {
   acr_parameter_declaration* list = malloc(list_size * sizeof(*list));
   acr_try_or_die(list == NULL, "Malloc");
   return list;
@@ -95,7 +95,7 @@ acr_parameter_declaration* acr_new_parameter_declaration_list(
 
 void acr_set_parameter_declaration(
     const char* parameter_name,
-    unsigned int num_specifiers,
+    unsigned long int num_specifiers,
     acr_parameter_specifier* specifier_list,
     acr_parameter_declaration* declaration_to_set) {
   declaration_to_set->parameter_specifiers_list = specifier_list;
@@ -104,14 +104,14 @@ void acr_set_parameter_declaration(
 }
 
 acr_parameter_specifier* acr_new_parameter_specifier_list(
-    unsigned int list_size) {
+    unsigned long int list_size) {
   acr_parameter_specifier* list = malloc(list_size * sizeof(*list));
   acr_try_or_die(list == NULL, "Malloc");
   return list;
 }
 
 void acr_set_parameter_specifier(const char* specifier_name,
-                                 unsigned int pointer_depth,
+                                 unsigned long int pointer_depth,
                                  acr_parameter_specifier* specifier) {
   specifier->specifier = acr_strdup(specifier_name);
   specifier->pointer_depth = pointer_depth;
@@ -132,11 +132,11 @@ acr_option acr_new_monitor(
   return option;
 }
 
-void acr_set_array_declaration(unsigned int num_specifiers,
+void acr_set_array_declaration(unsigned long int num_specifiers,
                                acr_parameter_specifier* parameters_list,
                                const char* array_name,
-                               unsigned int num_dimensions,
-                               unsigned int* array_dimensions,
+                               unsigned long int num_dimensions,
+                               unsigned long int* array_dimensions,
                                struct acr_array_declaration* array_declaration) {
   array_declaration->array_dimensions_list = array_dimensions;
   array_declaration->num_dimensions = num_dimensions;
@@ -146,7 +146,7 @@ void acr_set_array_declaration(unsigned int num_specifiers,
 }
 
 acr_option acr_new_strategy_direct_int(const char* strategy_name,
-                                       int matching_value) {
+                                       long int matching_value) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
@@ -159,7 +159,7 @@ acr_option acr_new_strategy_direct_int(const char* strategy_name,
 }
 
 acr_option acr_new_strategy_range_int(const char* strategy_name,
-                                      int matching_value[2]) {
+                                      long int matching_value[2]) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
@@ -199,9 +199,12 @@ acr_option acr_new_strategy_range_float(const char* strategy_name,
   return option;
 }
 
-acr_option_list acr_new_option_list(unsigned int size) {
+acr_option_list acr_new_option_list(unsigned long int size) {
   acr_option_list list = malloc(size * sizeof(*list));
   acr_try_or_die(list == NULL, "Malloc");
+  for (unsigned long int i = 0; i < size; ++i) {
+    acr_option_list_set_option(NULL, i, list);
+  }
   return list;
 }
 
@@ -212,17 +215,17 @@ static void acr_free_alternative(acr_alternative* alternative) {
   free(alternative->name_of_object_to_swap);
 }
 
-static void acr_free_parameter_specifier_list(unsigned int num_specifiers,
+static void acr_free_parameter_specifier_list(unsigned long int num_specifiers,
     acr_parameter_specifier* parameter_specifiers_list) {
-  for(unsigned int i = 0; i < num_specifiers; ++i) {
+  for(unsigned long int i = 0; i < num_specifiers; ++i) {
     free(parameter_specifiers_list[i].specifier);
   }
   free(parameter_specifiers_list);
 }
 
-static void acr_free_parameter_declaration_list(unsigned int num_parameters,
+static void acr_free_parameter_declaration_list(unsigned long int num_parameters,
     acr_parameter_declaration* parameter_list) {
-  for(unsigned int i = 0; i < num_parameters; ++i) {
+  for(unsigned long int i = 0; i < num_parameters; ++i) {
     free(parameter_list[i].parameter_name);
     acr_free_parameter_specifier_list(parameter_list[i].num_specifiers,
         parameter_list[i].parameter_specifiers_list);
@@ -253,8 +256,7 @@ static void acr_free_strategy(acr_strategy* strategy) {
   free(strategy->strategy_name);
 }
 
-void acr_free_option(acr_option* option) {
-  acr_option opt = *option;
+void acr_free_option(acr_option opt) {
   switch (opt->type) {
     case acr_type_alternative:
       acr_free_alternative(&opt->options.alternative);
@@ -276,5 +278,24 @@ void acr_free_option(acr_option* option) {
   }
 
   free(opt);
-  option = NULL;
+}
+
+void acr_free_option_list(acr_option_list option_list, unsigned long int size) {
+  for (unsigned long int i = 0; i < size; ++i) {
+    acr_free_option(acr_option_list_get_option(i, option_list));
+  }
+  free(option_list);
+}
+
+acr_compute_node acr_new_compute_node(unsigned long int list_size,
+    acr_option_list list) {
+  acr_compute_node node = malloc(sizeof(*node));
+  node->option_list = list;
+  node->list_size = list_size;
+  return node;
+}
+
+void acr_free_compute_node(acr_compute_node node) {
+  acr_free_option_list(node->option_list, node->list_size);
+  free(node);
 }

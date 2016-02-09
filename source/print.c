@@ -18,7 +18,15 @@
 
 #include "acr/print.h"
 
-void print_acr_option(FILE* out, acr_option option) {
+void pprint_acr_compute_node(FILE* out, acr_compute_node node) {
+  unsigned long int size_list = acr_compute_node_get_option_list_size(node);
+  acr_option_list list = acr_compute_node_get_option_list(node);
+  for (unsigned long int i = 0; i < size_list; ++i) {
+    pprint_acr_option(out, acr_option_list_get_option(i, list));
+  }
+}
+
+void pprint_acr_option(FILE* out, acr_option option) {
   switch (acr_get_type(option)) {
     case acr_type_alternative:
       pprint_acr_alternative(out, option);
@@ -50,7 +58,7 @@ void pprint_acr_alternative(FILE* out, acr_option option) {
   switch (acr_alternative_get_type(option)) {
     case acr_alternative_parameter:
       fprintf(out, "|   |---| Parameter\n");
-      fprintf(out, "|       | %s -> %d\n",
+      fprintf(out, "|       | %s -> %ld\n",
           acr_alternative_get_object_to_swap_name(option),
           acr_alternative_get_replacement_parameter(option));
       break;
@@ -68,19 +76,19 @@ void pprint_acr_alternative(FILE* out, acr_option option) {
 
 void pprint_acr_destroy(FILE* out, acr_option destroy) {
   fprintf(out, "|---| DESTROY\n");
-  fprintf(out, "|   |---| Position: %u\n", acr_destroy_get_row_position(destroy));
+  fprintf(out, "|   |---| Position: %lu\n", acr_destroy_get_row_position(destroy));
   fprintf(out, "|\n");
 }
 
 void pprint_acr_grid(FILE* out, acr_option grid) {
   fprintf(out, "|---| GRID\n");
-  fprintf(out, "|   |---| Grid size: %u\n", acr_grid_get_grid_size(grid));
+  fprintf(out, "|   |---| Grid size: %lu\n", acr_grid_get_grid_size(grid));
   fprintf(out, "|\n");
 }
 
 void pprint_acr_init(FILE* out, acr_option init) {
   fprintf(out, "|---| INIT\n");
-  fprintf(out, "|   |---| Position: %u\n", acr_init_get_pragma_row_position(init));
+  fprintf(out, "|   |---| Position: %lu\n", acr_init_get_pragma_row_position(init));
   fprintf(out, "|   |---| Function: void %s(",
       acr_init_get_function_name(init));
   pprint_acr_parameter_declaration_list(out, acr_init_get_num_parameters(init),
@@ -113,7 +121,7 @@ void pprint_acr_monitor(FILE* out, acr_option monitor) {
 }
 
 void pprint_acr_strategy(FILE* out, acr_option strategy) {
-  int strategy_val_integer[2];
+  long int strategy_val_integer[2];
   float strategy_val_floating_point[2];
   acr_strategy_populate_int_val(strategy, strategy_val_integer);
   acr_strategy_populate_float_val(strategy, strategy_val_floating_point);
@@ -125,7 +133,7 @@ void pprint_acr_strategy(FILE* out, acr_option strategy) {
           acr_strategy_get_name(strategy));
       switch (acr_strategy_get_value_type(strategy)) {
         case acr_strategy_integer:
-          fprintf(out, "%d\n", strategy_val_integer[0]);
+          fprintf(out, "%ld\n", strategy_val_integer[0]);
           break;
         case acr_strategy_floating_point:
           fprintf(out, "%f\n", strategy_val_floating_point[0]);
@@ -138,7 +146,7 @@ void pprint_acr_strategy(FILE* out, acr_option strategy) {
           acr_strategy_get_name(strategy));
       switch (acr_strategy_get_value_type(strategy)) {
         case acr_strategy_integer:
-          fprintf(out, "[%d , %d]\n", strategy_val_integer[0],
+          fprintf(out, "[%ld , %ld]\n", strategy_val_integer[0],
               strategy_val_integer[1]);
           break;
         case acr_strategy_floating_point:
@@ -154,10 +162,10 @@ void pprint_acr_strategy(FILE* out, acr_option strategy) {
 }
 
 void pprint_acr_parameter_declaration_list(FILE* out,
-                                      unsigned int num_declarations,
+                                      unsigned long int num_declarations,
                                   acr_parameter_declaration* declaration_list) {
   if (num_declarations > 0) {
-    for(unsigned int i = 0; i < num_declarations - 1; ++i) {
+    for(unsigned long int i = 0; i < num_declarations - 1; ++i) {
       pprint_acr_parameter_specifier_list(out,
           acr_parameter_declaration_get_num_specifiers(declaration_list, i),
           acr_parameter_declaration_get_specif_list(declaration_list, i));
@@ -176,13 +184,13 @@ void pprint_acr_parameter_declaration_list(FILE* out,
 }
 
 void pprint_acr_parameter_specifier_list(FILE* out,
-                                      unsigned int num_specifiers,
+                                      unsigned long int num_specifiers,
                                       acr_parameter_specifier* specifier_list) {
-  for(unsigned int i = 0; i < num_specifiers; ++i) {
+  for(unsigned long int i = 0; i < num_specifiers; ++i) {
     fprintf(out, "%s", acr_parameter_specifier_get_specifier(specifier_list, i));
-    unsigned int pointer_depth =
+    unsigned long int pointer_depth =
       acr_parameter_specifier_get_pointer_depth(specifier_list, i);
-    for(unsigned int j = 0; j < pointer_depth; ++j) {
+    for(unsigned long int j = 0; j < pointer_depth; ++j) {
       fprintf(out, "*");
     }
     fprintf(out, " ");
@@ -195,9 +203,9 @@ void pprint_acr_array_declaration(FILE* out,
       acr_array_decl_get_num_specifiers(declaration),
       acr_array_decl_get_specifiers_list(declaration));
   fprintf(out, " %s", acr_array_decl_get_array_name(declaration));
-  unsigned int num_dimensions = acr_array_decl_get_num_dimensions(declaration);
-  unsigned int* dimensions = acr_array_decl_get_dimensions_array(declaration);
-  for (unsigned int i = 0; i < num_dimensions; ++i) {
-    fprintf(out, "[%u]", dimensions[i]);
+  unsigned long int num_dimensions = acr_array_decl_get_num_dimensions(declaration);
+  unsigned long int* dimensions = acr_array_decl_get_dimensions_array(declaration);
+  for (unsigned long int i = 0; i < num_dimensions; ++i) {
+    fprintf(out, "[%lu]", dimensions[i]);
   }
 }

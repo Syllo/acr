@@ -131,7 +131,7 @@ static bool parsing_pragma_acr_name;
                     }
 
 {L}{A}*           {
-                    yylval.identifier = yytext;
+                    yylval.identifier = acr_strdup(yytext);
                     if (parsing_pragma_acr_name == true) {
                       parsing_pragma_acr_name = false;
                       return acr_token_filter(pragma_option_to_token());
@@ -139,10 +139,24 @@ static bool parsing_pragma_acr_name;
                     return acr_token_filter(IDENTIFIER);
                   }
 
-{HP}{H}+{IS}?               { return acr_token_filter(I_CONSTANT); }
-{NZ}{D}*{IS}?               { return acr_token_filter(I_CONSTANT); }
-"0"{O}*{IS}?                { return acr_token_filter(I_CONSTANT); }
-{CP}?"'"([^'\\\n]|{ES})+"'" { return acr_token_filter(I_CONSTANT); }
+{HP}{H}+{IS}? {
+                yylval.constant_value.type = integer_value;
+                yylval.constant_value.value.integer = strtol(yytext, NULL, 16);
+                return acr_token_filter(I_CONSTANT);
+              } /* hexa */
+{NZ}{D}*{IS}? {
+                yylval.constant_value.type = integer_value;
+                yylval.constant_value.value.integer = strtol(yytext, NULL, 10);
+                return acr_token_filter(I_CONSTANT);
+              } /* decimal */
+"0"{O}*{IS}?  {
+                yylval.constant_value.type = integer_value;
+                yylval.constant_value.value.integer = strtol(yytext, NULL, 8);
+                return acr_token_filter(I_CONSTANT);
+              } /* octal */
+ /*{CP}?"'"([^'\\\n]|{ES})+"'" {
+                                 return acr_token_filter(I_CONSTANT);
+                               } char */
 
 {D}+{E}{FS}?            { return acr_token_filter(F_CONSTANT); }
 {D}*"."{D}+{E}?{FS}?    { return acr_token_filter(F_CONSTANT); }

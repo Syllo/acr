@@ -38,14 +38,16 @@ void pprint_acr_monitor(FILE* out, acr_option monitor);
 void pprint_acr_strategy(FILE* out, acr_option strategy);
 
 void pprint_acr_parameter_declaration_list(FILE* out,
-                                      unsigned int num_declarations,
+                                      unsigned long int num_declarations,
                                    acr_parameter_declaration* declaration_list);
 
 void pprint_acr_parameter_specifier_list(FILE* out,
-                                      unsigned int num_specifiers,
+                                      unsigned long int num_specifiers,
                                       acr_parameter_specifier* specifier_list);
 
 void pprint_acr_array_declaration(FILE* out,
                                   acr_array_declaration* declaration);
+
+void pprint_acr_compute_node(FILE* out, acr_compute_node node);
 
 #endif // __ACR_PRINT_H

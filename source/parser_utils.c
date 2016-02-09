@@ -20,7 +20,7 @@
 
 struct parameter_declaration* add_param_declaration(
     struct parameter_declaration* current, char* name,
-    unsigned int pointer_depth) {
+    unsigned long int pointer_depth) {
   struct parameter_declaration* dec = malloc(sizeof(*dec));
   dec->name = name;
   dec->pointer_depth = pointer_depth;
@@ -43,7 +43,7 @@ struct parameter_declaration_list* add_declaration_to_list(
   return dec;
 }
 
-unsigned int translate_and_free_param_declaration_list(
+unsigned long int translate_and_free_param_declaration_list(
     struct parameter_declaration_list* list,
     acr_parameter_declaration** list_to_initialize) {
   if (!list) {
@@ -51,7 +51,7 @@ unsigned int translate_and_free_param_declaration_list(
     return 0;
   }
 
-  unsigned int size_list = 1;
+  unsigned long int size_list = 1;
   struct parameter_declaration_list* list_iterator = list;
   while (list_iterator->next) {
     list_iterator = list_iterator->next;
@@ -61,10 +61,10 @@ unsigned int translate_and_free_param_declaration_list(
   *list_to_initialize =
     acr_new_parameter_declaration_list(size_list);
 
-  for (unsigned int i = 0; i < size_list; ++i) {
+  for (unsigned long int i = 0; i < size_list; ++i) {
     char* parameter_name;
     acr_parameter_specifier* specifier_list;
-    unsigned int num_specifiers =
+    unsigned long int num_specifiers =
       get_name_and_specifiers_and_free_parameter_declaration(
         list_iterator->declaration,
         &parameter_name,
@@ -80,7 +80,7 @@ unsigned int translate_and_free_param_declaration_list(
   return size_list;
 }
 
-unsigned int get_name_and_specifiers_and_free_parameter_declaration(
+unsigned long int get_name_and_specifiers_and_free_parameter_declaration(
     struct parameter_declaration* declaration,
     char** parameter_name,
     acr_parameter_specifier** specifier_list) {
@@ -94,7 +94,7 @@ unsigned int get_name_and_specifiers_and_free_parameter_declaration(
     return 0;
   }
 
-  unsigned int num_specifiers = 1;
+  unsigned long int num_specifiers = 1;
   struct parameter_declaration* specifiers = declaration->next;
   while (specifiers->next) {
     specifiers = specifiers->next;
@@ -103,7 +103,7 @@ unsigned int get_name_and_specifiers_and_free_parameter_declaration(
 
   *specifier_list = acr_new_parameter_specifier_list(num_specifiers);
 
-  for (unsigned int i = 0; i < num_specifiers; ++i) {
+  for (unsigned long int i = 0; i < num_specifiers; ++i) {
     acr_set_parameter_specifier(specifiers->name, specifiers->pointer_depth,
         &(*specifier_list)[i]);
     free(specifiers->name);
@@ -118,7 +118,7 @@ unsigned int get_name_and_specifiers_and_free_parameter_declaration(
 }
 
 struct array_dimensions* add_dimension(struct array_dimensions* previous,
-    unsigned int dimension_size) {
+    unsigned long int dimension_size) {
   struct array_dimensions* new_dim = malloc(sizeof(*new_dim));
   new_dim->dimension = dimension_size;
   new_dim->next = previous;
@@ -128,10 +128,10 @@ struct array_dimensions* add_dimension(struct array_dimensions* previous,
   return new_dim;
 }
 
-unsigned int get_size_and_dimensions_and_free(
+unsigned long int get_size_and_dimensions_and_free(
     struct array_dimensions* dimension,
-    unsigned int** dimension_list) {
-  unsigned int num_dimensions = 0;
+    unsigned long int** dimension_list) {
+  unsigned long int num_dimensions = 0;
   if (dimension) {
     num_dimensions = 1;
     while (dimension->next) {
@@ -141,7 +141,7 @@ unsigned int get_size_and_dimensions_and_free(
 
     *dimension_list = malloc(num_dimensions * sizeof(**dimension_list));
 
-    for (unsigned int i = 0; i < num_dimensions; ++i) {
+    for (unsigned long int i = 0; i < num_dimensions; ++i) {
       (*dimension_list)[i] = dimension->dimension;
       if (dimension->previous) {
         dimension = dimension->previous;
