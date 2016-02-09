@@ -116,3 +116,39 @@ unsigned int get_name_and_specifiers_and_free_parameter_declaration(
 
   return num_specifiers;
 }
+
+struct array_dimensions* add_dimension(struct array_dimensions* previous,
+    unsigned int dimension_size) {
+  struct array_dimensions* new_dim = malloc(sizeof(*new_dim));
+  new_dim->dimension = dimension_size;
+  new_dim->next = previous;
+  if (previous)
+    previous->previous = new_dim;
+  new_dim->previous = NULL;
+  return new_dim;
+}
+
+unsigned int get_size_and_dimensions_and_free(
+    struct array_dimensions* dimension,
+    unsigned int** dimension_list) {
+  unsigned int num_dimensions = 0;
+  if (dimension) {
+    num_dimensions = 1;
+    while (dimension->next) {
+      dimension = dimension->next;
+      ++num_dimensions;
+    }
+
+    *dimension_list = malloc(num_dimensions * sizeof(**dimension_list));
+
+    for (unsigned int i = 0; i < num_dimensions; ++i) {
+      (*dimension_list)[i] = dimension->dimension;
+      if (dimension->previous) {
+        dimension = dimension->previous;
+        free(dimension->next);
+      }
+    }
+    free(dimension);
+  }
+  return num_dimensions;
+}

@@ -22,6 +22,8 @@
 #include <string.h>
 
 char* acr_strdup(const char* to_duplicate) {
+  if (!to_duplicate)
+    return NULL;
   size_t string_size = strlen(to_duplicate);
   char* copy = malloc(string_size+1 * sizeof(*copy));
   for (size_t i = 0; i < string_size ; ++i) {

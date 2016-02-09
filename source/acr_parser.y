@@ -46,10 +46,13 @@ extern size_t last_pragma_start_line;
 
 %union {
   char* identifier;
-  union {
-    int integer;
-    float floating_point;
-    unsigned uinteger;
+  struct {
+    enum {integer_value, floating_point_value, uinteger_value} type;
+    union {
+      int integer;
+      float floating_point;
+      unsigned uinteger;
+    } value;
   } constant_value;
   acr_option option;
   struct {
@@ -62,6 +65,9 @@ extern size_t last_pragma_start_line;
   } alternative_function;
   struct parameter_declaration* parameter_decl;
   struct parameter_declaration_list* parameter_decl_list;
+  struct acr_array_declaration array_declaration;
+  struct array_dimensions* array_dimensions;
+  int monitor_processing_function;
 }
 
 %token  STRING_LITERAL FUNC_NAME SIZEOF
@@ -90,6 +96,7 @@ extern size_t last_pragma_start_line;
 %token <identifier> IDENTIFIER
 %token <constant_value> I_CONSTANT F_CONSTANT
 
+%type <identifier> acr_monitor_filter
 %type <constant_value> constant pointer
 %type <option> acr_alternative_options acr_option
 %type <option> acr_strategy_options acr_monitor_options acr_init_option
@@ -97,6 +104,9 @@ extern size_t last_pragma_start_line;
 %type <alternative_function> acr_alternative_function_swap
 %type <parameter_decl> parameter_declaration
 %type <parameter_decl_list> parameter_declaration_list
+%type <array_declaration> acr_monitor_data_monitored
+%type <array_dimensions> array_dimensions
+%type <monitor_processing_function> acr_monitor_processing_function
 
 %destructor { acr_free_option(&$$); } <option>
 %destructor { free(&$$); } IDENTIFIER
@@ -106,6 +116,7 @@ extern size_t last_pragma_start_line;
             } <alternative_function>
 %destructor { free_param_declarations($$); } <parameter_decl>
 %destructor { free_param_decl_list($$); } <parameter_decl_list>
+%destructor { free_dimensions($$); } <array_dimensions>
 
 %start acr_start
 
@@ -158,12 +169,12 @@ acr_option
   | ACR_GRID '(' I_CONSTANT ')'
     {
       acr_print_debug(stdout, "Rule accepted acr_option grid");
-      if ($3.integer <= 0) {
+      if ($3.value.integer <= 0) {
         fprintf(stderr, "[ACR] Error: the grid size must be positive\n");
         error_print_last_pragma();
         $$ = NULL;
       } else {
-        $$ = acr_new_grid($3.integer);
+        $$ = acr_new_grid($3.value.integer);
       }
     }
   | ACR_GRID error
@@ -300,7 +311,7 @@ acr_alternative_parameter_swap
   : IDENTIFIER '=' I_CONSTANT
     {
       $$.param = $1;
-      $$.val = $3.integer;
+      $$.val = $3.value.integer;
     }
   ;
 
@@ -324,14 +335,18 @@ acr_init_option
     IDENTIFIER '(' parameter_declaration_list ')' ')'
     {
       if ($6) {
-
-      } else {
-        free($2);
-        free($4);
+        acr_parameter_declaration* parameter_list;
+        unsigned int num_parameters =
+            translate_and_free_param_declaration_list($6, &parameter_list);
+        $$ = acr_new_init($4, last_pragma_start_line, num_parameters,
+                          parameter_list);
       }
+      free($2);
+      free($4);
     }
   | error
     {
+      $$ = NULL;
       fprintf(stderr, "%s",
         acr_pragma_options_error_messages[acr_type_init]);
       scanner_clean_until_new_line();
@@ -363,7 +378,7 @@ parameter_declaration_list
 parameter_declaration
   : parameter_declaration IDENTIFIER pointer
     {
-      $$ = add_param_declaration($1, $2, $3.uinteger);
+      $$ = add_param_declaration($1, $2, $3.value.uinteger);
     }
   | parameter_declaration IDENTIFIER
     {
@@ -371,7 +386,7 @@ parameter_declaration
     }
   | IDENTIFIER pointer
     {
-      $$ = add_param_declaration(NULL, $1, $2.uinteger);
+      $$ = add_param_declaration(NULL, $1, $2.value.uinteger);
     }
   | IDENTIFIER
     {
@@ -382,23 +397,26 @@ parameter_declaration
 pointer
   : '*'
     {
-      $$.uinteger = 1;
+      $$.value.uinteger = 1;
     }
   | pointer '*'
     {
-      $$.uinteger = $1.uinteger + 1;
+      $$.value.uinteger = $1.value.uinteger + 1;
     }
   ;
 
 acr_monitor_options
   : '(' acr_monitor_data_monitored ',' acr_monitor_processing_function ')'
     {
+      $$ = acr_new_monitor(&$2, $4, NULL);
     }
   | '(' acr_monitor_data_monitored ',' acr_monitor_processing_function ',' acr_monitor_filter ')'
     {
+      $$ = acr_new_monitor(&$2, $4, $6);
     }
   | error
     {
+      $$ = NULL;
       fprintf(stderr, "%s",
         acr_pragma_options_error_messages[acr_type_monitor]);
       scanner_clean_until_new_line();
@@ -410,24 +428,47 @@ acr_monitor_options
 acr_monitor_data_monitored
   : parameter_declaration array_dimensions
     {
+      $$.num_specifiers =
+      get_name_and_specifiers_and_free_parameter_declaration($1, &$$.array_name,
+          &$$.parameter_specifiers_list);
+      $$.num_dimensions = get_size_and_dimensions_and_free($2,
+          &$$.array_dimensions_list);
     }
   ;
 
 array_dimensions
   : array_dimensions '[' I_CONSTANT ']'
     {
+      if ($3.value.integer > 0) {
+        $$ = add_dimension($1, $3.value.integer);
+      } else {
+        $$ = NULL;
+        fprintf(stderr, "[ACR] Error: array_dimensions must be positive\n");
+        free_dimensions($1);
+        YYERROR;
+      }
     }
   | '[' I_CONSTANT ']'
     {
+      if ($2.value.integer > 0) {
+        $$ = add_dimension(NULL, $2.value.integer);
+      } else {
+        $$ = NULL;
+        fprintf(stderr, "[ACR] Error: array_dimensions must be positive\n");
+        YYERROR;
+      }
     }
   | array_dimensions '[' error ']'
     {
+      $$ = NULL;
+      free_dimensions($1);
       fprintf(stderr, "[ACR] Hint: declare the array dimensions with integers\n");
       error_print_last_pragma();
       yyerrok;
     }
   | '[' error ']'
     {
+      $$ = NULL;
       fprintf(stderr, "[ACR] Hint: declare the array dimensions with integers\n");
       error_print_last_pragma();
       yyerrok;
@@ -437,6 +478,7 @@ array_dimensions
 acr_monitor_filter
   : IDENTIFIER
     {
+      $$ = $1;
     }
   ;
 
@@ -446,6 +488,7 @@ acr_monitor_processing_function
       for(int i = acr_monitor_function_min; i < acr_monitor_function_unknown;
       ++i) {
         if (strcmp($1, acr_pragma_processing_functions[i]) == 0) {
+          $$ = i;
         }
         else {
           fprintf(stderr, "[ACR] Error: ACR monitor does not handle %s\n", $1);
@@ -462,6 +505,13 @@ acr_strategy_options
         fprintf(stderr, "%s",
           acr_pragma_strategy_names[acr_strategy_direct].error_message);
       }
+      if ($3.type == integer_value) {
+        $$ = acr_new_strategy_direct_int($5, $3.value.integer);
+      } else {
+        $$ = acr_new_strategy_direct_float($5, $3.value.floating_point);
+      }
+      free($1);
+      free($5);
     }
   | IDENTIFIER '(' constant ',' constant ',' IDENTIFIER ')'
     {
@@ -469,9 +519,29 @@ acr_strategy_options
         fprintf(stderr, "%s",
           acr_pragma_strategy_names[acr_strategy_range].error_message);
       }
+      if ($3.type == floating_point_value || $5.type == floating_point_value) {
+        float bounds[2];
+        if ($3.type == integer_value)
+          bounds[0] = (float) $3.value.integer;
+        else
+          bounds[0] = $3.value.floating_point;
+        if ($5.type == integer_value)
+          bounds[1] = (float) $5.value.integer;
+        else
+          bounds[1] = $5.value.floating_point;
+        $$ = acr_new_strategy_range_float($7, bounds);
+      } else {  // integer
+        int bounds[2];
+        bounds[0] = $3.value.integer;
+        bounds[1] = $5.value.integer;
+        $$ = acr_new_strategy_range_int($7, bounds);
+      }
+      free($1);
+      free($7);
     }
   | error
     {
+      $$ = NULL;
       fprintf(stderr, "%s",
         acr_pragma_options_error_messages[acr_type_strategy]);
       scanner_clean_until_new_line();
@@ -484,9 +554,11 @@ acr_strategy_options
 constant
   : I_CONSTANT
     {
+      $$ = $1;
     }
   | F_CONSTANT
     {
+      $$ = $1;
     }
   ;
 

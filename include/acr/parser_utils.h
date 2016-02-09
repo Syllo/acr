@@ -68,6 +68,12 @@ static const struct acr_pragma_parser_name_error_utils
                                         " range construct?\n"},
   };
 
+struct array_dimensions {
+  unsigned int dimension;
+  struct array_dimensions* next;
+  struct array_dimensions* previous;
+};
+
 struct parameter_declaration {
   struct parameter_declaration* next;
   struct parameter_declaration* previous;
@@ -116,6 +122,21 @@ static inline void free_param_decl_list(struct parameter_declaration_list* dec) 
   }
   free_param_declarations(dec->declaration);
   free(dec);
+}
+
+struct array_dimensions* add_dimension(struct array_dimensions* previous,
+    unsigned int dimension_size);
+
+unsigned int get_size_and_dimensions_and_free(
+    struct array_dimensions* dimension,
+    unsigned int** dimension_list);
+
+static inline void free_dimensions(struct array_dimensions* dimension) {
+  while(dimension && dimension->next) {
+    dimension = dimension->next;
+    free(dimension->previous);
+  }
+  free(dimension);
 }
 
 #endif // __ACR_PARSER_UTILS_H

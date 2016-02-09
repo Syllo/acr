@@ -271,6 +271,8 @@ void acr_free_option(acr_option* option) {
     case acr_type_strategy:
       acr_free_strategy(&opt->options.strategy);
       break;
+    case acr_type_unknown:
+      break;
   }
 
   free(opt);

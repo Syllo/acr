@@ -272,6 +272,16 @@ acr_option acr_new_monitor(
     enum acr_monitor_processing_funtion processing_function,
     const char* filter_name);
 
+static inline struct acr_array_declaration* acr_monitor_get_array_declaration(
+    acr_option option) {
+  return &option->options.monitor.data_monitored;
+}
+
+static inline enum acr_monitor_processing_funtion acr_monitor_get_function(
+    acr_option option) {
+  return option->options.monitor.processing_function;
+}
+
 void acr_set_array_declaration(unsigned int num_specifiers,
                                acr_parameter_specifier* parameters_list,
                                const char* array_name,
