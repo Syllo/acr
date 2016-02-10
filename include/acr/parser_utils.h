@@ -69,7 +69,7 @@ static const struct acr_pragma_parser_name_error_utils
   };
 
 struct array_dimensions {
-  unsigned long int dimension;
+  acr_array_dimensions dimension;
   struct array_dimensions* next;
   struct array_dimensions* previous;
 };
@@ -124,18 +124,28 @@ static inline void free_param_decl_list(struct parameter_declaration_list* dec) 
   free(dec);
 }
 
-struct array_dimensions* add_dimension(struct array_dimensions* previous,
+struct array_dimensions* add_dimension_uinteger(
+    struct array_dimensions* previous,
     unsigned long int dimension_size);
+
+struct array_dimensions* add_dimension_name(
+    struct array_dimensions* previous,
+    char* dimension_name);
 
 unsigned long int get_size_and_dimensions_and_free(
     struct array_dimensions* dimension,
-    unsigned long int** dimension_list);
+    acr_array_dimensions_list* dimension_list);
 
 static inline void free_dimensions(struct array_dimensions* dimension) {
   while(dimension && dimension->next) {
     dimension = dimension->next;
+    if (dimension->previous->dimension.type == acr_array_dimension_parameter)
+      free(acr_array_dimensions_get_dim_name(0,
+            &dimension->previous->dimension));
     free(dimension->previous);
   }
+  if (dimension->dimension.type == acr_array_dimension_parameter)
+    free(acr_array_dimensions_get_dim_name(0, &dimension->dimension));
   free(dimension);
 }
 

@@ -30,7 +30,7 @@ IS  (((u|U)(l|L|ll|LL)?)|((l|L|ll|LL)(u|U)?))
 CP  (u|U|L)
 SP  (u8|u|U|L)
 ES  (\\(['"\?\\abfnrtv]|[0-7]{1,3}|x[a-fA-F0-9]+))
-WS  [ \t\n\v\f]
+WS  [ \t\v\f]
 
 %{
 
@@ -131,41 +131,82 @@ static bool parsing_pragma_acr_name;
                     }
 
 {L}{A}*           {
-                    yylval.identifier = acr_strdup(yytext);
                     if (parsing_pragma_acr_name == true) {
                       parsing_pragma_acr_name = false;
                       return acr_token_filter(pragma_option_to_token());
+                    } else {
+                      if (parsing_pragma_acr == true)
+                        yylval.identifier = acr_strdup(yytext);
+                      return acr_token_filter(IDENTIFIER);
                     }
-                    return acr_token_filter(IDENTIFIER);
                   }
 
 {HP}{H}+{IS}? {
                 yylval.constant_value.type = integer_value;
-                yylval.constant_value.value.integer = strtol(yytext, NULL, 16);
+                yylval.constant_value.value.integer_val.integer =
+                    strtol(yytext, NULL, 16);
+                yylval.constant_value.value.integer_val.uinteger =
+                    strtoul(yytext, NULL, 16);
                 return acr_token_filter(I_CONSTANT);
               } /* hexa */
 {NZ}{D}*{IS}? {
                 yylval.constant_value.type = integer_value;
-                yylval.constant_value.value.integer = strtol(yytext, NULL, 10);
+                yylval.constant_value.value.integer_val.integer =
+                    strtol(yytext, NULL, 10);
+                yylval.constant_value.value.integer_val.uinteger =
+                    strtoul(yytext, NULL, 10);
                 return acr_token_filter(I_CONSTANT);
               } /* decimal */
 "0"{O}*{IS}?  {
                 yylval.constant_value.type = integer_value;
-                yylval.constant_value.value.integer = strtol(yytext, NULL, 8);
+                yylval.constant_value.value.integer_val.integer =
+                    strtol(yytext, NULL, 8);
+                yylval.constant_value.value.integer_val.uinteger =
+                    strtol(yytext, NULL, 8);
                 return acr_token_filter(I_CONSTANT);
               } /* octal */
  /*{CP}?"'"([^'\\\n]|{ES})+"'" {
                                  return acr_token_filter(I_CONSTANT);
                                } char */
 
-{D}+{E}{FS}?            { return acr_token_filter(F_CONSTANT); }
-{D}*"."{D}+{E}?{FS}?    { return acr_token_filter(F_CONSTANT); }
-{D}+"."{E}?{FS}?        { return acr_token_filter(F_CONSTANT); }
-{HP}{H}+{P}{FS}?        { return acr_token_filter(F_CONSTANT); }
-{HP}{H}*"."{H}+{P}{FS}? { return acr_token_filter(F_CONSTANT); }
-{HP}{H}+"."{P}{FS}?     { return acr_token_filter(F_CONSTANT); }
+{D}+{E}{FS}?            {
+                          yylval.constant_value.type = floating_point_value;
+                          yylval.constant_value.value.floating_point =
+                            strtof(yytext, NULL);
+                          return acr_token_filter(F_CONSTANT);
+                        }
+{D}*"."{D}+{E}?{FS}?    {
+                          yylval.constant_value.type = floating_point_value;
+                          yylval.constant_value.value.floating_point =
+                            strtof(yytext, NULL);
+                          return acr_token_filter(F_CONSTANT);
+                        }
+{D}+"."{E}?{FS}?        {
+                          yylval.constant_value.type = floating_point_value;
+                          yylval.constant_value.value.floating_point =
+                            strtof(yytext, NULL);
+                          return acr_token_filter(F_CONSTANT);
+                        }
+{HP}{H}+{P}{FS}?        {
+                          yylval.constant_value.type = floating_point_value;
+                          yylval.constant_value.value.floating_point =
+                            strtof(yytext, NULL);
+                          return acr_token_filter(F_CONSTANT);
+                        }
+{HP}{H}*"."{H}+{P}{FS}? {
+                          yylval.constant_value.type = floating_point_value;
+                          yylval.constant_value.value.floating_point =
+                            strtof(yytext, NULL);
+                          return acr_token_filter(F_CONSTANT);
+                        }
+{HP}{H}+"."{P}{FS}?     {
+                          yylval.constant_value.type = floating_point_value;
+                          yylval.constant_value.value.floating_point =
+                            strtof(yytext, NULL);
+                          return acr_token_filter(F_CONSTANT);
+                        }
 
-({SP}?\"([^"\\\n]|{ES})*\"{WS}*)+ {
+({SP}?\"([^"\\\n]|{ES})*\"[{WS}\n]*)+ {
                                     return acr_token_filter(STRING_LITERAL);
                                   }
 
@@ -223,19 +264,22 @@ static bool parsing_pragma_acr_name;
             position_scanning_column = 0;
           }
 
+"\n"      {
+            if (parsing_pragma_acr) {
+              return CARRIAGE_RETURN;
+            }
+            else {
+              ++position_in_file;
+              position_of_last_starting_row = position_in_file;
+              ++position_scanning_row;
+              position_scanning_column = 0;
+            }
+          }
+
 {WS}+     {
             /* whitespace separates tokens */
-            for(size_t i = 0; yytext[i] != '\0'; ++i) {
-              ++position_in_file;
-              if (yytext[i] == '\n') {
-                parsing_pragma_acr = false;
-                position_of_last_starting_row = position_in_file;
-                ++position_scanning_row;
-                position_scanning_column = 0;
-              }
-              else
-                ++position_scanning_column;
-            }
+            position_in_file += yyleng;
+            position_scanning_column += yyleng;
           }
 
 .         {
@@ -332,6 +376,7 @@ static int pragma_option_to_token(void) {
 void scanner_clean_until_new_line(void) {
   int c;
   int previous;
+  parsing_pragma_acr = false;
 
   c = input();
 

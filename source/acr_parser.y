@@ -33,6 +33,7 @@ extern void scanner_clean_until_new_line(void);
 void yyerror(const char *);  /* prints grammar violation message */
 int yylex(void);
 static void error_print_last_pragma(void);
+static void handle_carriage_return(void);
 
 bool parsing_pragma_acr;
 extern size_t position_in_file;
@@ -48,11 +49,13 @@ extern size_t last_pragma_start_line;
 %union {
   char* identifier;
   struct {
-    enum {integer_value, floating_point_value, uinteger_value} type;
+    enum {integer_value, floating_point_value} type;
     union {
-      long int integer;
       float floating_point;
-      unsigned uinteger;
+      struct {
+        long int integer;
+        unsigned uinteger;
+      } integer_val;
     } value;
   } constant_value;
   acr_option option;
@@ -71,6 +74,7 @@ extern size_t last_pragma_start_line;
   int monitor_processing_function;
 }
 
+%token  CARRIAGE_RETURN
 %token  STRING_LITERAL FUNC_NAME SIZEOF
 %token  PTR_OP INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP
 %token  AND_OP OR_OP MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN
@@ -110,7 +114,7 @@ extern size_t last_pragma_start_line;
 %type <monitor_processing_function> acr_monitor_processing_function
 
 %destructor { acr_free_option($$); $$ = NULL;} <option>
-%destructor { free($$); $$ = NULL;} IDENTIFIER
+%destructor { free($$); $$ = NULL;} <identifier>
 %destructor { free($$.param); $$.param = NULL;} <alternative_parameter>
 %destructor {
               free($$.function_to_swap); $$.function_to_swap = NULL;
@@ -118,6 +122,7 @@ extern size_t last_pragma_start_line;
             } <alternative_function>
 %destructor { free_param_declarations($$); $$ = NULL;} <parameter_decl>
 %destructor { free_param_decl_list($$); $$ = NULL;} <parameter_decl_list>
+%destructor { acr_free_acr_array_declaration(&$$); } <array_declaration>
 %destructor { free_dimensions($$); $$ = NULL;} <array_dimensions>
 
 %start acr_start
@@ -130,6 +135,7 @@ acr_start
     }
   | PRAGMA_ACR acr_option
     {
+      handle_carriage_return();
       parsing_pragma_acr = false;
       if ($2) {
         pprint_acr_option(stdout, $2);
@@ -141,6 +147,7 @@ acr_start
     }
   | acr_start PRAGMA_ACR acr_option
     {
+      handle_carriage_return();
       parsing_pragma_acr = false;
       if ($3) {
         pprint_acr_option(stdout, $3);
@@ -154,60 +161,96 @@ acr_start
   ;
 
 acr_option
-  : ACR_ALTERNATIVE acr_alternative_options
+  : ACR_ALTERNATIVE acr_alternative_options CARRIAGE_RETURN
     {
       acr_print_debug(stdout, "Rule accepted acr_option alternative");
       $$ = $2;
     }
-  | ACR_DESTROY
+  | ACR_ALTERNATIVE error CARRIAGE_RETURN
+    {
+      $$ = NULL;
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_alternative]);
+      error_print_last_pragma();
+      yyerrok;
+    }
+  | ACR_DESTROY CARRIAGE_RETURN
     {
       acr_print_debug(stdout, "Rule accepted acr_option destroy");
       $$ = acr_new_destroy(last_pragma_start_line);
     }
-  | ACR_GRID '(' I_CONSTANT ')'
+  | ACR_DESTROY error CARRIAGE_RETURN
+    {
+      $$ = NULL;
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_destroy]);
+      error_print_last_pragma();
+      yyerrok;
+    }
+  | ACR_GRID '(' I_CONSTANT ')' CARRIAGE_RETURN
     {
       acr_print_debug(stdout, "Rule accepted acr_option grid");
-      if ($3.value.integer <= 0) {
+      if ($3.value.integer_val.integer <= 0) {
         fprintf(stderr, "[ACR] Error: the grid size must be positive\n");
         error_print_last_pragma();
         $$ = NULL;
       } else {
-        $$ = acr_new_grid($3.value.integer);
+        $$ = acr_new_grid($3.value.integer_val.uinteger);
       }
     }
-  | ACR_GRID error
+  | ACR_GRID error CARRIAGE_RETURN
     {
       $$ = NULL;
       fprintf(stderr, "%s",
         acr_pragma_options_error_messages[acr_type_grid]);
-      scanner_clean_until_new_line();
       error_print_last_pragma();
-      yyclearin;
       yyerrok;
     }
-  | ACR_INIT acr_init_option
+  | ACR_INIT acr_init_option CARRIAGE_RETURN
     {
       acr_print_debug(stdout, "Rule accepted acr_option init");
       $$ = $2;
     }
-  | ACR_MONITOR acr_monitor_options
+  | ACR_INIT error CARRIAGE_RETURN
+    {
+      $$ = NULL;
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_init]);
+      error_print_last_pragma();
+      yyerrok;
+    }
+  | ACR_MONITOR acr_monitor_options CARRIAGE_RETURN
     {
       acr_print_debug(stdout, "Rule accepted acr_option monitor");
       $$ = $2;
     }
-  | ACR_STRATEGY acr_strategy_options
+  | ACR_MONITOR error CARRIAGE_RETURN
+    {
+      $$ = NULL;
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_monitor]);
+      error_print_last_pragma();
+      yyerrok;
+    }
+  | ACR_STRATEGY acr_strategy_options CARRIAGE_RETURN
     {
       acr_print_debug(stdout, "Rule accepted acr_option strategy");
       $$ = $2;
     }
-  | error
+  | ACR_STRATEGY error CARRIAGE_RETURN
+    {
+      $$ = NULL;
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_strategy]);
+      error_print_last_pragma();
+      yyerrok;
+    }
+  | error CARRIAGE_RETURN
     {
       $$ = NULL;
       fprintf(stderr, "%s",
         acr_pragma_options_error_messages[acr_type_unknown]);
-      scanner_clean_until_new_line();
       error_print_last_pragma();
-      yyclearin;
       yyerrok;
     }
   ;
@@ -293,23 +336,13 @@ acr_alternative_options
       error_print_last_pragma();
       yyerrok;
     }
-  | error
-    {
-      $$ = NULL;
-      fprintf(stderr, "%s",
-        acr_pragma_options_error_messages[acr_type_alternative]);
-      scanner_clean_until_new_line();
-      error_print_last_pragma();
-      yyclearin;
-      yyerrok;
-    }
   ;
 
 acr_alternative_parameter_swap
   : IDENTIFIER '=' I_CONSTANT
     {
       $$.param = $1;
-      $$.val = $3.value.integer;
+      $$.val = $3.value.integer_val.integer;
     }
   ;
 
@@ -325,8 +358,7 @@ acr_init_option
   : '(' IDENTIFIER
     { /* test si void */
       if (strcmp($2, "void") != 0) {
-        yyerror("ACR init fonction must return void\n");
-        free($2);
+        yyerror("ACR init fonction must return void");
         YYERROR;
       }
     }
@@ -342,16 +374,6 @@ acr_init_option
       free($2);
       free($4);
     }
-  | error
-    {
-      $$ = NULL;
-      fprintf(stderr, "%s",
-        acr_pragma_options_error_messages[acr_type_init]);
-      scanner_clean_until_new_line();
-      error_print_last_pragma();
-      yyclearin;
-      yyerrok;
-    }
   ;
 
 parameter_declaration_list
@@ -363,20 +385,12 @@ parameter_declaration_list
     {
       $$ = add_declaration_to_list($1, $3);
     }
-  | error
-    {
-      $$ = NULL;
-      fprintf(stderr, "[ACR] Hint: take a look at the init function"
-      " declaration");
-      error_print_last_pragma();
-      yyerrok;
-    }
   ;
 
 parameter_declaration
   : parameter_declaration IDENTIFIER pointer
     {
-      $$ = add_param_declaration($1, $2, $3.value.uinteger);
+      $$ = add_param_declaration($1, $2, $3.value.integer_val.uinteger);
     }
   | parameter_declaration IDENTIFIER
     {
@@ -384,7 +398,7 @@ parameter_declaration
     }
   | IDENTIFIER pointer
     {
-      $$ = add_param_declaration(NULL, $1, $2.value.uinteger);
+      $$ = add_param_declaration(NULL, $1, $2.value.integer_val.uinteger);
     }
   | IDENTIFIER
     {
@@ -395,11 +409,11 @@ parameter_declaration
 pointer
   : '*'
     {
-      $$.value.uinteger = 1;
+      $$.value.integer_val.uinteger = 1;
     }
   | pointer '*'
     {
-      $$.value.uinteger = $1.value.uinteger + 1;
+      $$.value.integer_val.uinteger = $1.value.integer_val.uinteger + 1ul;
     }
   ;
 
@@ -411,23 +425,15 @@ acr_monitor_options
   | '(' acr_monitor_data_monitored ',' acr_monitor_processing_function ',' acr_monitor_filter ')'
     {
       $$ = acr_new_monitor(&$2, $4, $6);
-    }
-  | error
-    {
-      $$ = NULL;
-      fprintf(stderr, "%s",
-        acr_pragma_options_error_messages[acr_type_monitor]);
-      scanner_clean_until_new_line();
-      error_print_last_pragma();
-      yyclearin;
-      yyerrok;
+      free($6);
     }
   ;
 acr_monitor_data_monitored
   : parameter_declaration array_dimensions
     {
       $$.num_specifiers =
-      get_name_and_specifiers_and_free_parameter_declaration($1, &$$.array_name,
+      get_name_and_specifiers_and_free_parameter_declaration($1,
+      &($$.array_name),
           &$$.parameter_specifiers_list);
       $$.num_dimensions = get_size_and_dimensions_and_free($2,
           &$$.array_dimensions_list);
@@ -437,8 +443,8 @@ acr_monitor_data_monitored
 array_dimensions
   : array_dimensions '[' I_CONSTANT ']'
     {
-      if ($3.value.integer > 0) {
-        $$ = add_dimension($1, $3.value.integer);
+      if ($3.value.integer_val.uinteger > 0) {
+        $$ = add_dimension_uinteger($1, $3.value.integer_val.uinteger);
       } else {
         $$ = NULL;
         fprintf(stderr, "[ACR] Error: array_dimensions must be positive\n");
@@ -448,26 +454,38 @@ array_dimensions
     }
   | '[' I_CONSTANT ']'
     {
-      if ($2.value.integer > 0) {
-        $$ = add_dimension(NULL, $2.value.integer);
+      if ($2.value.integer_val.integer > 0) {
+        $$ = add_dimension_uinteger(NULL, $2.value.integer_val.uinteger);
       } else {
         $$ = NULL;
         fprintf(stderr, "[ACR] Error: array_dimensions must be positive\n");
         YYERROR;
       }
     }
+  | '[' IDENTIFIER ']'
+    {
+      $$ = add_dimension_name(NULL, $2);
+      free($2);
+    }
+  | array_dimensions '[' IDENTIFIER ']'
+    {
+      $$ = add_dimension_name($1, $3);
+      free($3);
+    }
   | array_dimensions '[' error ']'
     {
       $$ = NULL;
       free_dimensions($1);
-      fprintf(stderr, "[ACR] Hint: declare the array dimensions with integers\n");
+      fprintf(stderr, "[ACR] Hint: declare the array dimensions with integers"
+      " or parameter name\n");
       error_print_last_pragma();
       yyerrok;
     }
   | '[' error ']'
     {
       $$ = NULL;
-      fprintf(stderr, "[ACR] Hint: declare the array dimensions with integers\n");
+      fprintf(stderr, "[ACR] Hint: declare the array dimensions with integers"
+      " or parameter name\n");
       error_print_last_pragma();
       yyerrok;
     }
@@ -487,12 +505,16 @@ acr_monitor_processing_function
       ++i) {
         if (strcmp($1, acr_pragma_processing_functions[i]) == 0) {
           $$ = i;
+          break;
         }
         else {
-          fprintf(stderr, "[ACR] Error: ACR monitor does not handle %s\n", $1);
+          fprintf(stderr, "[ACR] Error: ACR monitor does not handle the %s"
+          " function\n", $1);
+          free($1);
           YYERROR;
         }
       }
+      free($1);
     }
   ;
 
@@ -504,7 +526,7 @@ acr_strategy_options
           acr_pragma_strategy_names[acr_strategy_direct].error_message);
       }
       if ($3.type == integer_value) {
-        $$ = acr_new_strategy_direct_int($5, $3.value.integer);
+        $$ = acr_new_strategy_direct_int($5, $3.value.integer_val.integer);
       } else {
         $$ = acr_new_strategy_direct_float($5, $3.value.floating_point);
       }
@@ -520,32 +542,22 @@ acr_strategy_options
       if ($3.type == floating_point_value || $5.type == floating_point_value) {
         float bounds[2];
         if ($3.type == integer_value)
-          bounds[0] = (float) $3.value.integer;
+          bounds[0] = (float) $3.value.integer_val.integer;
         else
           bounds[0] = $3.value.floating_point;
         if ($5.type == integer_value)
-          bounds[1] = (float) $5.value.integer;
+          bounds[1] = (float) $5.value.integer_val.integer;
         else
           bounds[1] = $5.value.floating_point;
         $$ = acr_new_strategy_range_float($7, bounds);
       } else {  // integer
         long int bounds[2];
-        bounds[0] = $3.value.integer;
-        bounds[1] = $5.value.integer;
+        bounds[0] = $3.value.integer_val.integer;
+        bounds[1] = $5.value.integer_val.integer;
         $$ = acr_new_strategy_range_int($7, bounds);
       }
       free($1);
       free($7);
-    }
-  | error
-    {
-      $$ = NULL;
-      fprintf(stderr, "%s",
-        acr_pragma_options_error_messages[acr_type_strategy]);
-      scanner_clean_until_new_line();
-      error_print_last_pragma();
-      yyclearin;
-      yyerrok;
     }
   ;
 
@@ -562,8 +574,6 @@ constant
 
 
 %%
-
-#include <stdio.h>
 
 static void error_print_last_pragma(void) {
   FILE* file;
@@ -585,8 +595,16 @@ static void error_print_last_pragma(void) {
         fprintf(stderr, "* ");
     }
   }
+  fprintf(stderr, "*\n\n");
   fflush(stderr);
   fclose(file);
+}
+
+static void handle_carriage_return(void) {
+  ++position_in_file;
+  position_of_last_starting_row = position_in_file;
+  ++position_scanning_row;
+  position_scanning_column = 0;
 }
 
 void yyerror(const char *s)

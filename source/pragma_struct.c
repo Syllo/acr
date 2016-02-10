@@ -19,7 +19,6 @@
 #include "acr/pragma_struct.h"
 
 #include <string.h>
-#include "acr/utils.h"
 
 acr_option acr_new_alternative_function(const char* alternative_name,
                                         const char* function_to_swap,
@@ -93,15 +92,6 @@ acr_parameter_declaration* acr_new_parameter_declaration_list(
   return list;
 }
 
-void acr_set_parameter_declaration(
-    const char* parameter_name,
-    unsigned long int num_specifiers,
-    acr_parameter_specifier* specifier_list,
-    acr_parameter_declaration* declaration_to_set) {
-  declaration_to_set->parameter_specifiers_list = specifier_list;
-  declaration_to_set->num_specifiers = num_specifiers;
-  declaration_to_set->parameter_name = acr_strdup(parameter_name);
-}
 
 acr_parameter_specifier* acr_new_parameter_specifier_list(
     unsigned long int list_size) {
@@ -109,14 +99,6 @@ acr_parameter_specifier* acr_new_parameter_specifier_list(
   acr_try_or_die(list == NULL, "Malloc");
   return list;
 }
-
-void acr_set_parameter_specifier(const char* specifier_name,
-                                 unsigned long int pointer_depth,
-                                 acr_parameter_specifier* specifier) {
-  specifier->specifier = acr_strdup(specifier_name);
-  specifier->pointer_depth = pointer_depth;
-}
-
 
 acr_option acr_new_monitor(
     const struct acr_array_declaration* array_declaration,
@@ -130,19 +112,6 @@ acr_option acr_new_monitor(
   option->options.monitor.processing_function = processing_function;
   option->options.monitor.filter_name = acr_strdup(filter_name);
   return option;
-}
-
-void acr_set_array_declaration(unsigned long int num_specifiers,
-                               acr_parameter_specifier* parameters_list,
-                               const char* array_name,
-                               unsigned long int num_dimensions,
-                               unsigned long int* array_dimensions,
-                               struct acr_array_declaration* array_declaration) {
-  array_declaration->array_dimensions_list = array_dimensions;
-  array_declaration->num_dimensions = num_dimensions;
-  array_declaration->num_specifiers = num_specifiers;
-  array_declaration->array_name = acr_strdup(array_name);
-  array_declaration->parameter_specifiers_list = parameters_list;
 }
 
 acr_option acr_new_strategy_direct_int(const char* strategy_name,
@@ -209,6 +178,8 @@ acr_option_list acr_new_option_list(unsigned long int size) {
 }
 
 static void acr_free_alternative(acr_alternative* alternative) {
+  if (!alternative)
+    return;
   if (alternative->type == acr_alternative_function)
     free(alternative->swapped_by.replacement_function);
   free(alternative->alternative_name);
@@ -217,6 +188,8 @@ static void acr_free_alternative(acr_alternative* alternative) {
 
 static void acr_free_parameter_specifier_list(unsigned long int num_specifiers,
     acr_parameter_specifier* parameter_specifiers_list) {
+  if (!parameter_specifiers_list)
+    return;
   for(unsigned long int i = 0; i < num_specifiers; ++i) {
     free(parameter_specifiers_list[i].specifier);
   }
@@ -225,6 +198,8 @@ static void acr_free_parameter_specifier_list(unsigned long int num_specifiers,
 
 static void acr_free_parameter_declaration_list(unsigned long int num_parameters,
     acr_parameter_declaration* parameter_list) {
+  if (!parameter_list)
+    return;
   for(unsigned long int i = 0; i < num_parameters; ++i) {
     free(parameter_list[i].parameter_name);
     acr_free_parameter_specifier_list(parameter_list[i].num_specifiers,
@@ -234,29 +209,44 @@ static void acr_free_parameter_declaration_list(unsigned long int num_parameters
 }
 
 static void acr_free_init(acr_init* init) {
+  if (!init)
+    return;
   free(init->function_name);
   acr_free_parameter_declaration_list(init->num_parameters,
       init->parameters_list);
 }
 
-static void acr_free_acr_array_declaration(
+void acr_free_acr_array_declaration(
     struct acr_array_declaration* array_declaration) {
+  if (!array_declaration)
+    return;
   acr_free_parameter_specifier_list(array_declaration->num_specifiers,
     array_declaration->parameter_specifiers_list);
   free(array_declaration->array_name);
-  free(array_declaration->array_dimensions_list);
+  for (unsigned long int i = 0; i < array_declaration->num_dimensions; ++i) {
+    if (array_declaration->array_dimensions_list[i].type == acr_array_dimension_parameter) {
+      free(array_declaration->array_dimensions_list[i].value.parameter_name);
+    }
+  }
+  acr_free_array_dimensions_list(array_declaration->array_dimensions_list);
 }
 
 static void acr_free_monitor(acr_monitor* monitor) {
+  if (!monitor)
+    return;
   free(monitor->filter_name);
   acr_free_acr_array_declaration(&monitor->data_monitored);
 }
 
 static void acr_free_strategy(acr_strategy* strategy) {
+  if (!strategy)
+    return;
   free(strategy->strategy_name);
 }
 
 void acr_free_option(acr_option opt) {
+  if (!opt)
+    return;
   switch (opt->type) {
     case acr_type_alternative:
       acr_free_alternative(&opt->options.alternative);
@@ -281,6 +271,8 @@ void acr_free_option(acr_option opt) {
 }
 
 void acr_free_option_list(acr_option_list option_list, unsigned long int size) {
+  if (!option_list)
+    return;
   for (unsigned long int i = 0; i < size; ++i) {
     acr_free_option(acr_option_list_get_option(i, option_list));
   }
@@ -296,6 +288,13 @@ acr_compute_node acr_new_compute_node(unsigned long int list_size,
 }
 
 void acr_free_compute_node(acr_compute_node node) {
+  if (!node)
+    return;
   acr_free_option_list(node->option_list, node->list_size);
   free(node);
+}
+
+acr_array_dimensions_list acr_new_array_dimensions_list(unsigned long int size) {
+  acr_array_dimensions_list dim = malloc(size * sizeof(*dim));
+  return dim;
 }

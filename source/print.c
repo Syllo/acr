@@ -204,8 +204,17 @@ void pprint_acr_array_declaration(FILE* out,
       acr_array_decl_get_specifiers_list(declaration));
   fprintf(out, " %s", acr_array_decl_get_array_name(declaration));
   unsigned long int num_dimensions = acr_array_decl_get_num_dimensions(declaration);
-  unsigned long int* dimensions = acr_array_decl_get_dimensions_array(declaration);
+  acr_array_dimensions_list dimensions =
+    acr_array_decl_get_dimensions_list(declaration);
+
   for (unsigned long int i = 0; i < num_dimensions; ++i) {
-    fprintf(out, "[%lu]", dimensions[i]);
+    switch (acr_array_dimensions_get_type(i, dimensions)) {
+      case acr_array_dimension_uinteger:
+        fprintf(out, "[%lu]", acr_array_dimensions_get_dim_size(i, dimensions));
+        break;
+      case acr_array_dimension_parameter:
+        fprintf(out, "[%s]", acr_array_dimensions_get_dim_name(i, dimensions));
+        break;
+    }
   }
 }
