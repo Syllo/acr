@@ -27,9 +27,6 @@
 #include "acr/utils.h"
 #include "acr/print.h" // for debug
 
-const char* current_file = "test.c"; //placeholder
-
-extern void scanner_clean_until_new_line(void);
 void yyerror(const char *);  /* prints grammar violation message */
 int yylex(void);
 static void error_print_last_pragma(void);
@@ -43,6 +40,7 @@ extern size_t position_scanning_column;
 extern size_t position_start_current_token;
 extern size_t last_token_size;
 extern size_t last_pragma_start_line;
+extern FILE* yyin;
 
 %}
 
@@ -576,17 +574,16 @@ constant
 %%
 
 static void error_print_last_pragma(void) {
-  FILE* file;
-  file = fopen(current_file, "r");
-  fseek(file, last_pragma_start_line, SEEK_SET);
+  long current_position = ftell(yyin);
+  fseek(yyin, last_pragma_start_line, SEEK_SET);
   char c;
   char previous;
 
   fprintf(stderr, "[ACR] Ignoring following pragma:\n*\n");
 
-  fscanf(file, "%c", &c);
+  fscanf(yyin, "%c", &c);
   fprintf(stderr, "* %c", c);
-  while(previous = c, fscanf(file, "%c", &c), c != EOF) {
+  while(previous = c, fscanf(yyin, "%c", &c), c != EOF) {
     fprintf(stderr, "%c", c);
     if (previous != '\\' && c == '\n') {
       break;
@@ -597,7 +594,7 @@ static void error_print_last_pragma(void) {
   }
   fprintf(stderr, "*\n\n");
   fflush(stderr);
-  fclose(file);
+  fseek(yyin, current_position, SEEK_SET);
 }
 
 static void handle_carriage_return(void) {
@@ -609,7 +606,6 @@ static void handle_carriage_return(void) {
 
 void yyerror(const char *s)
 {
-  FILE* file;
   char row_buffer[100]; // Buffered read
 
   fflush(stdout);
@@ -618,8 +614,8 @@ void yyerror(const char *s)
       position_scanning_row + 1,
       position_scanning_column + 1 - last_token_size);
 
-  file = fopen(current_file, "r");
-  fseek(file, position_of_last_starting_row, SEEK_SET);
+  long current_position = ftell(yyin);
+  fseek(yyin, position_of_last_starting_row, SEEK_SET);
 
   if(position_in_file == 0)
     return;
@@ -627,7 +623,7 @@ void yyerror(const char *s)
   size_t i = 101;
   do {
     if (i == 101) {
-      fscanf(file, "%100c", row_buffer);
+      fscanf(yyin, "%100c", row_buffer);
       i = 1;
     }
     else
@@ -649,5 +645,16 @@ void yyerror(const char *s)
     fprintf(stderr, "%c", '~');
   }
   fprintf(stderr, "\n");
-  fclose(file);
+  fseek(yyin, current_position, SEEK_SET);
+}
+
+int start_parsing(FILE* file) {
+  position_in_file = 0;
+  position_of_last_starting_row = 0;
+  position_scanning_row = 0;
+  position_scanning_column = 0;
+  position_start_current_token = 0;
+  last_token_size = 0;
+  yyin = file;
+  return yyparse();
 }

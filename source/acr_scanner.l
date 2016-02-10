@@ -41,8 +41,6 @@ WS  [ \t\v\f]
 
 #include "acr/utils.h"
 
-extern char* current_file; // placeholder
-
 extern void yyerror(const char *);  /* prints grammar violation message */
 
 extern bool parsing_pragma_acr;
@@ -59,7 +57,7 @@ size_t position_scanning_column;
 size_t position_start_current_token;
 size_t last_token_size;
 size_t last_pragma_start_line;
-static bool parsing_pragma_acr_name;
+static bool parsing_pragma_acr_name = false;
 
 %}
 
@@ -131,7 +129,7 @@ static bool parsing_pragma_acr_name;
                     }
 
 {L}{A}*           {
-                    if (parsing_pragma_acr_name == true) {
+                    if (parsing_pragma_acr_name) {
                       parsing_pragma_acr_name = false;
                       return acr_token_filter(pragma_option_to_token());
                     } else {
@@ -413,19 +411,4 @@ void scanner_clean_until_new_line(void) {
       }
     }
   }
-}
-
-int main() {
-  position_in_file = 0;
-  position_of_last_starting_row = 0;
-  position_scanning_row = 0;
-  position_scanning_column = 0;
-  position_start_current_token = 0;
-  last_token_size = 0;
-  parsing_pragma_acr_name = false;
-  printf("opening %s\n", current_file);
-  yyin = fopen(current_file, "r");
-  if (yyin == NULL)
-    printf("WTF NULL\n");
-  return yyparse();
 }

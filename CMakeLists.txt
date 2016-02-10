@@ -128,6 +128,7 @@ list(APPEND ACR_LIBRARY_C_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/source/pragma_struct.c)
 
 list(APPEND ACR_EXECUTABLE_C_FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/source/acr.c
   ${CMAKE_CURRENT_SOURCE_DIR}/source/parser_utils.c
   ${CMAKE_CURRENT_SOURCE_DIR}/source/print.c
   ${FLEX_acr_scanner_OUTPUTS}
