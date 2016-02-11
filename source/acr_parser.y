@@ -79,7 +79,7 @@ struct parser_option_list* option_list;
       float floating_point;
       struct {
         long int integer;
-        unsigned uinteger;
+        unsigned long uinteger;
       } integer_val;
     } value;
   } constant_value;
@@ -97,6 +97,7 @@ struct parser_option_list* option_list;
   struct acr_array_declaration array_declaration;
   struct array_dimensions* array_dimensions;
   int monitor_processing_function;
+  bool minus;
 }
 
 %token  CARRIAGE_RETURN
@@ -128,6 +129,7 @@ struct parser_option_list* option_list;
 
 %type <identifier> acr_monitor_filter
 %type <constant_value> constant pointer
+%type <minus> minus
 %type <option> acr_alternative_options acr_option
 %type <option> acr_strategy_options acr_monitor_options acr_init_option
 %type <alternative_parameter> acr_alternative_parameter_swap
@@ -281,7 +283,7 @@ acr_option
 acr_alternative_options
   : IDENTIFIER '(' IDENTIFIER ',' acr_alternative_parameter_swap ')'
     {
-      if (strcmp($1,
+      if (strcmp($3,
           acr_pragma_alternative_names[acr_alternative_parameter].name) != 0) {
           fprintf(stderr, "%s",
           acr_pragma_alternative_names[acr_alternative_parameter].error_message);
@@ -299,7 +301,7 @@ acr_alternative_options
     }
   | IDENTIFIER '(' IDENTIFIER ',' acr_alternative_function_swap ')'
     {
-      if (strcmp($1,
+      if (strcmp($3,
           acr_pragma_alternative_names[acr_alternative_function].name) != 0) {
           fprintf(stderr, "%s",
           acr_pragma_alternative_names[acr_alternative_function].error_message);
@@ -359,13 +361,24 @@ acr_alternative_options
       error_print_last_pragma();
       yyerrok;
     }
+  | IDENTIFIER '(' error  ')'
+    {
+      $$ = NULL;
+      free($1);
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_alternative]);
+      error_print_last_pragma();
+      yyerrok;
+    }
   ;
 
 acr_alternative_parameter_swap
-  : IDENTIFIER '=' I_CONSTANT
+  : IDENTIFIER '=' minus I_CONSTANT
     {
       $$.param = $1;
-      $$.val = $3.value.integer_val.integer;
+      $$.val = $4.value.integer_val.integer;
+      if ($3)
+        $$.val *= -1l;
     }
   ;
 
@@ -466,24 +479,11 @@ acr_monitor_data_monitored
 array_dimensions
   : array_dimensions '[' I_CONSTANT ']'
     {
-      if ($3.value.integer_val.uinteger > 0) {
-        $$ = add_dimension_uinteger($1, $3.value.integer_val.uinteger);
-      } else {
-        $$ = NULL;
-        fprintf(stderr, "[ACR] Error: array_dimensions must be positive\n");
-        free_dimensions($1);
-        YYERROR;
-      }
+      $$ = add_dimension_uinteger($1, $3.value.integer_val.uinteger);
     }
   | '[' I_CONSTANT ']'
     {
-      if ($2.value.integer_val.integer > 0) {
-        $$ = add_dimension_uinteger(NULL, $2.value.integer_val.uinteger);
-      } else {
-        $$ = NULL;
-        fprintf(stderr, "[ACR] Error: array_dimensions must be positive\n");
-        YYERROR;
-      }
+      $$ = add_dimension_uinteger(NULL, $2.value.integer_val.uinteger);
     }
   | '[' IDENTIFIER ']'
     {
@@ -499,8 +499,8 @@ array_dimensions
     {
       $$ = NULL;
       free_dimensions($1);
-      fprintf(stderr, "[ACR] Hint: declare the array dimensions with integers"
-      " or parameter name\n");
+      fprintf(stderr, "[ACR] Hint: declare the array dimensions with positive"
+      " integers or parameter name\n");
       error_print_last_pragma();
       yyerrok;
     }
@@ -524,18 +524,20 @@ acr_monitor_filter
 acr_monitor_processing_function
   : IDENTIFIER
     {
+      bool found = false;
       for(int i = acr_monitor_function_min; i < acr_monitor_function_unknown;
       ++i) {
         if (strcmp($1, acr_pragma_processing_functions[i]) == 0) {
           $$ = i;
+          found = true;
           break;
         }
-        else {
-          fprintf(stderr, "[ACR] Error: ACR monitor does not handle the %s"
-          " function\n", $1);
-          free($1);
-          YYERROR;
-        }
+      }
+      if (!found) {
+        fprintf(stderr, "[ACR] Error: ACR monitor does not handle the %s"
+        " function\n", $1);
+        free($1);
+        YYERROR;
       }
       free($1);
     }
@@ -547,6 +549,9 @@ acr_strategy_options
       if (strcmp($1, acr_pragma_strategy_names[acr_strategy_direct].name) != 0) {
         fprintf(stderr, "%s",
           acr_pragma_strategy_names[acr_strategy_direct].error_message);
+          free($1);
+          free($5);
+          YYERROR;
       }
       if ($3.type == integer_value) {
         $$ = acr_new_strategy_direct_int($5, $3.value.integer_val.integer);
@@ -561,6 +566,9 @@ acr_strategy_options
       if (strcmp($1, acr_pragma_strategy_names[acr_strategy_range].name) != 0) {
         fprintf(stderr, "%s",
           acr_pragma_strategy_names[acr_strategy_range].error_message);
+          free($1);
+          free($7);
+          YYERROR;
       }
       if ($3.type == floating_point_value || $5.type == floating_point_value) {
         float bounds[2];
@@ -585,13 +593,34 @@ acr_strategy_options
   ;
 
 constant
-  : I_CONSTANT
+  : minus I_CONSTANT
     {
-      $$ = $1;
+      if ($1) {
+        $2.value.integer_val.integer *= -1l;
+      }
+      $$ = $2;
     }
-  | F_CONSTANT
+  | minus F_CONSTANT
     {
-      $$ = $1;
+      if ($1) {
+        $2.value.floating_point *= -1.f;
+      }
+      $$ = $2;
+    }
+  ;
+
+minus
+  : '-'
+    {
+      $$ = true;
+    }
+  | minus '-'
+    {
+      $$ ^= true;
+    }
+  | %empty
+    {
+      $$ = false;
     }
   ;
 
@@ -688,12 +717,17 @@ int start_acr_parsing(FILE* file, acr_compute_node* node_to_init) {
   option_list = NULL;
   int yyparseval = yyparse();
   if (yyparseval != 0) {
+    fprintf(stderr, "Parser error, abort\n");
     parser_free_option_list(option_list);
   } else {
     acr_option_list new_option_list;
     unsigned long list_size = parser_translate_option_list_and_free(option_list,
         &new_option_list);
-    *node_to_init = acr_new_compute_node(list_size, new_option_list);
+    if (new_option_list) {
+      *node_to_init = acr_new_compute_node(list_size, new_option_list);
+    } else {
+      *node_to_init = NULL;
+    }
   }
   yylex_destroy();
   return yyparseval;

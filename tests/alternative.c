@@ -1,0 +1,8 @@
+#pragma acr alternative prems(parameter, lolipop = 15)
+#pragma acr alternative (parameter, lolipop = 15)
+#pragma acr alternative second(function, mickey = mouse)
+#pragma acr alternative error(almostparameter, test = 18)
+#pragma acr alternative error(almostfunction , test = function)
+#pragma acr alternative error(woush whoul , test = function)
+#pragma acr alternative error(almost param, test = 18)
+#pragma acr alternative negative(parameter, test = -18)

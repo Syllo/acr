@@ -44,7 +44,7 @@ acr_option acr_new_alternative_parameter(const char* alternative_name,
   acr_try_or_die(option == NULL, "Malloc");
 
   option->type = acr_type_alternative;
-  option->options.alternative.type = acr_alternative_function;
+  option->options.alternative.type = acr_alternative_parameter;
   option->options.alternative.alternative_name = acr_strdup(alternative_name);
   option->options.alternative.name_of_object_to_swap =
     acr_strdup(parameter_to_swap);
@@ -275,7 +275,7 @@ void acr_free_option_list(acr_option_list option_list, unsigned long int size) {
 acr_compute_node acr_new_compute_node(unsigned long int list_size,
     acr_option_list list) {
   acr_compute_node node = malloc(sizeof(*node));
-  acr_try_or_die(list == NULL, "Malloc");
+  acr_try_or_die(node == NULL, "Malloc");
   node->option_list = list;
   node->list_size = list_size;
   return node;
