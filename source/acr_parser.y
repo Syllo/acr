@@ -27,6 +27,31 @@
 #include "acr/utils.h"
 #include "acr/print.h" // for debug
 
+static const char* acr_pragma_options_error_messages[] =
+  {
+    [acr_type_alternative] = "[ACR] Hint: take a look at the"
+                             " alternative construct\n",
+    [acr_type_destroy]     = "[ACR] Hint: take a look at the"
+                             " destroy construct\n",
+    [acr_type_grid]        = "[ACR] Hint: take a look at the"
+                             " grid construct\n",
+    [acr_type_init]        = "[ACR] Hint: take a look at the"
+                             " init construct\n",
+    [acr_type_monitor]     = "[ACR] Hint: take a look at the"
+                             " monitor construct\n",
+    [acr_type_strategy]    = "[ACR] Hint: take a look at the"
+                             " strategy construct\n",
+    [acr_type_unknown]     = "[ACR] Warning: unrecognized or"
+                             " malformed pragma\n",
+  };
+
+static const char* acr_pragma_processing_functions[] =
+  {
+    [acr_monitor_function_min]  = "min",
+    [acr_monitor_function_max]  = "max",
+  };
+
+void yylex_destroy(void);
 void yyerror(const char *);  /* prints grammar violation message */
 int yylex(void);
 static void error_print_last_pragma(void);
@@ -41,6 +66,8 @@ extern size_t position_start_current_token;
 extern size_t last_token_size;
 extern size_t last_pragma_start_line;
 extern FILE* yyin;
+
+struct parser_option_list* option_list;
 
 %}
 
@@ -136,8 +163,7 @@ acr_start
       handle_carriage_return();
       parsing_pragma_acr = false;
       if ($2) {
-        pprint_acr_option(stdout, $2);
-        acr_free_option($2);
+        option_list = parser_option_list_add($2, option_list);
       }
     }
   | acr_start IGNORE
@@ -148,8 +174,7 @@ acr_start
       handle_carriage_return();
       parsing_pragma_acr = false;
       if ($3) {
-        pprint_acr_option(stdout, $3);
-        acr_free_option($3);
+        option_list = parser_option_list_add($3, option_list);
       }
     }
   | error
@@ -648,7 +673,11 @@ void yyerror(const char *s)
   fseek(yyin, current_position, SEEK_SET);
 }
 
-int start_parsing(FILE* file) {
+int start_acr_parsing(FILE* file, acr_compute_node* node_to_init) {
+  if (!node_to_init) {
+    fprintf(stderr, "We need a node to init\n");
+    return 1;
+  }
   position_in_file = 0;
   position_of_last_starting_row = 0;
   position_scanning_row = 0;
@@ -656,5 +685,16 @@ int start_parsing(FILE* file) {
   position_start_current_token = 0;
   last_token_size = 0;
   yyin = file;
-  return yyparse();
+  option_list = NULL;
+  int yyparseval = yyparse();
+  if (yyparseval != 0) {
+    parser_free_option_list(option_list);
+  } else {
+    acr_option_list new_option_list;
+    unsigned long list_size = parser_translate_option_list_and_free(option_list,
+        &new_option_list);
+    *node_to_init = acr_new_compute_node(list_size, new_option_list);
+  }
+  yylex_destroy();
+  return yyparseval;
 }

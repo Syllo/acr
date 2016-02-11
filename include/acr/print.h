@@ -23,19 +23,20 @@
 
 #include "acr/pragma_struct.h"
 
-void pprint_acr_option(FILE* out, acr_option option);
+void pprint_acr_option(FILE* out, acr_option option, size_t indent_level);
 
-void pprint_acr_alternative(FILE* out, acr_option alternative);
+void pprint_acr_alternative(FILE* out, acr_option alternative,
+    size_t indent_level);
 
-void pprint_acr_destroy(FILE* out, acr_option destroy);
+void pprint_acr_destroy(FILE* out, acr_option destroy, size_t indent_level);
 
-void pprint_acr_grid(FILE* out, acr_option grid);
+void pprint_acr_grid(FILE* out, acr_option grid, size_t indent_level);
 
-void pprint_acr_init(FILE* out, acr_option init);
+void pprint_acr_init(FILE* out, acr_option init, size_t indent_level);
 
-void pprint_acr_monitor(FILE* out, acr_option monitor);
+void pprint_acr_monitor(FILE* out, acr_option monitor, size_t indent_level);
 
-void pprint_acr_strategy(FILE* out, acr_option strategy);
+void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level);
 
 void pprint_acr_parameter_declaration_list(FILE* out,
                                       unsigned long int num_declarations,
@@ -48,6 +49,12 @@ void pprint_acr_parameter_specifier_list(FILE* out,
 void pprint_acr_array_declaration(FILE* out,
                                   acr_array_declaration* declaration);
 
-void pprint_acr_compute_node(FILE* out, acr_compute_node node);
+void pprint_acr_compute_node(FILE* out, acr_compute_node node,
+    size_t indent_level);
+
+static inline void pprint_acr_indent(FILE* out, size_t num) {
+  for (size_t i = 0; i < num; ++i)
+    fprintf(out, "|   ");
+}
 
 #endif // __ACR_PRINT_H

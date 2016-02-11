@@ -146,13 +146,18 @@ typedef struct acr_compute_node {
   acr_option_list option_list;
 } *acr_compute_node;
 
+typedef struct acr_compute_node_list {
+  unsigned long int list_size;
+  acr_compute_node* compute_node_list;
+} *acr_compute_node_list;
+
 static inline enum acr_type acr_get_type(acr_option option) {
   return option->type;
 }
 
 acr_option acr_new_alternative_function(const char* alternative_name,
-                                          const char* function_to_swap,
-                                          const char* replacement_function);
+                                        const char* function_to_swap,
+                                        const char* replacement_function);
 
 acr_option acr_new_alternative_parameter(const char* alternative_name,
                                          const char* parameter_to_swap,
@@ -427,7 +432,13 @@ void acr_free_acr_array_declaration(
 acr_array_dimensions_list acr_new_array_dimensions_list(unsigned long int size);
 
 static inline void acr_free_array_dimensions_list(
+    unsigned long list_size,
     acr_array_dimensions_list list) {
+  for (unsigned long int i = 0; i < list_size; ++i) {
+    if (list[i].type == acr_array_dimension_parameter) {
+      free(list[i].value.parameter_name);
+    }
+  }
   free(list);
 }
 
@@ -463,6 +474,28 @@ static inline void acr_array_dimensions_set_dim_size(
     acr_array_dimensions_list dimension_list) {
   dimension_list[position].type = acr_array_dimension_uinteger;
   dimension_list[position].value.dimension = dim_size;
+}
+
+acr_compute_node_list acr_new_compute_node_list(unsigned long list_size);
+
+void acr_free_compute_node_list(acr_compute_node_list list);
+
+static inline acr_compute_node acr_compute_node_list_set_node(
+    unsigned long position,
+    const acr_compute_node node,
+    acr_compute_node_list node_list) {
+  return node_list->compute_node_list[position] = node;
+}
+
+static inline acr_compute_node acr_compute_node_list_get_node(
+    unsigned long position,
+    const acr_compute_node_list node_list) {
+  return node_list->compute_node_list[position];
+}
+
+static inline unsigned long acr_compute_node_list_get_size(
+    const acr_compute_node_list node_list) {
+  return node_list->list_size;
 }
 
 #endif // __ACR_PRAGMA_STRUCT_H

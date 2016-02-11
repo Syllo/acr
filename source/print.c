@@ -18,33 +18,44 @@
 
 #include "acr/print.h"
 
-void pprint_acr_compute_node(FILE* out, acr_compute_node node) {
+void pprint_acr_compute_node(FILE* out, acr_compute_node node,
+    size_t indent_level) {
+  if (!node) {
+    pprint_acr_indent(out, indent_level);
+    fprintf(out, "|---| Node\n|   | (NULL)\n|\n");
+    return;
+  }
+  pprint_acr_indent(out, indent_level);
+  fprintf(out, "|---| Node\n");
   unsigned long int size_list = acr_compute_node_get_option_list_size(node);
   acr_option_list list = acr_compute_node_get_option_list(node);
   for (unsigned long int i = 0; i < size_list; ++i) {
-    pprint_acr_option(out, acr_option_list_get_option(i, list));
+    pprint_acr_option(out, acr_option_list_get_option(i, list),
+        indent_level + 1);
   }
+  pprint_acr_indent(out, indent_level);
+  fprintf(out, "|\n");
 }
 
-void pprint_acr_option(FILE* out, acr_option option) {
+void pprint_acr_option(FILE* out, acr_option option, size_t indent_level) {
   switch (acr_get_type(option)) {
     case acr_type_alternative:
-      pprint_acr_alternative(out, option);
+      pprint_acr_alternative(out, option, indent_level);
       break;
     case acr_type_destroy:
-      pprint_acr_destroy(out, option);
+      pprint_acr_destroy(out, option, indent_level);
       break;
     case acr_type_grid:
-      pprint_acr_grid(out, option);
+      pprint_acr_grid(out, option, indent_level);
       break;
     case acr_type_init:
-      pprint_acr_init(out, option);
+      pprint_acr_init(out, option, indent_level);
       break;
     case acr_type_monitor:
-      pprint_acr_monitor(out, option);
+      pprint_acr_monitor(out, option, indent_level);
       break;
     case acr_type_strategy:
-      pprint_acr_strategy(out, option);
+      pprint_acr_strategy(out, option, indent_level);
       break;
     case acr_type_unknown:
       break;
@@ -52,84 +63,113 @@ void pprint_acr_option(FILE* out, acr_option option) {
 }
 
 
-void pprint_acr_alternative(FILE* out, acr_option option) {
+void pprint_acr_alternative(FILE* out, acr_option option, size_t indent_level) {
+  pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| ALTERNATIVE: %s\n",
       acr_alternative_get_alternative_name(option));
   switch (acr_alternative_get_type(option)) {
     case acr_alternative_parameter:
-      fprintf(out, "|   |---| Parameter\n");
-      fprintf(out, "|       | %s -> %ld\n",
+      pprint_acr_indent(out, indent_level + 1);
+      fprintf(out, "|---| Parameter\n");
+      pprint_acr_indent(out, indent_level + 2);
+      fprintf(out, "| %s -> %ld\n",
           acr_alternative_get_object_to_swap_name(option),
           acr_alternative_get_replacement_parameter(option));
       break;
     case acr_alternative_function:
-      fprintf(out, "|   |---| Function\n");
-      fprintf(out, "|       | %s -> %s\n",
+      pprint_acr_indent(out, indent_level + 1);
+      fprintf(out, "|   |   |---| Function\n");
+      pprint_acr_indent(out, indent_level + 2);
+      fprintf(out, "|   |   |   | %s -> %s\n",
           acr_alternative_get_object_to_swap_name(option),
           acr_alternative_get_replacement_function(option));
       break;
     case acr_alternative_unknown:
       break;
   }
+  pprint_acr_indent(out, indent_level);
   fprintf(out, "|\n");
 }
 
-void pprint_acr_destroy(FILE* out, acr_option destroy) {
+void pprint_acr_destroy(FILE* out, acr_option destroy, size_t indent_level) {
+  pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| DESTROY\n");
-  fprintf(out, "|   |---| Position: %lu\n", acr_destroy_get_row_position(destroy));
+  pprint_acr_indent(out, indent_level + 1);
+  fprintf(out, "|---| Position: %lu\n", acr_destroy_get_row_position(destroy));
+  pprint_acr_indent(out, indent_level);
   fprintf(out, "|\n");
 }
 
-void pprint_acr_grid(FILE* out, acr_option grid) {
+void pprint_acr_grid(FILE* out, acr_option grid, size_t indent_level) {
+  pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| GRID\n");
-  fprintf(out, "|   |---| Grid size: %lu\n", acr_grid_get_grid_size(grid));
+  pprint_acr_indent(out, indent_level + 1);
+  fprintf(out, "|---| Grid size: %lu\n", acr_grid_get_grid_size(grid));
+  pprint_acr_indent(out, indent_level);
   fprintf(out, "|\n");
 }
 
-void pprint_acr_init(FILE* out, acr_option init) {
+void pprint_acr_init(FILE* out, acr_option init, size_t indent_level) {
+  pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| INIT\n");
-  fprintf(out, "|   |---| Position: %lu\n", acr_init_get_pragma_row_position(init));
-  fprintf(out, "|   |---| Function: void %s(",
+  pprint_acr_indent(out, indent_level + 1);
+  fprintf(out, "|---| Position: %lu\n", acr_init_get_pragma_row_position(init));
+  pprint_acr_indent(out, indent_level + 1);
+  fprintf(out, "|---| Function: void %s(",
       acr_init_get_function_name(init));
   pprint_acr_parameter_declaration_list(out, acr_init_get_num_parameters(init),
       acr_init_get_parameter_list(init));
-  fprintf(out, ")\n|\n");
+  fprintf(out, ")\n");
+  pprint_acr_indent(out, indent_level);
+  fprintf(out, "|\n");
 }
 
-void pprint_acr_monitor(FILE* out, acr_option monitor) {
+void pprint_acr_monitor(FILE* out, acr_option monitor, size_t indent_level) {
+  pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| MONITOR\n");
-  fprintf(out, "|   |---| Data:\n");
-  fprintf(out, "|   |   | ");
+  pprint_acr_indent(out, indent_level + 1);
+  fprintf(out, "|---| Data:\n");
+  pprint_acr_indent(out, indent_level + 2);
+  fprintf(out, "| ");
   pprint_acr_array_declaration(out, acr_monitor_get_array_declaration(monitor));
-  fprintf(out, "\n|   |---| Monitoring function:\n");
+  fprintf(out, "\n");
+  pprint_acr_indent(out, indent_level + 1);
+  fprintf(out, "|---| Monitoring function:\n");
+  pprint_acr_indent(out, indent_level + 2);
   switch (acr_monitor_get_function(monitor)) {
     case acr_monitor_function_min:
-      fprintf(out, "|   |   | min\n");
+      fprintf(out, "| min\n");
       break;
     case acr_monitor_function_max:
-      fprintf(out, "|   |   | max\n");
+      fprintf(out, "| max\n");
       break;
     case acr_monitor_function_unknown:
       break;
   }
   char* filter_function = acr_monitor_get_filter_name(monitor);
   if (filter_function) {
-    fprintf(out, "|   |---| Filter function:\n");
-    fprintf(out, "|   |   | %s\n", filter_function);
+    pprint_acr_indent(out, indent_level + 1);
+    fprintf(out, "|---| Filter function:\n");
+    pprint_acr_indent(out, indent_level + 2);
+    fprintf(out, "| %s\n", filter_function);
   }
+  pprint_acr_indent(out, indent_level);
   fprintf(out, "|\n");
 }
 
-void pprint_acr_strategy(FILE* out, acr_option strategy) {
+void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level) {
   long int strategy_val_integer[2];
   float strategy_val_floating_point[2];
   acr_strategy_populate_int_val(strategy, strategy_val_integer);
   acr_strategy_populate_float_val(strategy, strategy_val_floating_point);
+  pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| STRATEGY\n");
   switch (acr_strategy_get_strategy_type(strategy)) {
     case acr_strategy_direct:
-      fprintf(out, "|   |---| Direct\n");
-      fprintf(out, "|   |   | %s <- ",
+      pprint_acr_indent(out, indent_level + 1);
+      fprintf(out, "|---| Direct\n");
+      pprint_acr_indent(out, indent_level + 2);
+      fprintf(out, "| %s <- ",
           acr_strategy_get_name(strategy));
       switch (acr_strategy_get_value_type(strategy)) {
         case acr_strategy_integer:
@@ -141,8 +181,10 @@ void pprint_acr_strategy(FILE* out, acr_option strategy) {
       }
       break;
     case acr_strategy_range:
-      fprintf(out, "|   |---| Range\n");
-      fprintf(out, "|   |   | %s <- ",
+      pprint_acr_indent(out, indent_level + 1);
+      fprintf(out, "|---| Range\n");
+      pprint_acr_indent(out, indent_level + 2);
+      fprintf(out, "| %s <- ",
           acr_strategy_get_name(strategy));
       switch (acr_strategy_get_value_type(strategy)) {
         case acr_strategy_integer:
@@ -158,6 +200,7 @@ void pprint_acr_strategy(FILE* out, acr_option strategy) {
     case acr_strategy_unknown:
       break;
   }
+  pprint_acr_indent(out, indent_level);
   fprintf(out, "|\n");
 }
 

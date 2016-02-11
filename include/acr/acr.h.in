@@ -20,6 +20,7 @@
 #define __ACR_H
 
 #include <stdio.h>
+#include "acr/pragma_struct.h"
 
 #define ACR_VERSION "@PACKAGE_VERSION@"
 
@@ -35,7 +36,7 @@ static const char version[] = "ACR version " ACR_VERSION "\n"
   "License LGPLv3+: GNU LGPL version 3 or later <http://gnu.org/licenses/lgpl.html>.\n"
   "There is NO WARRANTY, to the extent permitted by law.\n";
 
-extern int start_parsing(FILE* file);
+extern int start_acr_parsing(FILE* file, acr_compute_node* node_to_init);
 
 
 #endif // __ACR_H

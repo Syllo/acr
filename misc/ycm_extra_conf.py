@@ -101,7 +101,9 @@ def GetCompilationInfoForFile( filename ):
   # corresponding source file, if any. If one exists, the flags for that file
   # should be good enough.
   if IsHeaderFile( filename ):
-    basename = os.path.splitext( filename )[ 0 ]
+    basename = os.path.basename(os.path.splitext( filename )[ 0 ])
+    project_basedir = os.path.normpath(os.path.dirname(filename) + "/../../source")
+    basename = project_basedir + "/" + basename
     for extension in SOURCE_EXTENSIONS:
       replacement_file = basename + extension
       if os.path.exists( replacement_file ):

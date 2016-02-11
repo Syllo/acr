@@ -171,9 +171,6 @@ acr_option acr_new_strategy_range_float(const char* strategy_name,
 acr_option_list acr_new_option_list(unsigned long int size) {
   acr_option_list list = malloc(size * sizeof(*list));
   acr_try_or_die(list == NULL, "Malloc");
-  for (unsigned long int i = 0; i < size; ++i) {
-    acr_option_list_set_option(NULL, i, list);
-  }
   return list;
 }
 
@@ -223,12 +220,8 @@ void acr_free_acr_array_declaration(
   acr_free_parameter_specifier_list(array_declaration->num_specifiers,
     array_declaration->parameter_specifiers_list);
   free(array_declaration->array_name);
-  for (unsigned long int i = 0; i < array_declaration->num_dimensions; ++i) {
-    if (array_declaration->array_dimensions_list[i].type == acr_array_dimension_parameter) {
-      free(array_declaration->array_dimensions_list[i].value.parameter_name);
-    }
-  }
-  acr_free_array_dimensions_list(array_declaration->array_dimensions_list);
+  acr_free_array_dimensions_list(array_declaration->num_dimensions,
+      array_declaration->array_dimensions_list);
 }
 
 static void acr_free_monitor(acr_monitor* monitor) {
@@ -282,6 +275,7 @@ void acr_free_option_list(acr_option_list option_list, unsigned long int size) {
 acr_compute_node acr_new_compute_node(unsigned long int list_size,
     acr_option_list list) {
   acr_compute_node node = malloc(sizeof(*node));
+  acr_try_or_die(list == NULL, "Malloc");
   node->option_list = list;
   node->list_size = list_size;
   return node;
@@ -296,5 +290,15 @@ void acr_free_compute_node(acr_compute_node node) {
 
 acr_array_dimensions_list acr_new_array_dimensions_list(unsigned long int size) {
   acr_array_dimensions_list dim = malloc(size * sizeof(*dim));
+  acr_try_or_die(dim == NULL, "Malloc");
   return dim;
+}
+
+acr_compute_node_list acr_new_compute_node_list(unsigned long list_size) {
+  acr_compute_node_list list = malloc(sizeof(*list));
+  acr_try_or_die(list == NULL, "Malloc");
+  list->list_size = list_size;
+  list->compute_node_list = malloc(list_size * sizeof(*list->compute_node_list));
+  acr_try_or_die(list->compute_node_list == NULL, "Malloc");
+  return list;
 }

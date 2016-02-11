@@ -21,6 +21,12 @@
 
 #include "acr/pragma_struct.h"
 
+struct parser_option_list {
+  acr_option option;
+  struct parser_option_list* next;
+  struct parser_option_list* previous;
+};
+
 struct acr_pragma_parser_name_error_utils {
   const char* name;
   const char* error_message;
@@ -33,30 +39,6 @@ static const struct acr_pragma_parser_name_error_utils
                               " create an alternative parameter construct?\n"},
     [acr_alternative_function]  = {"function",  "[ACR] Hint: did you want to"
                               " create an alternative parameter construct?\n"},
-  };
-
-static const char* acr_pragma_options_error_messages[] =
-  {
-    [acr_type_alternative] = "[ACR] Hint: take a look at the"
-                             " alternative construct\n",
-    [acr_type_destroy]     = "[ACR] Hint: take a look at the"
-                             " destroy construct\n",
-    [acr_type_grid]        = "[ACR] Hint: take a look at the"
-                             " grid construct\n",
-    [acr_type_init]        = "[ACR] Hint: take a look at the"
-                             " init construct\n",
-    [acr_type_monitor]     = "[ACR] Hint: take a look at the"
-                             " monitor construct\n",
-    [acr_type_strategy]    = "[ACR] Hint: take a look at the"
-                             " strategy construct\n",
-    [acr_type_unknown]     = "[ACR] Warning: unrecognized or"
-                             " malformed pragma\n",
-  };
-
-static const char* acr_pragma_processing_functions[] =
-  {
-    [acr_monitor_function_min]  = "min",
-    [acr_monitor_function_max]  = "max",
   };
 
 static const struct acr_pragma_parser_name_error_utils
@@ -147,6 +129,55 @@ static inline void free_dimensions(struct array_dimensions* dimension) {
   if (dimension->dimension.type == acr_array_dimension_parameter)
     free(acr_array_dimensions_get_dim_name(0, &dimension->dimension));
   free(dimension);
+}
+
+static inline struct parser_option_list* parser_option_list_add(
+    acr_option option,
+    struct parser_option_list* option_list) {
+  struct parser_option_list* list = malloc(sizeof(*list));
+  list->next = option_list;
+  list->previous = NULL;
+  if (option_list)
+    option_list->previous = list;
+  list->option = option;
+  return list;
+}
+
+static inline unsigned long int parser_translate_option_list_and_free(
+    struct parser_option_list* old_list,
+    acr_option_list* new_list) {
+  if(!old_list) {
+    *new_list = NULL;
+    return 0;
+  }
+  unsigned long int size_list = 1ul;
+  while (old_list->next) {
+    old_list = old_list->next;
+    ++size_list;
+  }
+
+  *new_list = acr_new_option_list(size_list);
+  for (unsigned long i = 0; i < size_list; ++i) {
+    acr_option_list_set_option(old_list->option, i, *new_list);
+    if (old_list->previous) {
+      old_list = old_list->previous;
+      free(old_list->next);
+    }
+  }
+  free(old_list);
+  return size_list;
+}
+
+static inline void parser_free_option_list(struct parser_option_list* list) {
+  if (!list)
+    return;
+  while (list->next) {
+    list = list->next;
+    acr_free_option(list->previous->option);
+    free(list->previous);
+  }
+  acr_free_option(list->option);
+  free(list);
 }
 
 #endif // __ACR_PARSER_UTILS_H
