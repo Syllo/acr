@@ -151,7 +151,7 @@ typedef struct acr_compute_node_list {
   acr_compute_node* compute_node_list;
 } *acr_compute_node_list;
 
-static inline enum acr_type acr_get_type(acr_option option) {
+static inline enum acr_type acr_option_get_type(acr_option option) {
   return option->type;
 }
 
@@ -376,7 +376,7 @@ static inline enum acr_strategy_value_type acr_strategy_get_value_type(
   return option->options.strategy.value_type;
 }
 
-static inline void acr_strategy_populate_float_val(
+static inline void acr_strategy_get_float_val(
     const acr_option option,
     float values[2]){
   values[0] = option->options.strategy.boundaries[0].value_float;
@@ -385,7 +385,7 @@ static inline void acr_strategy_populate_float_val(
   }
 }
 
-static inline void acr_strategy_populate_int_val(
+static inline void acr_strategy_get_int_val(
     const acr_option option,
     long int values[2]){
   values[0] = option->options.strategy.boundaries[0].value_int;
@@ -497,5 +497,7 @@ static inline unsigned long acr_compute_node_list_get_size(
     const acr_compute_node_list node_list) {
   return node_list->list_size;
 }
+
+void acr_simlpify_compute_node(acr_compute_node node);
 
 #endif // __ACR_PRAGMA_STRUCT_H

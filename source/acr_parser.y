@@ -570,6 +570,48 @@ acr_strategy_options
           free($7);
           YYERROR;
       }
+      const char range_error[] = "[ACR] Error, lower bound is greater than"
+          " the upper bound\n";
+
+      if($3.type == floating_point_value) {
+        if ($5.type == floating_point_value) {
+          if ($3.value.floating_point > $5.value.floating_point) {
+            fprintf(stderr, "%s", range_error);
+            error_print_last_pragma();
+            free($1);
+            free($7);
+            YYERROR;
+          }
+        } else {
+          if ($3.value.floating_point >
+              ((float) $5.value.integer_val.integer)) {
+            fprintf(stderr, "%s", range_error);
+            error_print_last_pragma();
+            free($1);
+            free($7);
+            YYERROR;
+          }
+        }
+      } else {
+        if ($5.type == floating_point_value) {
+          if (((float)$3.value.integer_val.integer) >
+              $5.value.floating_point) {
+            fprintf(stderr, "%s", range_error);
+            error_print_last_pragma();
+            free($1);
+            free($7);
+            YYERROR;
+          }
+        } else {
+          if ($3.value.integer_val.integer > $5.value.integer_val.integer) {
+            fprintf(stderr, "%s", range_error);
+            error_print_last_pragma();
+            free($1);
+            free($7);
+            YYERROR;
+          }
+        }
+      }
       if ($3.type == floating_point_value || $5.type == floating_point_value) {
         float bounds[2];
         if ($3.type == integer_value)

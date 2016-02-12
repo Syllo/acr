@@ -124,6 +124,7 @@ acr_option acr_new_strategy_direct_int(const char* strategy_name,
   option->options.strategy.strategy_type = acr_strategy_direct;
   option->options.strategy.value_type = acr_strategy_integer;
   option->options.strategy.boundaries[0].value_int = matching_value;
+  option->options.strategy.boundaries[1].value_int = 0l;
   return option;
 }
 
@@ -134,7 +135,10 @@ acr_option acr_new_strategy_range_int(const char* strategy_name,
 
   option->type = acr_type_strategy;
   option->options.strategy.strategy_name = acr_strdup(strategy_name);
-  option->options.strategy.strategy_type = acr_strategy_range;
+  if (matching_value[0] == matching_value[1])
+    option->options.strategy.strategy_type = acr_strategy_direct;
+  else
+    option->options.strategy.strategy_type = acr_strategy_range;
   option->options.strategy.value_type = acr_strategy_integer;
   option->options.strategy.boundaries[0].value_int = matching_value[0];
   option->options.strategy.boundaries[1].value_int = matching_value[1];
@@ -151,6 +155,7 @@ acr_option acr_new_strategy_direct_float(const char* strategy_name,
   option->options.strategy.strategy_type = acr_strategy_direct;
   option->options.strategy.value_type = acr_strategy_floating_point;
   option->options.strategy.boundaries[0].value_float = matching_value;
+  option->options.strategy.boundaries[1].value_float = 0.f;
   return option;
 }
 
@@ -161,7 +166,10 @@ acr_option acr_new_strategy_range_float(const char* strategy_name,
 
   option->type = acr_type_strategy;
   option->options.strategy.strategy_name = acr_strdup(strategy_name);
-  option->options.strategy.strategy_type = acr_strategy_range;
+  if (matching_value[0] == matching_value[1])
+    option->options.strategy.strategy_type = acr_strategy_direct;
+  else
+    option->options.strategy.strategy_type = acr_strategy_range;
   option->options.strategy.value_type = acr_strategy_floating_point;
   option->options.strategy.boundaries[0].value_float = matching_value[0];
   option->options.strategy.boundaries[1].value_float = matching_value[1];
@@ -301,4 +309,207 @@ acr_compute_node_list acr_new_compute_node_list(unsigned long list_size) {
   list->compute_node_list = malloc(list_size * sizeof(*list->compute_node_list));
   acr_try_or_die(list->compute_node_list == NULL, "Malloc");
   return list;
+}
+
+static void acr_compute_node_delete_option_from_position(
+    unsigned long position,
+    acr_compute_node node) {
+  acr_option_list option_list = acr_compute_node_get_option_list(node);
+  unsigned long option_list_size = acr_compute_node_get_option_list_size(node);
+
+  if (position < option_list_size) {
+    acr_free_option(option_list[position]);
+    for (unsigned long i = position; i + 1ul < option_list_size; ++i) {
+      option_list[i] = option_list[i + 1ul];
+    }
+    option_list_size -= 1ul;
+    node->option_list = realloc(node->option_list, option_list_size *
+                                                   sizeof(*node->option_list));
+    node->list_size = option_list_size;
+  }
+}
+
+static bool acr_option_are_same_alternative(const acr_option alternative1,
+                                            const acr_option alternative2) {
+  if (acr_option_get_type(alternative1) == acr_type_alternative &&
+      acr_option_get_type(alternative2) == acr_type_alternative) {
+    char* name1 = alternative1->options.alternative.alternative_name;
+    char* name2 = alternative2->options.alternative.alternative_name;
+    return strcmp(name1, name2) == 0;
+  }
+  return false;
+}
+
+static bool acr_strategy_first_included_in_second(const acr_option strategy1,
+                                                  const acr_option strategy2) {
+  if (acr_option_get_type(strategy1) == acr_type_strategy &&
+      acr_option_get_type(strategy2) == acr_type_strategy) {
+    long val_int1[2];
+    float val_float1[2];
+    long val_int2[2];
+    float val_float2[2];
+    switch (acr_strategy_get_strategy_type(strategy1)) {
+      case acr_strategy_direct:
+        switch (acr_strategy_get_strategy_type(strategy2)) {
+          case acr_strategy_direct:
+            if (acr_strategy_get_value_type(strategy1) == acr_strategy_integer &&
+                acr_strategy_get_value_type(strategy2) == acr_strategy_integer) {
+              acr_strategy_get_int_val(strategy1, val_int1);
+              acr_strategy_get_int_val(strategy2, val_int2);
+              return val_int1[0] == val_int2[0];
+            } else {
+              if (acr_strategy_get_value_type(strategy1) == acr_strategy_integer) {
+                acr_strategy_get_int_val(strategy1, val_int1);
+                acr_strategy_get_float_val(strategy2, val_float2);
+                return ((float) val_int1[0]) == val_float2[0];
+              } else {
+                if (acr_strategy_get_value_type(strategy2) == acr_strategy_integer) {
+                  acr_strategy_get_float_val(strategy1, val_float1);
+                  acr_strategy_get_int_val(strategy2, val_int2);
+                  return val_float1[0] == ((float) val_int2[0]);
+                }
+                else {
+                  acr_strategy_get_float_val(strategy1, val_float1);
+                  acr_strategy_get_float_val(strategy2, val_float2);
+                  return val_float1[0] == val_int2[0];
+                }
+              }
+            }
+            break;
+          case acr_strategy_range:
+            if (acr_strategy_get_value_type(strategy1) == acr_strategy_integer &&
+                acr_strategy_get_value_type(strategy2) == acr_strategy_integer) {
+                acr_strategy_get_int_val(strategy1, val_int1);
+                acr_strategy_get_int_val(strategy2, val_int2);
+                return val_int1[0] >= val_int2[0] && val_int1[0] <= val_int2[1];
+            } else {
+              if (acr_strategy_get_value_type(strategy1) == acr_strategy_integer) {
+                acr_strategy_get_int_val(strategy1, val_int1);
+                acr_strategy_get_float_val(strategy2, val_float2);
+                return ((float) val_int1[0]) >= val_float2[0] &&
+                       ((float) val_int1[0]) <= val_float2[1];
+              } else {
+                if (acr_strategy_get_value_type(strategy2) == acr_strategy_integer) {
+                  acr_strategy_get_float_val(strategy1, val_float1);
+                  acr_strategy_get_int_val(strategy2, val_int2);
+                  return val_float1[0] >= ((float) val_int2[0]) &&
+                         val_float1[0] <= ((float) val_int2[1]);
+                }
+                else {
+                  acr_strategy_get_float_val(strategy1, val_float1);
+                  acr_strategy_get_float_val(strategy2, val_float2);
+                  return val_float1[0] >= val_float2[0] &&
+                         val_float1[0] <= val_float2[1];
+                }
+              }
+            }
+            break;
+          case acr_strategy_unknown:
+            break;
+        }
+        break;
+      case acr_strategy_range:
+        switch (acr_strategy_get_strategy_type(strategy2)) {
+          case acr_strategy_direct:
+            return false;
+            break;
+          case acr_strategy_range:
+            if (acr_strategy_get_value_type(strategy1) == acr_strategy_integer &&
+                acr_strategy_get_value_type(strategy2) == acr_strategy_integer) {
+              acr_strategy_get_int_val(strategy1, val_int1);
+              acr_strategy_get_int_val(strategy2, val_int2);
+              return val_int1[0] >= val_int2[0] && val_int1[1] <= val_int2[1];
+            } else {
+              if (acr_strategy_get_value_type(strategy1) ==
+                  acr_strategy_integer) {
+                acr_strategy_get_int_val(strategy1, val_int1);
+                acr_strategy_get_float_val(strategy2, val_float2);
+                return ((float) val_int1[0]) >= val_float2[0] &&
+                       ((float) val_int1[1]) <= val_float2[1];
+              } else {
+                if (acr_strategy_get_value_type(strategy2) ==
+                    acr_strategy_integer) {
+                  acr_strategy_get_float_val(strategy1, val_float1);
+                  acr_strategy_get_int_val(strategy2, val_int2);
+                  return val_float1[0] >= ((float) val_int2[0]) &&
+                        val_float1[1] <= ((float) val_int2[1]);
+                } else {
+                  acr_strategy_get_float_val(strategy1, val_float1);
+                  acr_strategy_get_float_val(strategy2, val_float2);
+                  return val_float1[0] >= val_float2[0] &&
+                        val_float1[1] <= val_float2[1];
+                }
+              }
+            }
+            break;
+          case acr_strategy_unknown:
+            break;
+        }
+        break;
+      case acr_strategy_unknown:
+        break;
+    }
+  }
+  return false;
+}
+
+#include "acr/print.h"
+
+void acr_simlpify_compute_node(acr_compute_node node) {
+  unsigned long last_init = 0;
+  acr_option_list option_list;
+  for (unsigned long i = 0; i < acr_compute_node_get_option_list_size(node); ++i) {
+    option_list = acr_compute_node_get_option_list(node);
+    switch (acr_option_get_type(acr_option_list_get_option(i, option_list))) {
+      case acr_type_init:
+        last_init = i;
+        break;
+      case acr_type_alternative:
+        for (unsigned int j = last_init + 1; j < i; ++j) {
+          option_list = acr_compute_node_get_option_list(node);
+          acr_option to_compare = acr_option_list_get_option(j, option_list);
+          if (acr_option_are_same_alternative(
+                acr_option_list_get_option(i, option_list), to_compare)) {
+            acr_compute_node_delete_option_from_position(j, node);
+            i -= 1ul;
+            j -= 1ul;
+          }
+        }
+        break;
+      case acr_type_grid:
+      case acr_type_monitor:
+      case acr_type_destroy:
+        for (unsigned int j = last_init + 1; j < i; ++j) {
+          option_list = acr_compute_node_get_option_list(node);
+          acr_option to_compare = acr_option_list_get_option(j, option_list);
+          if (acr_option_get_type(to_compare) ==
+              acr_option_get_type(acr_option_list_get_option(i, option_list))) {
+            acr_compute_node_delete_option_from_position(j, node);
+            i -= 1ul;
+            j -= 1ul;
+          }
+        }
+        break;
+      case acr_type_strategy:
+        for (unsigned int j = last_init + 1; j < i; ++j) {
+            option_list = acr_compute_node_get_option_list(node);
+            acr_option to_compare = acr_option_list_get_option(j, option_list);
+          if (acr_strategy_first_included_in_second(to_compare, acr_option_list_get_option(i, option_list))) {
+            acr_compute_node_delete_option_from_position(j, node);
+            i -= 1ul;
+            j -= 1ul;
+          } else {
+            if (acr_strategy_first_included_in_second(
+                  acr_option_list_get_option(i, option_list), to_compare)) {
+              acr_compute_node_delete_option_from_position(i, node);
+              i -= 1ul;
+              break;
+            }
+          }
+        }
+        break;
+      case acr_type_unknown:
+        break;
+    }
+  }
 }

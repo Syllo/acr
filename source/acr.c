@@ -72,6 +72,10 @@ int main(int argc, char** argv) {
       if (compute_node == NULL) {
         fprintf(stdout, "No pragma acr found in %s\n",argv[i]);
       } else {
+        fprintf(stdout, "Befor simplification\n");
+        pprint_acr_compute_node(stdout, compute_node, 0);
+        acr_simlpify_compute_node(compute_node);
+        fprintf(stdout, "After simplification\n");
         pprint_acr_compute_node(stdout, compute_node, 0);
         acr_free_compute_node(compute_node);
       }

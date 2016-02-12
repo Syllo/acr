@@ -38,7 +38,7 @@ void pprint_acr_compute_node(FILE* out, acr_compute_node node,
 }
 
 void pprint_acr_option(FILE* out, acr_option option, size_t indent_level) {
-  switch (acr_get_type(option)) {
+  switch (acr_option_get_type(option)) {
     case acr_type_alternative:
       pprint_acr_alternative(out, option, indent_level);
       break;
@@ -160,8 +160,8 @@ void pprint_acr_monitor(FILE* out, acr_option monitor, size_t indent_level) {
 void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level) {
   long int strategy_val_integer[2];
   float strategy_val_floating_point[2];
-  acr_strategy_populate_int_val(strategy, strategy_val_integer);
-  acr_strategy_populate_float_val(strategy, strategy_val_floating_point);
+  acr_strategy_get_int_val(strategy, strategy_val_integer);
+  acr_strategy_get_float_val(strategy, strategy_val_floating_point);
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| STRATEGY\n");
   switch (acr_strategy_get_strategy_type(strategy)) {
