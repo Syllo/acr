@@ -52,9 +52,8 @@ void pprint_acr_array_declaration(FILE* out,
 void pprint_acr_compute_node(FILE* out, acr_compute_node node,
     size_t indent_level);
 
-static inline void pprint_acr_indent(FILE* out, size_t num) {
-  for (size_t i = 0; i < num; ++i)
-    fprintf(out, "|   ");
-}
+void pprint_acr_compute_node_list(FILE* out,
+                                  acr_compute_node_list node_list,
+                                  size_t indent_level);
 
 #endif // __ACR_PRINT_H

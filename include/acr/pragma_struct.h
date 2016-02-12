@@ -500,4 +500,7 @@ static inline unsigned long acr_compute_node_list_get_size(
 
 void acr_simlpify_compute_node(acr_compute_node node);
 
+acr_compute_node_list acr_new_compute_node_list_split_node(
+    acr_compute_node node);
+
 #endif // __ACR_PRAGMA_STRUCT_H

@@ -74,10 +74,13 @@ int main(int argc, char** argv) {
       } else {
         fprintf(stdout, "Befor simplification\n");
         pprint_acr_compute_node(stdout, compute_node, 0);
-        acr_simlpify_compute_node(compute_node);
-        fprintf(stdout, "After simplification\n");
-        pprint_acr_compute_node(stdout, compute_node, 0);
-        acr_free_compute_node(compute_node);
+        acr_compute_node_list node_list =
+          acr_new_compute_node_list_split_node(compute_node);
+        if (node_list) {
+          fprintf(stdout, "After simplification\n");
+          pprint_acr_compute_node_list(stdout, node_list, 0);
+        }
+        acr_free_compute_node_list(node_list);
       }
       fclose(current_file);
     }

@@ -358,12 +358,14 @@ static bool acr_strategy_first_included_in_second(const acr_option strategy1,
               acr_strategy_get_int_val(strategy2, val_int2);
               return val_int1[0] == val_int2[0];
             } else {
-              if (acr_strategy_get_value_type(strategy1) == acr_strategy_integer) {
+              if (acr_strategy_get_value_type(strategy1) ==
+                  acr_strategy_integer) {
                 acr_strategy_get_int_val(strategy1, val_int1);
                 acr_strategy_get_float_val(strategy2, val_float2);
                 return ((float) val_int1[0]) == val_float2[0];
               } else {
-                if (acr_strategy_get_value_type(strategy2) == acr_strategy_integer) {
+                if (acr_strategy_get_value_type(strategy2) ==
+                    acr_strategy_integer) {
                   acr_strategy_get_float_val(strategy1, val_float1);
                   acr_strategy_get_int_val(strategy2, val_int2);
                   return val_float1[0] == ((float) val_int2[0]);
@@ -383,13 +385,15 @@ static bool acr_strategy_first_included_in_second(const acr_option strategy1,
                 acr_strategy_get_int_val(strategy2, val_int2);
                 return val_int1[0] >= val_int2[0] && val_int1[0] <= val_int2[1];
             } else {
-              if (acr_strategy_get_value_type(strategy1) == acr_strategy_integer) {
+              if (acr_strategy_get_value_type(strategy1) ==
+                  acr_strategy_integer) {
                 acr_strategy_get_int_val(strategy1, val_int1);
                 acr_strategy_get_float_val(strategy2, val_float2);
                 return ((float) val_int1[0]) >= val_float2[0] &&
                        ((float) val_int1[0]) <= val_float2[1];
               } else {
-                if (acr_strategy_get_value_type(strategy2) == acr_strategy_integer) {
+                if (acr_strategy_get_value_type(strategy2) ==
+                    acr_strategy_integer) {
                   acr_strategy_get_float_val(strategy1, val_float1);
                   acr_strategy_get_int_val(strategy2, val_int2);
                   return val_float1[0] >= ((float) val_int2[0]) &&
@@ -453,19 +457,15 @@ static bool acr_strategy_first_included_in_second(const acr_option strategy1,
   return false;
 }
 
-#include "acr/print.h"
-
 void acr_simlpify_compute_node(acr_compute_node node) {
-  unsigned long last_init = 0;
   acr_option_list option_list;
   for (unsigned long i = 0; i < acr_compute_node_get_option_list_size(node); ++i) {
     option_list = acr_compute_node_get_option_list(node);
     switch (acr_option_get_type(acr_option_list_get_option(i, option_list))) {
       case acr_type_init:
-        last_init = i;
         break;
       case acr_type_alternative:
-        for (unsigned int j = last_init + 1; j < i; ++j) {
+        for (unsigned int j = 1; j < i; ++j) {
           option_list = acr_compute_node_get_option_list(node);
           acr_option to_compare = acr_option_list_get_option(j, option_list);
           if (acr_option_are_same_alternative(
@@ -479,7 +479,7 @@ void acr_simlpify_compute_node(acr_compute_node node) {
       case acr_type_grid:
       case acr_type_monitor:
       case acr_type_destroy:
-        for (unsigned int j = last_init + 1; j < i; ++j) {
+        for (unsigned int j = 1; j < i; ++j) {
           option_list = acr_compute_node_get_option_list(node);
           acr_option to_compare = acr_option_list_get_option(j, option_list);
           if (acr_option_get_type(to_compare) ==
@@ -491,10 +491,11 @@ void acr_simlpify_compute_node(acr_compute_node node) {
         }
         break;
       case acr_type_strategy:
-        for (unsigned int j = last_init + 1; j < i; ++j) {
+        for (unsigned int j = 1; j < i; ++j) {
             option_list = acr_compute_node_get_option_list(node);
             acr_option to_compare = acr_option_list_get_option(j, option_list);
-          if (acr_strategy_first_included_in_second(to_compare, acr_option_list_get_option(i, option_list))) {
+          if (acr_strategy_first_included_in_second(to_compare,
+                acr_option_list_get_option(i, option_list))) {
             acr_compute_node_delete_option_from_position(j, node);
             i -= 1ul;
             j -= 1ul;
@@ -512,4 +513,98 @@ void acr_simlpify_compute_node(acr_compute_node node) {
         break;
     }
   }
+}
+
+static unsigned long acr_compute_node_count_num_type(
+    const acr_compute_node node,
+    enum acr_type type) {
+  unsigned long num_type = 0ul;
+  unsigned long list_size = acr_compute_node_get_option_list_size(node);
+  const acr_option_list option_list = acr_compute_node_get_option_list(node);
+  for (unsigned long i = 0; i < list_size; ++i) {
+    if (acr_option_get_type(acr_option_list_get_option(i, option_list))
+        == type) {
+      num_type += 1ul;
+    }
+  }
+  return num_type;
+}
+
+static inline long acr_option_list_position_of_next_type(
+    const acr_option_list option_list,
+    unsigned long list_size,
+    unsigned long actual_position,
+    enum acr_type type) {
+  for (unsigned long i = actual_position; i < list_size; ++i) {
+    if (acr_option_get_type(acr_option_list_get_option(i, option_list)) == type)
+      return i;
+  }
+  return -1;
+}
+
+acr_compute_node_list acr_new_compute_node_list_split_node(
+    acr_compute_node node) {
+  unsigned long num_init = acr_compute_node_count_num_type(node, acr_type_init);
+  unsigned long num_dest =
+    acr_compute_node_count_num_type(node, acr_type_destroy);
+  if (num_init != num_dest || num_init == 0ul) {
+    fprintf(stderr, "[ACR] Error: The number of init and destroy construct do"
+        " not match or are equal to zero\n");
+    acr_free_compute_node(node);
+    return NULL;
+  }
+  acr_compute_node_list new_list = acr_new_compute_node_list(num_init);
+
+  unsigned long list_size = acr_compute_node_get_option_list_size(node);
+  const acr_option_list option_list = acr_compute_node_get_option_list(node);
+
+  long next_destroy = 0l;
+  unsigned long actual_position = 0;
+  for (unsigned long i = 0; i < num_init; ++i) {
+    long next_init = acr_option_list_position_of_next_type(
+        option_list, list_size, next_destroy, acr_type_init);
+    next_destroy = acr_option_list_position_of_next_type(
+        option_list, list_size, next_init, acr_type_destroy);
+    if (next_init == -1l || next_destroy == -1l) {
+      fprintf(stderr, "[ACR] Error: pragmas acr should be between only one"
+          " init and one destroy\n");
+      for (unsigned int j = 0; j < num_init; ++j) {
+        if (j < i)
+          acr_free_compute_node(acr_compute_node_list_get_node(j,new_list));
+        acr_compute_node_list_set_node(j, NULL, new_list);
+      }
+      acr_free_compute_node_list(new_list);
+      acr_free_compute_node(node);
+      return NULL;
+    }
+    // Free bad positionned options
+    for (unsigned int j = actual_position; j < next_init; ++j) {
+      acr_free_option(acr_option_list_get_option(j, option_list));
+      acr_option_list_set_option(NULL, j, option_list);
+    }
+    unsigned long new_size = next_destroy - next_init + 1;
+    acr_option_list new_options = acr_new_option_list(new_size);
+    for (unsigned int j = next_init; j <= next_destroy; ++j) {
+      acr_option_list_set_option(acr_option_list_get_option(j, option_list),
+          j - next_init, new_options);
+      acr_option_list_set_option(NULL, j, option_list);
+    }
+    acr_compute_node new_node = acr_new_compute_node(new_size, new_options);
+    acr_simlpify_compute_node(new_node);
+    acr_compute_node_list_set_node(i, new_node, new_list);
+    next_destroy += 1;
+    actual_position = next_destroy;
+  }
+  acr_free_compute_node(node);
+  return new_list;
+}
+
+void acr_free_compute_node_list(acr_compute_node_list list) {
+  if (!list)
+    return;
+  for (unsigned int i = 0; i < list->list_size; ++i) {
+    acr_free_compute_node(list->compute_node_list[i]);
+  }
+  free(list->compute_node_list);
+  free(list);
 }
