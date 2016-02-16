@@ -51,7 +51,7 @@ static const char* acr_pragma_processing_functions[] =
     [acr_monitor_function_max]  = "max",
   };
 
-void yylex_destroy(void);
+void acrlex_destroy(void);
 void yyerror(const char *);  /* prints grammar violation message */
 static void error_print_last_pragma(void);
 static void handle_carriage_return(void);
@@ -64,13 +64,14 @@ extern size_t position_scanning_column;
 extern size_t position_start_current_token;
 extern size_t last_token_size;
 extern size_t last_pragma_start_line;
-extern FILE* yyin;
+extern FILE* acrin;
 
 struct parser_option_list* option_list;
 
 %}
 
 %define api.pure full
+%define api.prefix {acr}
 
 %union {
   char* identifier;
@@ -684,16 +685,16 @@ minus
 %%
 
 static void error_print_last_pragma(void) {
-  long current_position = ftell(yyin);
-  fseek(yyin, last_pragma_start_line, SEEK_SET);
+  long current_position = ftell(acrin);
+  fseek(acrin, last_pragma_start_line, SEEK_SET);
   char c;
   char previous;
 
   fprintf(stderr, "[ACR] Ignoring following pragma:\n*\n");
 
-  fscanf(yyin, "%c", &c);
+  fscanf(acrin, "%c", &c);
   fprintf(stderr, "* %c", c);
-  while(previous = c, fscanf(yyin, "%c", &c), c != EOF) {
+  while(previous = c, fscanf(acrin, "%c", &c), c != EOF) {
     fprintf(stderr, "%c", c);
     if (previous != '\\' && c == '\n') {
       break;
@@ -704,7 +705,7 @@ static void error_print_last_pragma(void) {
   }
   fprintf(stderr, "*\n\n");
   fflush(stderr);
-  fseek(yyin, current_position, SEEK_SET);
+  fseek(acrin, current_position, SEEK_SET);
 }
 
 static void handle_carriage_return(void) {
@@ -724,8 +725,8 @@ void yyerror(const char *s)
       position_scanning_row + 1,
       position_scanning_column + 1 - last_token_size);
 
-  long current_position = ftell(yyin);
-  fseek(yyin, position_of_last_starting_row, SEEK_SET);
+  long current_position = ftell(acrin);
+  fseek(acrin, position_of_last_starting_row, SEEK_SET);
 
   if(position_in_file == 0)
     return;
@@ -733,7 +734,7 @@ void yyerror(const char *s)
   size_t i = 101;
   do {
     if (i == 101) {
-      fscanf(yyin, "%100c", row_buffer);
+      fscanf(acrin, "%100c", row_buffer);
       i = 1;
     }
     else
@@ -755,7 +756,7 @@ void yyerror(const char *s)
     fprintf(stderr, "%c", '~');
   }
   fprintf(stderr, "\n");
-  fseek(yyin, current_position, SEEK_SET);
+  fseek(acrin, current_position, SEEK_SET);
 }
 
 int start_acr_parsing(FILE* file, acr_compute_node* node_to_init) {
@@ -769,7 +770,7 @@ int start_acr_parsing(FILE* file, acr_compute_node* node_to_init) {
   position_scanning_column = 0;
   position_start_current_token = 0;
   last_token_size = 0;
-  yyin = file;
+  acrin = file;
   option_list = NULL;
   int yyparseval = yyparse();
   if (yyparseval != 0) {
@@ -785,6 +786,6 @@ int start_acr_parsing(FILE* file, acr_compute_node* node_to_init) {
       *node_to_init = NULL;
     }
   }
-  yylex_destroy();
+  acrlex_destroy();
   return yyparseval;
 }

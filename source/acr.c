@@ -83,6 +83,7 @@ int main(int argc, char** argv) {
             osl_scop_p scop = acr_extract_scop_in_compute_node(
                 node_list->compute_node_list[j], current_file, argv[i]);
             osl_scop_print(stdout, scop);
+            osl_scop_free(scop);
           }
         }
         acr_free_compute_node_list(node_list);

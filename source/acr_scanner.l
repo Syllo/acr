@@ -41,7 +41,9 @@ WS  [ \t\v\f]
 
 #include "acr/utils.h"
 
-extern void yyerror(const char *);  /* prints grammar violation message */
+#define YYSTYPE ACRSTYPE
+
+extern void acrerror(const char *);  /* prints grammar violation message */
 
 extern bool parsing_pragma_acr;
 
@@ -61,6 +63,7 @@ static bool parsing_pragma_acr_name = false;
 
 %}
 
+%option prefix="acr"
 %option noyywrap
 %option nounput
 %option bison-bridge
@@ -311,7 +314,7 @@ static void comment_error(size_t position_row_start_of_string,
   position_scanning_column      = position_start_current_token + 1;
   position_scanning_row         = row_start_of_string;
   last_token_size = 1;
-  yyerror("[ACR] Error: Unterminated string");
+  acrerror("[ACR] Error: Unterminated string");
 }
 
 static void comment(void) {
