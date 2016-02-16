@@ -53,7 +53,6 @@ static const char* acr_pragma_processing_functions[] =
 
 void yylex_destroy(void);
 void yyerror(const char *);  /* prints grammar violation message */
-int yylex(void);
 static void error_print_last_pragma(void);
 static void handle_carriage_return(void);
 
@@ -70,6 +69,8 @@ extern FILE* yyin;
 struct parser_option_list* option_list;
 
 %}
+
+%define api.pure full
 
 %union {
   char* identifier;
@@ -220,7 +221,8 @@ acr_option
         error_print_last_pragma();
         $$ = NULL;
       } else {
-        $$ = acr_new_grid($3.value.integer_val.uinteger);
+        $$ = acr_new_grid($3.value.integer_val.uinteger,
+          last_pragma_start_line);
       }
     }
   | ACR_GRID error CARRIAGE_RETURN
@@ -293,7 +295,8 @@ acr_alternative_options
           free($5.param);
           YYERROR;
       } else {
-        $$ = acr_new_alternative_parameter($1, $5.param, $5.val);
+        $$ = acr_new_alternative_parameter($1, $5.param, $5.val,
+            last_pragma_start_line);
         free($1);
         free($3);
         free($5.param);
@@ -313,7 +316,7 @@ acr_alternative_options
           YYERROR;
       } else {
         $$ = acr_new_alternative_function($1, $5.function_to_swap,
-            $5.replacement_function);
+            $5.replacement_function, last_pragma_start_line);
         free($1);
         free($3);
         free($5.function_to_swap);
@@ -379,6 +382,11 @@ acr_alternative_parameter_swap
       $$.val = $4.value.integer_val.integer;
       if ($3)
         $$.val *= -1l;
+    }
+  | IDENTIFIER '=' I_CONSTANT
+    {
+      $$.param = $1;
+      $$.val = $3.value.integer_val.integer;
     }
   ;
 
@@ -456,11 +464,11 @@ pointer
 acr_monitor_options
   : '(' acr_monitor_data_monitored ',' acr_monitor_processing_function ')'
     {
-      $$ = acr_new_monitor(&$2, $4, NULL);
+      $$ = acr_new_monitor(&$2, $4, NULL, last_pragma_start_line);
     }
   | '(' acr_monitor_data_monitored ',' acr_monitor_processing_function ',' acr_monitor_filter ')'
     {
-      $$ = acr_new_monitor(&$2, $4, $6);
+      $$ = acr_new_monitor(&$2, $4, $6, last_pragma_start_line);
       free($6);
     }
   ;
@@ -554,9 +562,11 @@ acr_strategy_options
           YYERROR;
       }
       if ($3.type == integer_value) {
-        $$ = acr_new_strategy_direct_int($5, $3.value.integer_val.integer);
+        $$ = acr_new_strategy_direct_int($5, $3.value.integer_val.integer,
+            last_pragma_start_line);
       } else {
-        $$ = acr_new_strategy_direct_float($5, $3.value.floating_point);
+        $$ = acr_new_strategy_direct_float($5, $3.value.floating_point,
+            last_pragma_start_line);
       }
       free($1);
       free($5);
@@ -622,12 +632,12 @@ acr_strategy_options
           bounds[1] = (float) $5.value.integer_val.integer;
         else
           bounds[1] = $5.value.floating_point;
-        $$ = acr_new_strategy_range_float($7, bounds);
+        $$ = acr_new_strategy_range_float($7, bounds, last_pragma_start_line);
       } else {  // integer
         long int bounds[2];
         bounds[0] = $3.value.integer_val.integer;
         bounds[1] = $5.value.integer_val.integer;
-        $$ = acr_new_strategy_range_int($7, bounds);
+        $$ = acr_new_strategy_range_int($7, bounds, last_pragma_start_line);
       }
       free($1);
       free($7);
@@ -649,6 +659,14 @@ constant
       }
       $$ = $2;
     }
+  | I_CONSTANT
+    {
+      $$ = $1;
+    }
+  | F_CONSTANT
+    {
+      $$ = $1;
+    }
   ;
 
 minus
@@ -659,10 +677,6 @@ minus
   | minus '-'
     {
       $$ ^= true;
-    }
-  | %empty
-    {
-      $$ = false;
     }
   ;
 

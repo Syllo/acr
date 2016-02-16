@@ -67,11 +67,13 @@ void pprint_acr_option(FILE* out, acr_option option, size_t indent_level) {
   }
 }
 
-
 void pprint_acr_alternative(FILE* out, acr_option option, size_t indent_level) {
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| ALTERNATIVE: %s\n",
       acr_alternative_get_alternative_name(option));
+  pprint_acr_indent(out, indent_level + 1);
+  fprintf(out, "|---| Position: %lu\n",
+      acr_alternative_get_pragma_position(option));
   switch (acr_alternative_get_type(option)) {
     case acr_alternative_parameter:
       pprint_acr_indent(out, indent_level + 1);
@@ -100,7 +102,8 @@ void pprint_acr_destroy(FILE* out, acr_option destroy, size_t indent_level) {
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| DESTROY\n");
   pprint_acr_indent(out, indent_level + 1);
-  fprintf(out, "|---| Position: %lu\n", acr_destroy_get_row_position(destroy));
+  fprintf(out, "|---| Position: %lu\n",
+      acr_destroy_get_pragma_position(destroy));
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|\n");
 }
@@ -108,6 +111,9 @@ void pprint_acr_destroy(FILE* out, acr_option destroy, size_t indent_level) {
 void pprint_acr_grid(FILE* out, acr_option grid, size_t indent_level) {
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| GRID\n");
+  pprint_acr_indent(out, indent_level + 1);
+  fprintf(out, "|---| Position: %lu\n",
+      acr_grid_get_pragma_position(grid));
   pprint_acr_indent(out, indent_level + 1);
   fprintf(out, "|---| Grid size: %lu\n", acr_grid_get_grid_size(grid));
   pprint_acr_indent(out, indent_level);
@@ -118,7 +124,7 @@ void pprint_acr_init(FILE* out, acr_option init, size_t indent_level) {
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| INIT\n");
   pprint_acr_indent(out, indent_level + 1);
-  fprintf(out, "|---| Position: %lu\n", acr_init_get_pragma_row_position(init));
+  fprintf(out, "|---| Position: %lu\n", acr_init_get_pragma_position(init));
   pprint_acr_indent(out, indent_level + 1);
   fprintf(out, "|---| Function: void %s(",
       acr_init_get_function_name(init));
@@ -132,6 +138,9 @@ void pprint_acr_init(FILE* out, acr_option init, size_t indent_level) {
 void pprint_acr_monitor(FILE* out, acr_option monitor, size_t indent_level) {
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| MONITOR\n");
+  pprint_acr_indent(out, indent_level + 1);
+  fprintf(out, "|---| Position: %lu\n",
+      acr_monitor_get_pragma_position(monitor));
   pprint_acr_indent(out, indent_level + 1);
   fprintf(out, "|---| Data:\n");
   pprint_acr_indent(out, indent_level + 2);
@@ -169,6 +178,9 @@ void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level) {
   acr_strategy_get_float_val(strategy, strategy_val_floating_point);
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| STRATEGY\n");
+  pprint_acr_indent(out, indent_level + 1);
+  fprintf(out, "|---| Position: %lu\n",
+      acr_strategy_get_pragma_position(strategy));
   switch (acr_strategy_get_strategy_type(strategy)) {
     case acr_strategy_direct:
       pprint_acr_indent(out, indent_level + 1);

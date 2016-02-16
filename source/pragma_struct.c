@@ -22,10 +22,12 @@
 
 acr_option acr_new_alternative_function(const char* alternative_name,
                                         const char* function_to_swap,
-                                        const char* replacement_function) {
+                                        const char* replacement_function,
+                                        size_t pragma_position) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
+  option->options.alternative.pragma_position = pragma_position;
   option->type = acr_type_alternative;
   option->options.alternative.type = acr_alternative_function;
   option->options.alternative.alternative_name = acr_strdup(alternative_name);
@@ -39,10 +41,12 @@ acr_option acr_new_alternative_function(const char* alternative_name,
 
 acr_option acr_new_alternative_parameter(const char* alternative_name,
                                          const char* parameter_to_swap,
-                                         long int replacement_value){
+                                         long int replacement_value,
+                                        size_t pragma_position) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
+  option->options.alternative.pragma_position = pragma_position;
   option->type = acr_type_alternative;
   option->options.alternative.type = acr_alternative_parameter;
   option->options.alternative.alternative_name = acr_strdup(alternative_name);
@@ -52,33 +56,35 @@ acr_option acr_new_alternative_parameter(const char* alternative_name,
   return option;
 }
 
-acr_option acr_new_destroy(size_t pragma_row_position){
+acr_option acr_new_destroy(size_t pragma_position){
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
   option->type = acr_type_destroy;
-  option->options.destroy.pragma_row_position = pragma_row_position;
+  option->options.destroy.pragma_position = pragma_position;
   return option;
 }
 
-acr_option acr_new_grid(unsigned long int grid_size){
+acr_option acr_new_grid(unsigned long int grid_size,
+    size_t pragma_position) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
   option->type = acr_type_grid;
   option->options.grid.grid_size = grid_size;
+  option->options.grid.pragma_position = pragma_position;
   return option;
 }
 
 acr_option acr_new_init(const char* function_name,
-                        size_t pragma_row_position,
+                        size_t pragma_position,
                         unsigned long int num_parameters,
                         acr_parameter_declaration* parameters_list) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
   option->type = acr_type_init;
-  option->options.init.pragma_row_position = pragma_row_position;
+  option->options.init.pragma_position = pragma_position;
   option->options.init.num_parameters = num_parameters;
   option->options.init.parameters_list = parameters_list;
   option->options.init.function_name = acr_strdup(function_name);
@@ -103,7 +109,8 @@ acr_parameter_specifier* acr_new_parameter_specifier_list(
 acr_option acr_new_monitor(
     const struct acr_array_declaration* array_declaration,
     enum acr_monitor_processing_funtion processing_function,
-    const char* filter_name) {
+    const char* filter_name,
+    size_t pragma_position) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
@@ -111,11 +118,13 @@ acr_option acr_new_monitor(
   option->options.monitor.data_monitored = *array_declaration;
   option->options.monitor.processing_function = processing_function;
   option->options.monitor.filter_name = acr_strdup(filter_name);
+  option->options.monitor.pragma_position = pragma_position;
   return option;
 }
 
 acr_option acr_new_strategy_direct_int(const char* strategy_name,
-                                       long int matching_value) {
+                                       long int matching_value,
+                                       size_t pragma_position) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
@@ -125,11 +134,13 @@ acr_option acr_new_strategy_direct_int(const char* strategy_name,
   option->options.strategy.value_type = acr_strategy_integer;
   option->options.strategy.boundaries[0].value_int = matching_value;
   option->options.strategy.boundaries[1].value_int = 0l;
+  option->options.strategy.pragma_position = pragma_position;
   return option;
 }
 
 acr_option acr_new_strategy_range_int(const char* strategy_name,
-                                      long int matching_value[2]) {
+                                      long int matching_value[2],
+                                      size_t pragma_position) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
@@ -142,11 +153,13 @@ acr_option acr_new_strategy_range_int(const char* strategy_name,
   option->options.strategy.value_type = acr_strategy_integer;
   option->options.strategy.boundaries[0].value_int = matching_value[0];
   option->options.strategy.boundaries[1].value_int = matching_value[1];
+  option->options.strategy.pragma_position = pragma_position;
   return option;
 }
 
 acr_option acr_new_strategy_direct_float(const char* strategy_name,
-                                         float matching_value) {
+                                         float matching_value,
+                                         size_t pragma_position) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
@@ -156,11 +169,13 @@ acr_option acr_new_strategy_direct_float(const char* strategy_name,
   option->options.strategy.value_type = acr_strategy_floating_point;
   option->options.strategy.boundaries[0].value_float = matching_value;
   option->options.strategy.boundaries[1].value_float = 0.f;
+  option->options.strategy.pragma_position = pragma_position;
   return option;
 }
 
 acr_option acr_new_strategy_range_float(const char* strategy_name,
-                                        float matching_value[2]) {
+                                        float matching_value[2],
+                                        size_t pragma_position) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
@@ -173,6 +188,7 @@ acr_option acr_new_strategy_range_float(const char* strategy_name,
   option->options.strategy.value_type = acr_strategy_floating_point;
   option->options.strategy.boundaries[0].value_float = matching_value[0];
   option->options.strategy.boundaries[1].value_float = matching_value[1];
+  option->options.strategy.pragma_position = pragma_position;
   return option;
 }
 

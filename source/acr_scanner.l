@@ -61,6 +61,10 @@ static bool parsing_pragma_acr_name = false;
 
 %}
 
+%option noyywrap
+%option nounput
+%option bison-bridge
+
 %%
 "/*"              {
                     comment();
@@ -134,32 +138,32 @@ static bool parsing_pragma_acr_name = false;
                       return acr_token_filter(pragma_option_to_token());
                     } else {
                       if (parsing_pragma_acr == true)
-                        yylval.identifier = acr_strdup(yytext);
+                        yylval->identifier = acr_strdup(yytext);
                       return acr_token_filter(IDENTIFIER);
                     }
                   }
 
 {HP}{H}+{IS}? {
-                yylval.constant_value.type = integer_value;
-                yylval.constant_value.value.integer_val.integer =
+                yylval->constant_value.type = integer_value;
+                yylval->constant_value.value.integer_val.integer =
                     strtol(yytext, NULL, 16);
-                yylval.constant_value.value.integer_val.uinteger =
+                yylval->constant_value.value.integer_val.uinteger =
                     strtoul(yytext, NULL, 16);
                 return acr_token_filter(I_CONSTANT);
               } /* hexa */
 {NZ}{D}*{IS}? {
-                yylval.constant_value.type = integer_value;
-                yylval.constant_value.value.integer_val.integer =
+                yylval->constant_value.type = integer_value;
+                yylval->constant_value.value.integer_val.integer =
                     strtol(yytext, NULL, 10);
-                yylval.constant_value.value.integer_val.uinteger =
+                yylval->constant_value.value.integer_val.uinteger =
                     strtoul(yytext, NULL, 10);
                 return acr_token_filter(I_CONSTANT);
               } /* decimal */
 "0"{O}*{IS}?  {
-                yylval.constant_value.type = integer_value;
-                yylval.constant_value.value.integer_val.integer =
+                yylval->constant_value.type = integer_value;
+                yylval->constant_value.value.integer_val.integer =
                     strtol(yytext, NULL, 8);
-                yylval.constant_value.value.integer_val.uinteger =
+                yylval->constant_value.value.integer_val.uinteger =
                     strtol(yytext, NULL, 8);
                 return acr_token_filter(I_CONSTANT);
               } /* octal */
@@ -168,38 +172,38 @@ static bool parsing_pragma_acr_name = false;
                                } char */
 
 {D}+{E}{FS}?            {
-                          yylval.constant_value.type = floating_point_value;
-                          yylval.constant_value.value.floating_point =
+                          yylval->constant_value.type = floating_point_value;
+                          yylval->constant_value.value.floating_point =
                             strtof(yytext, NULL);
                           return acr_token_filter(F_CONSTANT);
                         }
 {D}*"."{D}+{E}?{FS}?    {
-                          yylval.constant_value.type = floating_point_value;
-                          yylval.constant_value.value.floating_point =
+                          yylval->constant_value.type = floating_point_value;
+                          yylval->constant_value.value.floating_point =
                             strtof(yytext, NULL);
                           return acr_token_filter(F_CONSTANT);
                         }
 {D}+"."{E}?{FS}?        {
-                          yylval.constant_value.type = floating_point_value;
-                          yylval.constant_value.value.floating_point =
+                          yylval->constant_value.type = floating_point_value;
+                          yylval->constant_value.value.floating_point =
                             strtof(yytext, NULL);
                           return acr_token_filter(F_CONSTANT);
                         }
 {HP}{H}+{P}{FS}?        {
-                          yylval.constant_value.type = floating_point_value;
-                          yylval.constant_value.value.floating_point =
+                          yylval->constant_value.type = floating_point_value;
+                          yylval->constant_value.value.floating_point =
                             strtof(yytext, NULL);
                           return acr_token_filter(F_CONSTANT);
                         }
 {HP}{H}*"."{H}+{P}{FS}? {
-                          yylval.constant_value.type = floating_point_value;
-                          yylval.constant_value.value.floating_point =
+                          yylval->constant_value.type = floating_point_value;
+                          yylval->constant_value.value.floating_point =
                             strtof(yytext, NULL);
                           return acr_token_filter(F_CONSTANT);
                         }
 {HP}{H}+"."{P}{FS}?     {
-                          yylval.constant_value.type = floating_point_value;
-                          yylval.constant_value.value.floating_point =
+                          yylval->constant_value.type = floating_point_value;
+                          yylval->constant_value.value.floating_point =
                             strtof(yytext, NULL);
                           return acr_token_filter(F_CONSTANT);
                         }
@@ -287,10 +291,6 @@ static bool parsing_pragma_acr_name = false;
           }
 
 %%
-
-int yywrap(void) {    /* called at end of input */
-  return 1;           /* terminate now */
-}
 
 static void update_scanner_positions(void) {
   last_token_size = 0;

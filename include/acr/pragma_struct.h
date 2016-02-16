@@ -30,6 +30,7 @@ enum acr_alternative_type {
 };
 
 typedef struct acr_alternative {
+  size_t pragma_position;
   enum acr_alternative_type type;
   char* alternative_name;
   char* name_of_object_to_swap;
@@ -40,10 +41,11 @@ typedef struct acr_alternative {
 } acr_alternative;
 
 typedef struct acr_destroy {
-  size_t pragma_row_position;
+  size_t pragma_position;
 } acr_destroy;
 
 typedef struct acr_grid {
+  size_t pragma_position;
   unsigned long int grid_size;
 } acr_grid;
 
@@ -59,7 +61,7 @@ typedef struct acr_parameter_declaration {
 } acr_parameter_declaration, *acr_parameter_declaration_list;
 
 typedef struct acr_init {
-  size_t pragma_row_position;
+  size_t pragma_position;
   char* function_name;
   unsigned long int num_parameters;
   acr_parameter_declaration_list parameters_list;
@@ -93,6 +95,7 @@ enum acr_monitor_processing_funtion {
 };
 
 typedef struct acr_monitor {
+  size_t pragma_position;
   acr_array_declaration data_monitored;
   enum acr_monitor_processing_funtion processing_function;
   char* filter_name;
@@ -110,6 +113,7 @@ enum acr_strategy_value_type {
 };
 
 typedef struct acr_strategy {
+  size_t pragma_position;
   enum acr_strategy_type strategy_type;
   enum acr_strategy_value_type value_type;
   union {
@@ -157,11 +161,13 @@ static inline enum acr_type acr_option_get_type(acr_option option) {
 
 acr_option acr_new_alternative_function(const char* alternative_name,
                                         const char* function_to_swap,
-                                        const char* replacement_function);
+                                        const char* replacement_function,
+                                        size_t pragma_position);
 
 acr_option acr_new_alternative_parameter(const char* alternative_name,
                                          const char* parameter_to_swap,
-                                         long int replacement_value);
+                                         long int replacement_value,
+                                         size_t pragma_position);
 
 static inline enum acr_alternative_type acr_alternative_get_type(
     const acr_option option) {
@@ -172,7 +178,6 @@ static inline char* acr_alternative_get_alternative_name(
     const acr_option option) {
   return option->options.alternative.alternative_name;
 }
-
 
 static inline char* acr_alternative_get_object_to_swap_name(
     const acr_option option){
@@ -193,22 +198,32 @@ static inline long int acr_alternative_get_replacement_parameter(
     0;
 }
 
-acr_option acr_new_destroy(size_t pragma_row_position);
-
-static inline size_t acr_destroy_get_row_position(
+static inline size_t acr_alternative_get_pragma_position(
     const acr_option option) {
-  return option->options.destroy.pragma_row_position;
+  return option->options.alternative.pragma_position;
 }
 
-acr_option acr_new_grid(unsigned long int grid_size);
+acr_option acr_new_destroy(size_t pragma_position);
+
+static inline size_t acr_destroy_get_pragma_position(
+    const acr_option option) {
+  return option->options.destroy.pragma_position;
+}
+
+acr_option acr_new_grid(unsigned long int grid_size,
+                        size_t pragma_position);
 
 static inline unsigned long int acr_grid_get_grid_size(
     const acr_option option) {
   return option->options.grid.grid_size;
 }
 
+static inline size_t acr_grid_get_pragma_position(const acr_option option) {
+  return option->options.grid.pragma_position;
+}
+
 acr_option acr_new_init(const char* function_name,
-                        size_t pragma_row_position,
+                        size_t pragma_position,
                         unsigned long int num_parameters,
                         acr_parameter_declaration_list parameters_list);
 
@@ -216,9 +231,9 @@ static inline char* acr_init_get_function_name(const acr_option option) {
   return option->options.init.function_name;
 }
 
-static inline size_t acr_init_get_pragma_row_position(
+static inline size_t acr_init_get_pragma_position(
     const acr_option option) {
-  return option->options.init.pragma_row_position;
+  return option->options.init.pragma_position;
 }
 
 static inline unsigned long int acr_init_get_num_parameters(
@@ -295,7 +310,12 @@ static inline char* acr_parameter_specifier_get_specifier(
 acr_option acr_new_monitor(
     const acr_array_declaration* array_declaration,
     enum acr_monitor_processing_funtion processing_function,
-    const char* filter_name);
+    const char* filter_name,
+    size_t pragma_position);
+
+static inline size_t acr_monitor_get_pragma_position(const acr_option option) {
+  return option->options.monitor.pragma_position;
+}
 
 static inline acr_array_declaration* acr_monitor_get_array_declaration(
     acr_option option) {
@@ -351,16 +371,24 @@ static inline acr_array_dimensions_list acr_array_decl_get_dimensions_list(
 }
 
 acr_option acr_new_strategy_direct_int(const char* strategy_name,
-                                       long int matching_value);
+                                       long int matching_value,
+                                       size_t pragma_position);
 
 acr_option acr_new_strategy_direct_float(const char* strategy_name,
-                                         float matching_value);
+                                         float matching_value,
+                                         size_t pragma_position);
 
 acr_option acr_new_strategy_range_int(const char* strategy_name,
-                                      long int matching_value[2]);
+                                      long int matching_value[2],
+                                      size_t pragma_position);
 
 acr_option acr_new_strategy_range_float(const char* strategy_name,
-                                        float matching_value[2]);
+                                        float matching_value[2],
+                                        size_t pragma_position);
+
+static inline size_t acr_strategy_get_pragma_position(const acr_option option) {
+  return option->options.strategy.pragma_position;
+}
 
 static inline enum acr_strategy_type acr_strategy_get_strategy_type(
     const acr_option option) {
