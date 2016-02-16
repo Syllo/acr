@@ -25,7 +25,7 @@
 
 #include "acr/print.h"
 #include "acr/utils.h"
-
+#include "acr/acr_openscop.h"
 
 static const char opt_options[] = "vho:";
 
@@ -79,6 +79,11 @@ int main(int argc, char** argv) {
         if (node_list) {
           fprintf(stdout, "After simplification\n");
           pprint_acr_compute_node_list(stdout, node_list, 0);
+          for(unsigned int j = 0; j < node_list->list_size; ++j) {
+            osl_scop_p scop = acr_extract_scop_in_compute_node(
+                node_list->compute_node_list[j], current_file, argv[i]);
+            osl_scop_print(stdout, scop);
+          }
         }
         acr_free_compute_node_list(node_list);
       }

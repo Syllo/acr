@@ -12,12 +12,10 @@ int test() {
 #pragma acr strategy direct(1, low)
 #pragma acr strategy direct(2, medium)
 #pragma acr strategy direct(3, high)
-#pragma scop
     for (k=0; k <= N; ++k)
       for (i=0; i <= N; ++i)
         for (j=0; j <= N; ++j)
           lin_solve_computation(k,i,j);
-#pragma endscop
   }
 }
 #pragma acr destroy
@@ -40,12 +38,10 @@ int test() {
 #pragma acr strategy range(-5, 5, medium)
 #pragma acr strategy direct(3, high)
 #pragma grid (112)
-#pragma scop
     for (p=0; p <= N; ++p)
       for (q=0; q <= N; ++q)
         for (r=0; r <= N; ++r)
           lin_solve_computation(p,q,r);
-#pragma endscop
   }
 }
 #pragma acr destroy

@@ -124,13 +124,14 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr.h.in"
 include_directories(${CURRENT_INCLUDE_DIRECTORIES})
 
 list(APPEND ACR_LIBRARY_C_FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/source/acr_openscop.c
   ${CMAKE_CURRENT_SOURCE_DIR}/source/utils.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/source/pragma_struct.c)
+  ${CMAKE_CURRENT_SOURCE_DIR}/source/pragma_struct.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/source/print.c)
 
 list(APPEND ACR_EXECUTABLE_C_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/source/acr.c
   ${CMAKE_CURRENT_SOURCE_DIR}/source/parser_utils.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/source/print.c
   ${FLEX_acr_scanner_OUTPUTS}
   ${BISON_acr_parser_OUTPUTS})
 
@@ -143,6 +144,11 @@ add_library(acr
   ${ACR_LIBRARY_C_FILES})
 message(STATUS "Add acr library (shared)"
   " ${CMAKE_SHARED_LIBRARY_PREFIX}acr${CMAKE_SHARED_LIBRARY_SUFFIX}")
+if(USING_CLAN_GIT)
+  target_link_libraries(acr clan osl)
+else()
+  target_link_libraries(acr ${CLAN_LIBRARIES} ${OSL_LIBRARIES})
+endif()
 
 add_library(acr_static
   STATIC
@@ -150,6 +156,11 @@ add_library(acr_static
 set_target_properties(acr_static PROPERTIES OUTPUT_NAME acr)
 message(STATUS "Add acr library (static)"
   " ${CMAKE_STATIC_LIBRARY_PREFIX}acr${CMAKE_STATIC_LIBRARY_SUFFIX}")
+if(USING_CLAN_GIT)
+  target_link_libraries(acr clan osl)
+else()
+  target_link_libraries(acr ${CLAN_LIBRARIES} ${OSL_LIBRARIES})
+endif()
 
 #///////////////////////////////////////////////////////////////////#
 #                            EXECUTABLE                             #
@@ -157,7 +168,7 @@ message(STATUS "Add acr library (static)"
 
 add_executable(acr_exe ${ACR_EXECUTABLE_C_FILES})
 set_target_properties(acr_exe PROPERTIES OUTPUT_NAME "acr")
-if(USING_OSL_GIT)
+if(USING_CLAN_GIT)
   target_link_libraries(acr_exe acr clan osl)
 else()
   target_link_libraries(acr_exe acr ${CLAN_LIBRARIES} ${OSL_LIBRARIES})
