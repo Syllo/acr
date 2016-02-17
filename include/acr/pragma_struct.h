@@ -169,6 +169,8 @@ acr_option acr_new_alternative_parameter(const char* alternative_name,
                                          long int replacement_value,
                                          size_t pragma_position);
 
+acr_option acr_copy_alternative(const acr_option alternative);
+
 static inline enum acr_alternative_type acr_alternative_get_type(
     const acr_option option) {
   return option->options.alternative.type;
@@ -205,6 +207,8 @@ static inline size_t acr_alternative_get_pragma_position(
 
 acr_option acr_new_destroy(size_t pragma_position);
 
+acr_option acr_copy_destroy(const acr_option destroy);
+
 static inline size_t acr_destroy_get_pragma_position(
     const acr_option option) {
   return option->options.destroy.pragma_position;
@@ -212,6 +216,8 @@ static inline size_t acr_destroy_get_pragma_position(
 
 acr_option acr_new_grid(unsigned long int grid_size,
                         size_t pragma_position);
+
+acr_option acr_copy_grid(const acr_option grid);
 
 static inline unsigned long int acr_grid_get_grid_size(
     const acr_option option) {
@@ -226,6 +232,8 @@ acr_option acr_new_init(const char* function_name,
                         size_t pragma_position,
                         unsigned long int num_parameters,
                         acr_parameter_declaration_list parameters_list);
+
+acr_option acr_copy_init(const acr_option init);
 
 static inline char* acr_init_get_function_name(const acr_option option) {
   return option->options.init.function_name;
@@ -249,6 +257,10 @@ static inline acr_parameter_declaration_list acr_init_get_parameter_list(
 
 acr_parameter_declaration_list acr_new_parameter_declaration_list(
     unsigned long int list_size);
+
+acr_parameter_declaration_list acr_copy_parameter_declaration_list(
+    const acr_parameter_declaration_list parameter_list,
+    unsigned long list_size);
 
 static inline void acr_set_parameter_declaration(
     const char* parameter_name,
@@ -312,6 +324,8 @@ acr_option acr_new_monitor(
     enum acr_monitor_processing_funtion processing_function,
     const char* filter_name,
     size_t pragma_position);
+
+acr_option acr_copy_monitor(const acr_option monitor);
 
 static inline size_t acr_monitor_get_pragma_position(const acr_option option) {
   return option->options.monitor.pragma_position;
@@ -385,6 +399,8 @@ acr_option acr_new_strategy_range_int(const char* strategy_name,
 acr_option acr_new_strategy_range_float(const char* strategy_name,
                                         float matching_value[2],
                                         size_t pragma_position);
+
+acr_option acr_copy_strategy(const acr_option strategy);
 
 static inline size_t acr_strategy_get_pragma_position(const acr_option option) {
   return option->options.strategy.pragma_position;
@@ -530,5 +546,16 @@ void acr_simlpify_compute_node(acr_compute_node node);
 
 acr_compute_node_list acr_new_compute_node_list_split_node(
     acr_compute_node node);
+
+acr_option acr_copy_option(const acr_option option);
+
+acr_compute_node acr_copy_compute_node(const acr_compute_node node);
+
+acr_compute_node_list acr_copy_compute_node_list(
+    const acr_compute_node_list list);
+
+acr_parameter_specifier_list acr_copy_parameter_specifier_list(
+    const acr_parameter_specifier_list specifier_list,
+    unsigned long list_size);
 
 #endif // __ACR_PRAGMA_STRUCT_H

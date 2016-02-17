@@ -624,3 +624,162 @@ void acr_free_compute_node_list(acr_compute_node_list list) {
   free(list->compute_node_list);
   free(list);
 }
+
+acr_option acr_copy_alternative(const acr_option alternative) {
+  acr_alternative* alt = &alternative->options.alternative;
+  switch (alternative->options.alternative.type) {
+    case acr_alternative_parameter:
+      return acr_new_alternative_parameter(alt->alternative_name,
+          alt->name_of_object_to_swap, alt->swapped_by.replacement_value,
+          alt->pragma_position);
+      break;
+    case acr_alternative_function:
+      return acr_new_alternative_function(alt->alternative_name,
+          alt->name_of_object_to_swap, alt->swapped_by.replacement_function,
+          alt->pragma_position);
+      break;
+    case acr_alternative_unknown:
+      break;
+  }
+  return NULL;
+}
+
+acr_option acr_copy_destroy(const acr_option destroy) {
+  return acr_new_destroy(destroy->options.destroy.pragma_position);
+}
+
+acr_option acr_copy_grid(const acr_option grid) {
+  return acr_new_grid(grid->options.grid.grid_size,
+      grid->options.grid.pragma_position);
+}
+
+acr_parameter_specifier_list acr_copy_parameter_specifier_list(
+    const acr_parameter_specifier_list specifier_list,
+    unsigned long list_size) {
+
+  acr_parameter_specifier_list new_list =
+    acr_new_parameter_specifier_list(list_size);
+
+  for (unsigned long nspec = 0ul; nspec < list_size; ++nspec) {
+    acr_set_parameter_specifier(specifier_list[nspec].specifier,
+        specifier_list[nspec].pointer_depth,
+        &new_list[nspec]);
+  }
+  return new_list;
+}
+
+acr_parameter_declaration_list acr_copy_parameter_declaration_list(
+    const acr_parameter_declaration_list parameter_list,
+    unsigned long list_size) {
+
+  acr_parameter_declaration_list new_parameter_list =
+    acr_new_parameter_declaration_list(list_size);
+
+  for (unsigned long nparam = 0ul; nparam < list_size; ++nparam) {
+    acr_parameter_specifier_list new_specifier_list =
+      acr_copy_parameter_specifier_list(
+          parameter_list[nparam].parameter_specifiers_list,
+          parameter_list[nparam].num_specifiers);
+    acr_set_parameter_declaration(parameter_list[nparam].parameter_name,
+        parameter_list[nparam].num_specifiers,
+        new_specifier_list,
+        &new_parameter_list[nparam]);
+  }
+  return new_parameter_list;
+}
+
+acr_array_declaration* acr_copy_array_declaration(
+    const acr_array_declaration* array_declaration) {
+  acr_array_declaration* new_array_dec = malloc(sizeof(*new_array_dec));
+  new_array_dec->parameter_specifiers_list =
+    acr_copy_parameter_specifier_list(
+        array_declaration->parameter_specifiers_list,
+        array_declaration->num_specifiers);
+  new_array_dec->num_specifiers = array_declaration->num_dimensions;
+  new_array_dec->array_name = acr_strdup(array_declaration->array_name);
+  new_array_dec->array_dimensions_list =
+    acr_new_array_dimensions_list(array_declaration->num_dimensions);
+  new_array_dec->num_dimensions = array_declaration->num_dimensions;
+  for (unsigned long i = 0 ; i< new_array_dec->num_dimensions; ++i) {
+    switch (array_declaration->array_dimensions_list[i].type) {
+      case acr_array_dimension_uinteger:
+        new_array_dec->array_dimensions_list[i] =
+          array_declaration->array_dimensions_list[i];
+        break;
+      case acr_array_dimension_parameter:
+        new_array_dec->array_dimensions_list[i].type =
+          array_declaration->array_dimensions_list[i].type;
+        new_array_dec->array_dimensions_list[i].value.parameter_name =
+          acr_strdup(
+              array_declaration->array_dimensions_list[i].value.parameter_name);
+        break;
+    }
+  }
+  return new_array_dec;
+}
+
+acr_option acr_copy_init(const acr_option init) {
+  acr_init* ini = &init->options.init;
+  acr_parameter_declaration_list new_list =
+    acr_copy_parameter_declaration_list(ini->parameters_list,
+        ini->num_parameters);
+  return acr_new_init(ini->function_name, ini->pragma_position,
+      ini->num_parameters, new_list);
+}
+
+acr_option acr_copy_monitor(const acr_option monitor) {
+  acr_monitor* mon = &monitor->options.monitor;
+  acr_array_declaration* declaration_copy =
+    acr_copy_array_declaration(&monitor->options.monitor.data_monitored);
+  return acr_new_monitor(declaration_copy, mon->processing_function,
+      mon->filter_name, mon->pragma_position);
+}
+
+acr_option acr_copy_strategy(const acr_option strategy) {
+  acr_option new_strategy = malloc(sizeof(*new_strategy));
+  *new_strategy = *strategy;
+  new_strategy->options.strategy.strategy_name =
+    acr_strdup(new_strategy->options.strategy.strategy_name);
+  return new_strategy;
+}
+
+acr_option acr_copy_option(const acr_option option) {
+  switch (option->type) {
+    case acr_type_alternative:
+      return acr_copy_alternative(option);
+    case acr_type_destroy:
+      return acr_copy_destroy(option);
+    case acr_type_grid:
+      return acr_copy_grid(option);
+    case acr_type_init:
+      return acr_copy_init(option);
+    case acr_type_monitor:
+      return acr_copy_monitor(option);
+    case acr_type_strategy:
+      return acr_copy_strategy(option);
+    case acr_type_unknown:
+      return NULL;
+  }
+  return NULL;
+}
+
+acr_compute_node acr_copy_compute_node(const acr_compute_node node) {
+  acr_compute_node newnode = malloc(sizeof(*newnode));
+  newnode->list_size = node->list_size;
+  newnode->option_list = acr_new_option_list(node->list_size);
+  for (unsigned long i = 0; i < node->list_size; ++i) {
+    newnode->option_list[i] = acr_copy_option(node->option_list[i]);
+  }
+  return newnode;
+}
+
+acr_compute_node_list acr_copy_compute_node_list(
+    const acr_compute_node_list list) {
+  acr_compute_node_list newlist =
+    acr_new_compute_node_list(list->list_size);
+  for (unsigned long i = 0; i < list->list_size; ++i) {
+    newlist->compute_node_list[i] =
+      acr_copy_compute_node(list->compute_node_list[i]);
+  }
+  return newlist;
+}

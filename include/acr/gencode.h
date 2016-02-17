@@ -16,24 +16,15 @@
  *
  */
 
-#ifndef __ACR_OPENSCOP_H
-#define __ACR_OPENSCOP_H
+#ifndef __ACR_GENCODE_H
+#define __ACR_GENCODE_H
 
-#include "acr/pragma_struct.h"
+#include <stdio.h>
 
-#include <osl/scop.h>
-#include <clan/scop.h>
+void acr_generate_code(const char* filename);
 
-osl_scop_p acr_extract_scop_in_compute_node(const acr_compute_node node,
-                                            FILE* input_file,
-                                            const char* name_input_file);
+void acr_print_structure_and_related_scop(FILE* out, const char* filename);
 
-void acr_print_scop_to_buffer(osl_scop_p scop, char** buffer,
-    size_t* size_buffer);
+void acr_generate_preamble(FILE* out, const char* );
 
-osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer);
-
-void acr_get_start_and_stop_for_clan(const acr_compute_node node,
-    unsigned long* start, unsigned long *stop);
-
-#endif // __ACR_OPENSCOP_H
+#endif // __ACR_GENCODE_H

@@ -18,20 +18,20 @@
 
 #include "acr/acr.h"
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <getopt.h>
 #include <unistd.h>
 
-#include "acr/print.h"
-#include "acr/utils.h"
-#include "acr/acr_openscop.h"
+#include "acr/gencode.h"
 
-static const char opt_options[] = "vho:";
+static const char opt_options[] = "pvho:";
 
 int main(int argc, char** argv) {
 
   char* output_file = NULL;
+  bool print = false;
 
   for (;;) {
     int c = getopt(argc, argv, opt_options);
@@ -50,6 +50,9 @@ int main(int argc, char** argv) {
         fprintf(stdout, "%s", version);
           return EXIT_SUCCESS;
         break;
+      case 'p':
+        print = true;
+        break;
       default:
         fprintf(stderr, "Unknown option: %c\n", c);
         break;
@@ -61,34 +64,10 @@ int main(int argc, char** argv) {
 
   if (argc > 0) {
     for (int i = 0; i < argc; ++i) {
-      FILE* current_file = fopen(argv[i], "r");
-      if (current_file == NULL) {
-        fprintf(stderr, "Unable to open file: %s\n", argv[i]);
-        perror("fopen");
-        continue;
-      }
-      acr_compute_node compute_node = NULL;
-      start_acr_parsing(current_file, &compute_node);
-      if (compute_node == NULL) {
-        fprintf(stdout, "No pragma acr found in %s\n",argv[i]);
-      } else {
-        fprintf(stdout, "Befor simplification\n");
-        pprint_acr_compute_node(stdout, compute_node, 0);
-        acr_compute_node_list node_list =
-          acr_new_compute_node_list_split_node(compute_node);
-        if (node_list) {
-          fprintf(stdout, "After simplification\n");
-          pprint_acr_compute_node_list(stdout, node_list, 0);
-          for(unsigned int j = 0; j < node_list->list_size; ++j) {
-            osl_scop_p scop = acr_extract_scop_in_compute_node(
-                node_list->compute_node_list[j], current_file, argv[i]);
-            osl_scop_print(stdout, scop);
-            osl_scop_free(scop);
-          }
-        }
-        acr_free_compute_node_list(node_list);
-      }
-      fclose(current_file);
+      if (print)
+        acr_print_structure_and_related_scop(stdout, argv[i]);
+      else
+        acr_generate_code(argv[i]);
     }
   } else {
     fprintf(stderr, "No input file\nType \"%s -h\" for help\n", argv[-optind]);

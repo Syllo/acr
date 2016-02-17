@@ -25,6 +25,9 @@ endif()
 #                           DEPENDENCIES                            #
 #///////////////////////////////////////////////////////////////////#
 
+# Check avaliability of functions
+include(cmake/config-dep.cmake)
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/")
 
 find_package(CLAN )#QUIET)
@@ -80,8 +83,10 @@ set(COMMON_C_FLAGS "-Wall -Wextra -std=c99 -pedantic")
 set(CMAKE_C_FLAGS_RELEASE "${COMMON_C_FLAGS} -O3")
 set(CMAKE_C_FLAGS_DEBUG "${COMMON_C_FLAGS} -O0 -g")
 
+add_definitions(-D_POSIX_C_SOURCE=200809L)
+
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-  add_definitions(-DACR_DEBUG)
+  add_definitions()#-DACR_DEBUG)
 endif()
 
 # Use full RPATH on build tree
@@ -131,6 +136,7 @@ list(APPEND ACR_LIBRARY_C_FILES
 
 list(APPEND ACR_EXECUTABLE_C_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/source/acr.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/source/gencode.c
   ${CMAKE_CURRENT_SOURCE_DIR}/source/parser_utils.c
   ${FLEX_acr_scanner_OUTPUTS}
   ${BISON_acr_parser_OUTPUTS})
