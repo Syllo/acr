@@ -265,8 +265,8 @@ acr_parameter_declaration_list acr_copy_parameter_declaration_list(
 static inline void acr_set_parameter_declaration(
     const char* parameter_name,
     unsigned long int num_specifiers,
-    acr_parameter_specifier* specifier_list,
-    acr_parameter_declaration* declaration_to_set) {
+    acr_parameter_specifier_list specifier_list,
+    acr_parameter_declaration_list declaration_to_set) {
   declaration_to_set->parameter_specifiers_list = specifier_list;
   declaration_to_set->num_specifiers = num_specifiers;
   declaration_to_set->parameter_name = acr_strdup(parameter_name);
@@ -296,7 +296,7 @@ acr_parameter_specifier_list acr_new_parameter_specifier_list(
 static inline void acr_set_parameter_specifier(
     const char* specifier_name,
     unsigned long int pointer_depth,
-    acr_parameter_specifier* specifier) {
+    acr_parameter_specifier_list specifier) {
   specifier->specifier = acr_strdup(specifier_name);
   specifier->pointer_depth = pointer_depth;
 }
@@ -347,7 +347,7 @@ static inline char* acr_monitor_get_filter_name(acr_option option) {
 
 static inline void acr_set_array_declaration(
     unsigned long int num_specifiers,
-    acr_parameter_specifier* parameters_list,
+    acr_parameter_specifier_list parameters_list,
     const char* array_name,
     unsigned long int num_dimensions,
     acr_array_dimensions_list array_dimensions,
@@ -557,5 +557,14 @@ acr_compute_node_list acr_copy_compute_node_list(
 acr_parameter_specifier_list acr_copy_parameter_specifier_list(
     const acr_parameter_specifier_list specifier_list,
     unsigned long list_size);
+
+size_t acr_option_get_pragma_position(const acr_option option);
+
+void acr_copy_array_declaration(
+    const acr_array_declaration* array_declaration,
+    acr_array_declaration* new_array_dec);
+
+acr_option acr_compute_node_get_option_of_type(enum acr_type option_type,
+    const acr_compute_node node, unsigned long which_one);
 
 #endif // __ACR_PRAGMA_STRUCT_H

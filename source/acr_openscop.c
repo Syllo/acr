@@ -20,6 +20,8 @@
 
 #include <stdio.h>
 
+#include <osl/extensions/coordinates.h>
+
 void acr_get_start_and_stop_for_clan(const acr_compute_node node,
     unsigned long* start, unsigned long *stop) {
 
@@ -95,4 +97,12 @@ osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer) {
   osl_scop_p scop = osl_scop_read(fakefile);
   fclose(fakefile);
   return scop;
+}
+
+void acr_scop_get_coordinates_start_end_kernel(
+    const acr_compute_node compute_node,
+    const osl_scop_p scop,
+    unsigned long* start, unsigned long* end) {
+  acr_get_start_and_stop_for_clan(compute_node, start, end);
+  scop->extension->interface
 }

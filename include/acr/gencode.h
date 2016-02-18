@@ -21,10 +21,16 @@
 
 #include <stdio.h>
 
+#include "acr/pragma_struct.h"
+
 void acr_generate_code(const char* filename);
 
 void acr_print_structure_and_related_scop(FILE* out, const char* filename);
 
 void acr_generate_preamble(FILE* out, const char* );
+
+void acr_print_node_initialization(FILE* out, const acr_compute_node node);
+
+void acr_print_init_function_declaration(FILE* out, const acr_option init);
 
 #endif // __ACR_GENCODE_H

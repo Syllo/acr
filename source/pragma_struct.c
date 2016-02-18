@@ -93,6 +93,8 @@ acr_option acr_new_init(const char* function_name,
 
 acr_parameter_declaration* acr_new_parameter_declaration_list(
     unsigned long int list_size) {
+  if (list_size == 0)
+    return NULL;
   acr_parameter_declaration* list = malloc(list_size * sizeof(*list));
   acr_try_or_die(list == NULL, "Malloc");
   return list;
@@ -101,6 +103,8 @@ acr_parameter_declaration* acr_new_parameter_declaration_list(
 
 acr_parameter_specifier* acr_new_parameter_specifier_list(
     unsigned long int list_size) {
+  if (list_size == 0)
+    return NULL;
   acr_parameter_specifier* list = malloc(list_size * sizeof(*list));
   acr_try_or_die(list == NULL, "Malloc");
   return list;
@@ -319,10 +323,16 @@ acr_array_dimensions_list acr_new_array_dimensions_list(unsigned long int size) 
 }
 
 acr_compute_node_list acr_new_compute_node_list(unsigned long list_size) {
+  if (list_size == 0)
+    return NULL;
   acr_compute_node_list list = malloc(sizeof(*list));
   acr_try_or_die(list == NULL, "Malloc");
   list->list_size = list_size;
-  list->compute_node_list = malloc(list_size * sizeof(*list->compute_node_list));
+  if (list_size == 0)
+    list->compute_node_list = NULL;
+  else
+    list->compute_node_list =
+      malloc(list_size * sizeof(*list->compute_node_list));
   acr_try_or_die(list->compute_node_list == NULL, "Malloc");
   return list;
 }
@@ -688,9 +698,9 @@ acr_parameter_declaration_list acr_copy_parameter_declaration_list(
   return new_parameter_list;
 }
 
-acr_array_declaration* acr_copy_array_declaration(
-    const acr_array_declaration* array_declaration) {
-  acr_array_declaration* new_array_dec = malloc(sizeof(*new_array_dec));
+void acr_copy_array_declaration(
+    const acr_array_declaration* array_declaration,
+    acr_array_declaration* new_array_dec) {
   new_array_dec->parameter_specifiers_list =
     acr_copy_parameter_specifier_list(
         array_declaration->parameter_specifiers_list,
@@ -715,7 +725,6 @@ acr_array_declaration* acr_copy_array_declaration(
         break;
     }
   }
-  return new_array_dec;
 }
 
 acr_option acr_copy_init(const acr_option init) {
@@ -729,9 +738,10 @@ acr_option acr_copy_init(const acr_option init) {
 
 acr_option acr_copy_monitor(const acr_option monitor) {
   acr_monitor* mon = &monitor->options.monitor;
-  acr_array_declaration* declaration_copy =
-    acr_copy_array_declaration(&monitor->options.monitor.data_monitored);
-  return acr_new_monitor(declaration_copy, mon->processing_function,
+  acr_array_declaration declaration_copy;
+  acr_copy_array_declaration(&monitor->options.monitor.data_monitored,
+      &declaration_copy);
+  return acr_new_monitor(&declaration_copy, mon->processing_function,
       mon->filter_name, mon->pragma_position);
 }
 
@@ -782,4 +792,47 @@ acr_compute_node_list acr_copy_compute_node_list(
       acr_copy_compute_node(list->compute_node_list[i]);
   }
   return newlist;
+}
+
+size_t acr_option_get_pragma_position(const acr_option option) {
+  switch (acr_option_get_type(option)) {
+    case acr_type_alternative:
+      return acr_alternative_get_pragma_position(option);
+      break;
+    case acr_type_destroy:
+      return acr_destroy_get_pragma_position(option);
+      break;
+    case acr_type_grid:
+      return acr_grid_get_pragma_position(option);
+      break;
+    case acr_type_init:
+      return acr_init_get_pragma_position(option);
+      break;
+    case acr_type_monitor:
+      return acr_monitor_get_pragma_position(option);
+      break;
+    case acr_type_strategy:
+      return acr_strategy_get_pragma_position(option);
+      break;
+    case acr_type_unknown:
+      break;
+  }
+  return 0;
+}
+
+acr_option acr_compute_node_get_option_of_type(enum acr_type search_type,
+    const acr_compute_node node, unsigned long which_one) {
+  acr_option_list list = acr_compute_node_get_option_list(node);
+  unsigned long list_size = acr_compute_node_get_option_list_size(node);
+
+  unsigned long how_many_found = 0;
+  for (unsigned long i = 0; i < list_size; ++i) {
+    acr_option current_option = acr_option_list_get_option(i, list);
+    if (acr_option_get_type(current_option) == search_type) {
+      how_many_found += 1;
+      if (how_many_found == which_one)
+        return current_option;
+    }
+  }
+  return NULL;
 }
