@@ -151,9 +151,9 @@ add_library(acr
 message(STATUS "Add acr library (shared)"
   " ${CMAKE_SHARED_LIBRARY_PREFIX}acr${CMAKE_SHARED_LIBRARY_SUFFIX}")
 if(USING_CLAN_GIT)
-  target_link_libraries(acr clan osl)
+  target_link_libraries(acr osl)
 else()
-  target_link_libraries(acr ${CLAN_LIBRARIES} ${OSL_LIBRARIES})
+  target_link_libraries(acr ${OSL_LIBRARIES})
 endif()
 
 add_library(acr_static
@@ -163,9 +163,9 @@ set_target_properties(acr_static PROPERTIES OUTPUT_NAME acr)
 message(STATUS "Add acr library (static)"
   " ${CMAKE_STATIC_LIBRARY_PREFIX}acr${CMAKE_STATIC_LIBRARY_SUFFIX}")
 if(USING_CLAN_GIT)
-  target_link_libraries(acr clan osl)
+  target_link_libraries(acr osl)
 else()
-  target_link_libraries(acr ${CLAN_LIBRARIES} ${OSL_LIBRARIES})
+  target_link_libraries(acr ${OSL_LIBRARIES})
 endif()
 
 #///////////////////////////////////////////////////////////////////#
