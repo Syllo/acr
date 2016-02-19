@@ -21,6 +21,7 @@
 
 #include <stdio.h>
 
+#include "acr/acr_openscop.h"
 #include "acr/pragma_struct.h"
 
 void acr_generate_code(const char* filename);
@@ -29,8 +30,26 @@ void acr_print_structure_and_related_scop(FILE* out, const char* filename);
 
 void acr_generate_preamble(FILE* out, const char* );
 
-void acr_print_node_initialization(FILE* out, const acr_compute_node node);
+void acr_print_node_initialization(FILE* kernel_file, FILE* out,
+    const acr_compute_node node,
+    unsigned long kernel_start, unsigned long kernel_end);
 
-void acr_print_init_function_declaration(FILE* out, const acr_option init);
+void acr_print_init_function_declaration(FILE* kernel_file, FILE* out,
+    const acr_option init,
+    unsigned long kernel_start, unsigned long kernel_end);
+
+osl_scop_p acr_extract_scop_in_compute_node(const acr_compute_node node,
+                                            FILE* input_file,
+                                            const char* name_input_file);
+
+void acr_get_start_and_stop_for_clan(const acr_compute_node node,
+    unsigned long* start, unsigned long *stop);
+
+void acr_scop_coord_to_acr_coord(
+    FILE* kernel_file,
+    const osl_scop_p scop,
+    const acr_compute_node compute_node,
+    unsigned long* start,
+    unsigned long* end);
 
 #endif // __ACR_GENCODE_H

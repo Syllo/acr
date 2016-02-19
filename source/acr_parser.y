@@ -400,24 +400,35 @@ acr_alternative_function_swap
   ;
 
 acr_init_option
-  : '(' IDENTIFIER
-    { /* test si void */
+  : '(' IDENTIFIER IDENTIFIER '(' parameter_declaration_list ')' ')'
+    {
       if (strcmp($2, "void") != 0) {
         yyerror("ACR init fonction must return void");
+        free($2);
+        free($3);
         YYERROR;
       }
-    }
-    IDENTIFIER '(' parameter_declaration_list ')' ')'
-    {
-      if ($6) {
+      if ($5) {
         acr_parameter_declaration* parameter_list;
         unsigned long int num_parameters =
-            translate_and_free_param_declaration_list($6, &parameter_list);
-        $$ = acr_new_init($4, last_pragma_start_line, num_parameters,
+            translate_and_free_param_declaration_list($5, &parameter_list);
+        $$ = acr_new_init($3, last_pragma_start_line, num_parameters,
                           parameter_list);
       }
       free($2);
-      free($4);
+      free($3);
+    }
+  | '(' IDENTIFIER IDENTIFIER '(' ')' ')'
+    {
+      if (strcmp($2, "void") != 0) {
+        yyerror("ACR init fonction must return void");
+        free($2);
+        free($3);
+        YYERROR;
+      }
+        $$ = acr_new_init($3, last_pragma_start_line, 0ul, NULL);
+      free($2);
+      free($3);
     }
   ;
 

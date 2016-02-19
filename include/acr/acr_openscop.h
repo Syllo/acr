@@ -22,23 +22,10 @@
 #include "acr/pragma_struct.h"
 
 #include <osl/scop.h>
-#include <clan/scop.h>
-
-osl_scop_p acr_extract_scop_in_compute_node(const acr_compute_node node,
-                                            FILE* input_file,
-                                            const char* name_input_file);
 
 void acr_print_scop_to_buffer(osl_scop_p scop, char** buffer,
     size_t* size_buffer);
 
 osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer);
-
-void acr_get_start_and_stop_for_clan(const acr_compute_node node,
-    unsigned long* start, unsigned long *stop);
-
-void acr_scop_get_coordinates_start_end_kernel(
-    const acr_compute_node compute_node,
-    const osl_scop_p scop,
-    unsigned long* start, unsigned long* end);
 
 #endif // __ACR_OPENSCOP_H
