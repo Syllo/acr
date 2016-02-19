@@ -25,7 +25,7 @@ endif()
 #                           DEPENDENCIES                            #
 #///////////////////////////////////////////////////////////////////#
 
-# Check avaliability of functions
+# Check functions avaliability
 include(cmake/config-dep.cmake)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/")

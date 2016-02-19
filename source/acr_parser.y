@@ -102,6 +102,10 @@ struct parser_option_list* option_list;
   bool minus;
 }
 
+%{
+  int acrlex(ACRSTYPE *lvalp);
+%}
+
 %token  CARRIAGE_RETURN
 %token  STRING_LITERAL FUNC_NAME SIZEOF
 %token  PTR_OP INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP
