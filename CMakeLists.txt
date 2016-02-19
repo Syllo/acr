@@ -31,11 +31,12 @@ include(cmake/config-dep.cmake)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/")
 
 find_package(CLAN )#QUIET)
+message(STATUS "CLAN VERSION: ${CLAN_VERSION}")
 find_package(OSL )#QUIET)
-if(OSL_FOUND AND CLAN_FOUND)
+if(OSL_FOUND AND CLAN_FOUND AND "${CLAN_VERSION}" GREATER "0.8.0")
   message (STATUS "CLAN and OSL are installed")
 else()
-  message (WARNING "CLAN and OSL not installed\n"
+  message (WARNING "CLAN not installed or version not supported\n"
     "Fallback by trying to clone the repository from source")
   find_package(Git REQUIRED)
   execute_process(COMMAND

@@ -24,6 +24,8 @@ find_path(CLAN_INCLUDE_DIR
   NAMES "clan/clan.h"
   PATHS ${CLAN_PKGCONF_INCLUDE_DIRS})
 
+libfind_version_header(CLAN "clan/macros.h" "CLAN_VERSION")
+
 # Library
 find_library(CLAN_LIBRARY
   NAMES clan
