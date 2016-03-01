@@ -16,19 +16,10 @@
  *
  */
 
-#ifndef __ACR_OPENSCOP_H
-#define __ACR_OPENSCOP_H
+#include "acr/acr_runtime.h"
 
-#include "acr/pragma_struct.h"
-
-#include <osl/scop.h>
-
-void acr_print_scop_to_buffer(osl_scop_p scop, char** buffer,
-    size_t* size_buffer);
-
-osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer);
-
-osl_scop_p acr_find_in_scop_monitor_loop(const acr_option monitor,
-    const osl_scop_p scop);
-
-#endif // __ACR_OPENSCOP_H
+void free_acr_runtime_data(struct acr_runtime_data* data) {
+  cloog_input_free(data->cloog_input);
+  cloog_state_free(data->state);
+  osl_scop_free(data->osl_relation);
+}

@@ -483,7 +483,48 @@ static bool acr_strategy_first_included_in_second(const acr_option strategy1,
   return false;
 }
 
-void acr_simlpify_compute_node(acr_compute_node node) {
+bool acr_alternative_has_no_strategy_in_node(const acr_option alternative,
+    const acr_compute_node node) {
+  const char* alternative_name =
+    acr_alternative_get_alternative_name(alternative);
+  acr_option_list option_list = acr_compute_node_get_option_list(node);
+  unsigned long list_size = acr_compute_node_get_option_list_size(node);
+  for (unsigned int i = 0; i < list_size; ++i) {
+    acr_option current_option = acr_option_list_get_option(i, option_list);
+    if (acr_option_get_type(current_option) == acr_type_strategy) {
+      int diff = strcmp(acr_strategy_get_name(current_option), alternative_name);
+      if (diff == 0)
+        return false;
+    }
+  }
+  fprintf(stderr,
+      "[ACR] Warning: Alternative named %s has no known strategy using it\n",
+      alternative_name);
+  return true;
+}
+
+bool acr_strategy_has_no_alternative_in_node(const acr_option strategy,
+    const acr_compute_node node) {
+  const char* strategy_name =
+    acr_strategy_get_name(strategy);
+  acr_option_list option_list = acr_compute_node_get_option_list(node);
+  unsigned long list_size = acr_compute_node_get_option_list_size(node);
+  for (unsigned int i = 0; i < list_size; ++i) {
+    acr_option current_option = acr_option_list_get_option(i, option_list);
+    if (acr_option_get_type(current_option) == acr_type_alternative) {
+      int diff = strcmp(acr_alternative_get_alternative_name(current_option),
+          strategy_name);
+      if (diff == 0)
+        return false;
+    }
+  }
+  fprintf(stderr,
+      "[ACR] Warning: A strategy is using an undeclared alternative named \"%s\"\n",
+      strategy_name);
+  return true;
+}
+
+void acr_simplify_compute_node(acr_compute_node node) {
   acr_option_list option_list;
   for (unsigned long i = 0; i < acr_compute_node_get_option_list_size(node); ++i) {
     option_list = acr_compute_node_get_option_list(node);
@@ -491,6 +532,12 @@ void acr_simlpify_compute_node(acr_compute_node node) {
       case acr_type_init:
         break;
       case acr_type_alternative:
+        if(acr_alternative_has_no_strategy_in_node(
+              acr_option_list_get_option(i, option_list), node)) {
+          acr_compute_node_delete_option_from_position(i, node);
+          i -= 1ul;
+          break;
+        }
         for (unsigned int j = 1; j < i; ++j) {
           option_list = acr_compute_node_get_option_list(node);
           acr_option to_compare = acr_option_list_get_option(j, option_list);
@@ -517,6 +564,12 @@ void acr_simlpify_compute_node(acr_compute_node node) {
         }
         break;
       case acr_type_strategy:
+        if(acr_strategy_has_no_alternative_in_node(
+              acr_option_list_get_option(i, option_list), node)) {
+          acr_compute_node_delete_option_from_position(i, node);
+          i -= 1ul;
+          break;
+        }
         for (unsigned int j = 1; j < i; ++j) {
             option_list = acr_compute_node_get_option_list(node);
             acr_option to_compare = acr_option_list_get_option(j, option_list);
@@ -616,7 +669,7 @@ acr_compute_node_list acr_new_compute_node_list_split_node(
       acr_option_list_set_option(NULL, j, option_list);
     }
     acr_compute_node new_node = acr_new_compute_node(new_size, new_options);
-    acr_simlpify_compute_node(new_node);
+    acr_simplify_compute_node(new_node);
     acr_compute_node_list_set_node(i, new_node, new_list);
     next_destroy += 1;
     actual_position = next_destroy;

@@ -19,6 +19,7 @@
 #ifndef __ACR_CLOOG_RUNTIME_H
 #define __ACR_CLOOG_RUNTIME_H
 
+#include <cloog/cloog.h>
 #include "acr/acr_openscop.h"
 
 #endif // __ACR_CLOOG_RUNTIME_H

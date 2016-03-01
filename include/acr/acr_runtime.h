@@ -22,17 +22,26 @@
 #include <cloog/cloog.h>
 #include <acr/acr_openscop.h>
 
+enum acr_runtime_alternative_type {
+  acr_runtime_alternative_parameter = 0,
+  acr_runtime_alternative_function,
+};
+
+struct acr_runtime_strategy {
+  enum acr_alternative_type type;
+  char* name;
+};
+
 struct acr_runtime_data {
   CloogInput* cloog_input;
   CloogDomain* context;
   CloogState* state;
   struct osl_scop* osl_relation;
+  unsigned long num_strategy;
+  struct acr_runtime_strategy* strategies;
 };
 
-static void free_acr_runtime_data(struct acr_runtime_data* data) {
-  cloog_input_free(data->cloog_input);
-  cloog_state_free(data->state);
-  osl_scop_free(data->osl_relation);
-}
+
+void free_acr_runtime_data(struct acr_runtime_data* data);
 
 #endif // __ACR_RUNTIME_H

@@ -10,6 +10,7 @@
 #   - OSL_FOUND        - If OSL was found                                     #
 #   - OSL_INCLUDE_DIRS - the OSL include directories                          #
 #   - OSL_LIBRARIES    - the OSL library directories                          #
+#   - OSL_VERSION      - the OSL version                                      #
 #                                                                             #
 #/////////////////////////////////////////////////////////////////////////////#
 
@@ -22,6 +23,9 @@ libfind_pkg_check_modules(OSL_PKGCONF osl)
 find_path(OSL_INCLUDE_DIR
   NAMES "osl/osl.h"
   PATHS ${OSL_PKGCONF_INCLUDE_DIRS})
+
+# Version
+libfind_version_header(OSL "osl/scop.h" "OSL_RELEASE")
 
 # Library
 find_library(OSL_LIBRARY

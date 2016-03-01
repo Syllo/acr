@@ -11,6 +11,7 @@
 #   - CLAN_INCLUDE_DIRS - the CLAN include directories                        #
 #   - CLAN_LIBRARIES    - the CLAN library directories                        #
 #   - CLAN_EXECUTABLE   - the CLAN executable                                 #
+#   - CLAN_VERSION      - the CLAN version                                    #
 #                                                                             #
 #/////////////////////////////////////////////////////////////////////////////#
 
@@ -24,6 +25,7 @@ find_path(CLAN_INCLUDE_DIR
   NAMES "clan/clan.h"
   PATHS ${CLAN_PKGCONF_INCLUDE_DIRS})
 
+# Version
 libfind_version_header(CLAN "clan/macros.h" "CLAN_VERSION")
 
 # Library

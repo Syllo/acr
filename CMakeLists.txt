@@ -30,14 +30,15 @@ include(cmake/config-dep.cmake)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/")
 
-find_package(CLAN )#QUIET)
-message(STATUS "CLAN VERSION: ${CLAN_VERSION}")
-find_package(OSL )#QUIET)
-if(CLAN_FOUND AND "${CLAN_VERSION}" GREATER "0.8.0")
-  message (STATUS "CLAN and OSL are installed")
-else()
-  message (WARNING "CLAN not installed or version not supported\n"
-    "Fallback by trying to clone the repository from source")
+find_package(CLAN QUIET)
+find_package(OSL QUIET)
+if(NOT CLAN_FOUND AND NOT "${CLAN_VERSION}" GREATER "0.8.0")
+  if(NOT CLAN_FOUND)
+    message(WARNING "CLAN is not installed")
+  else()
+    message(WARNING "CLAN version ${CLAN_VERSION} is too old")
+  endif()
+  message (STATUS "Fallback by trying to clone the repository from source")
   find_package(Git REQUIRED)
   execute_process(COMMAND
     ${GIT_EXECUTABLE} submodule update --init
@@ -51,10 +52,10 @@ else()
     set(USING_CLAN_GIT TRUE)
   endif()
 else()
-  message(STATUS "Found lib osl")
   set(USING_CLAN_GIT FALSE)
 endif()
 
+find_package(CLOOG REQUIRED)
 
 find_package(BISON REQUIRED)
 find_package(FLEX REQUIRED)
@@ -84,7 +85,7 @@ set(COMMON_C_FLAGS "-Wall -Wextra -std=c99 -pedantic")
 set(CMAKE_C_FLAGS_RELEASE "${COMMON_C_FLAGS} -O3")
 set(CMAKE_C_FLAGS_DEBUG "${COMMON_C_FLAGS} -O0 -g")
 
-add_definitions(-D_POSIX_C_SOURCE=200809L)
+add_definitions(-D_POSIX_C_SOURCE=200809L -DCLOOG_INT_GMP)
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
   add_definitions()#-DACR_DEBUG)
@@ -127,6 +128,9 @@ else()
     "${CLAN_INCLUDE_DIRS}")
 endif()
 
+list(APPEND CURRENT_INCLUDE_DIRECTORIES
+  "${CLOOG_INCLUDE_DIRS}")
+
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/acr/acr.h"
   IMMEDIATE @ONLY)
@@ -135,6 +139,7 @@ include_directories(${CURRENT_INCLUDE_DIRECTORIES})
 
 list(APPEND ACR_LIBRARY_C_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/source/acr_openscop.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/source/acr_runtime.c
   ${CMAKE_CURRENT_SOURCE_DIR}/source/cloog_runtime.c
   ${CMAKE_CURRENT_SOURCE_DIR}/source/utils.c
   ${CMAKE_CURRENT_SOURCE_DIR}/source/pragma_struct.c
@@ -156,6 +161,7 @@ add_library(acr
   ${ACR_LIBRARY_C_FILES})
 message(STATUS "Add acr library (shared)"
   " ${CMAKE_SHARED_LIBRARY_PREFIX}acr${CMAKE_SHARED_LIBRARY_SUFFIX}")
+target_link_libraries(acr ${CLOOG_LIBRARIES})
 if(NOT OSL_FOUND)
   target_link_libraries(acr osl)
 else()
@@ -168,6 +174,7 @@ add_library(acr_static
 set_target_properties(acr_static PROPERTIES OUTPUT_NAME acr)
 message(STATUS "Add acr library (static)"
   " ${CMAKE_STATIC_LIBRARY_PREFIX}acr${CMAKE_STATIC_LIBRARY_SUFFIX}")
+target_link_libraries(acr_static ${CLOOG_LIBRARIES})
 if(NOT OSL_FOUND)
   target_link_libraries(acr_static osl)
 else()

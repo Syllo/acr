@@ -20,6 +20,7 @@
 
 #include <clan/scop.h>
 #include <osl/extensions/coordinates.h>
+#include <osl/extensions/arrays.h>
 #include <osl/scop.h>
 #include <string.h>
 
@@ -105,7 +106,6 @@ static char* acr_new_file_name(const char* initial_name) {
 
 static size_t acr_copy_from_file_avoiding_pragmas(FILE* input, FILE* output,
     size_t start, size_t stop, acr_compute_node all_pragmas) {
-  fprintf(stderr, "Asked %zu %zu\n", start, stop);
   if (start > stop)
     return 0;
   acr_option_list list = acr_compute_node_get_option_list(all_pragmas);
@@ -125,7 +125,6 @@ static size_t acr_copy_from_file_avoiding_pragmas(FILE* input, FILE* output,
   }
   current_position += acr_copy_from_file_to_file(input, output, current_position,
       stop);
-  fprintf(stderr, "Ended up %zu\n", current_position);
   return current_position;
 }
 
@@ -159,8 +158,27 @@ static void acr_print_parameters(FILE* out, const acr_option init) {
 
 static void acr_print_init_function_call(FILE* out, const acr_option init);
 
+static void acr_print_acr_strategy_init(FILE* out,
+    const acr_compute_node node) {
+  acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
+  const char* fun_name = acr_init_get_function_name(init);
+  unsigned long num_strategy = 0ul;
+  unsigned long size_list = acr_compute_node_get_option_list_size(node);
+  acr_option_list options = acr_compute_node_get_option_list(node);
+  for (unsigned long i = 0ul; i < size_list; ++i) {
+    acr_option current_option = acr_option_list_get_option(i, options);
+    if (acr_option_get_type(current_option) == acr_type_strategy) {
+      ++num_strategy;
+    }
+  }
+  fprintf(out, "  %s_runtime_data.num_strategy = %lu;\n",
+      fun_name,
+      num_strategy);
+}
+
 void acr_print_acr_runtime_init(FILE* out,
-    const acr_option init) {
+    const acr_compute_node node) {
+  acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   const char* fun_name = acr_init_get_function_name(init);
   fprintf(out, "static struct acr_runtime_data %s_runtime_data;\n", fun_name);
   fprintf(out, "static void %s_acr_runtime_init", fun_name);
@@ -179,6 +197,7 @@ void acr_print_acr_runtime_init(FILE* out,
   fprintf(out, "  %s_runtime_data.context =\n"
       "    %s_runtime_data.cloog_input->context;\n",
       fun_name, fun_name);
+  acr_print_acr_strategy_init(out, node);
 
   // Call function and change pointer to initial function
   fprintf(out, "  %s = %s_acr_initial;\n",
@@ -207,8 +226,6 @@ void acr_print_init_function_declaration(FILE* kernel_file, FILE* out,
   fprintf(out, "static void (*%s)", acr_init_get_function_name(init));
   acr_print_parameters(out, init);
   fprintf(out, " = %s_acr_runtime_init;\n", acr_init_get_function_name(init));
-
-  acr_print_acr_runtime_init(out, init);
 }
 
 void acr_print_node_initialization(FILE* in, FILE* out,
@@ -223,6 +240,7 @@ void acr_print_node_initialization(FILE* in, FILE* out,
   }
   acr_print_init_function_declaration(in, out, init,
       kernel_start, kernel_end);
+
 }
 
 void acr_print_node_init_function_call(FILE* out,
@@ -255,7 +273,7 @@ static char* acr_get_scop_prefix(const acr_compute_node node) {
 }
 
 void acr_print_scop_in_file(FILE* output,
-    const char* scop_prefix, const osl_scop_p scop) {
+    const char* scop_prefix, osl_scop_p scop) {
   char* buffer = NULL;
   osl_generic_remove(&scop->extension, OSL_URI_COORDINATES);
   size_t sizebuffer;
@@ -280,6 +298,22 @@ void acr_print_destroy(FILE* output, const acr_compute_node node) {
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   fprintf(output, "free_acr_runtime_data(&%s_runtime_data);\n",
       acr_init_get_function_name(init));
+}
+
+void acr_print_scanning_function(FILE* out, const acr_compute_node node,
+    osl_scop_p scop) {
+  osl_generic_remove(&scop->extension, OSL_URI_ARRAYS);
+  acr_option monitor =
+    acr_compute_node_get_option_of_type(acr_type_monitor, node, 1);
+  if (monitor == NULL) {
+    fprintf(stderr, "No data to monitor\n");
+    exit(1);
+  }
+  osl_scop_p newscop = acr_find_in_scop_monitor_loop(monitor, scop);
+  if (newscop == NULL) {
+    fprintf(stderr, "It is not possible to find monitor data boundaries\n");
+    exit(1);
+  }
 }
 
 void acr_generate_code(const char* filename) {
@@ -336,6 +370,9 @@ void acr_generate_code(const char* filename) {
         acr_print_node_initialization(current_file, new_file, node,
             kernel_start, kernel_end);
 
+        acr_print_scanning_function(new_file, node, scop);
+        acr_print_acr_runtime_init(new_file, node);
+
         fseek(current_file, position_in_input, SEEK_SET);
         position_in_input = acr_copy_from_file_avoiding_pragmas(
             current_file,
@@ -373,17 +410,6 @@ void acr_generate_code(const char* filename) {
   acr_free_compute_node_list(node_list);
   acr_free_compute_node(all_options);
   fclose(current_file);
-  /*
-  char* buffer = NULL;
-  size_t sizebuffer;
-  acr_print_scop_to_buffer(scop, &buffer, &sizebuffer);
-  fprintf(stderr, "%s", buffer);
-  osl_scop_free(scop);
-  scop = acr_read_scop_from_buffer(buffer, sizebuffer);
-  osl_scop_print(stderr, scop);
-  osl_scop_free(scop);
-  free(buffer);
-  */
 }
 
 void acr_generate_preamble(FILE* file, const char* filename) {
@@ -541,7 +567,6 @@ void acr_scop_coord_to_acr_coord(
     if (c == '\n')
       ++line_num;
   }
-  fprintf(stderr, "Befor column %lu\n", current_position);
   if (osl_coord->column_end > 0)
     current_position += osl_coord->column_end;
   *end = current_position;

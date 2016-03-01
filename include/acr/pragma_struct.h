@@ -567,4 +567,10 @@ void acr_copy_array_declaration(
 acr_option acr_compute_node_get_option_of_type(enum acr_type option_type,
     const acr_compute_node node, unsigned long which_one);
 
+bool acr_alternative_has_no_strategy_in_node(const acr_option alternative,
+    const acr_compute_node node);
+
+bool acr_strategy_has_no_alternative_in_node(const acr_option strategy,
+    const acr_compute_node node);
+
 #endif // __ACR_PRAGMA_STRUCT_H
