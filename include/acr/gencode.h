@@ -52,4 +52,7 @@ void acr_scop_coord_to_acr_coord(
     unsigned long* start,
     unsigned long* end);
 
+void acr_print_node_init_function_call(FILE* out,
+    const acr_compute_node node);
+
 #endif // __ACR_GENCODE_H

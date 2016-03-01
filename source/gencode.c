@@ -20,6 +20,7 @@
 
 #include <clan/scop.h>
 #include <osl/extensions/coordinates.h>
+#include <osl/scop.h>
 #include <string.h>
 
 #include "acr/print.h"
@@ -156,21 +157,58 @@ static void acr_print_parameters(FILE* out, const acr_option init) {
   fprintf(out, ")");
 }
 
+static void acr_print_init_function_call(FILE* out, const acr_option init);
+
+void acr_print_acr_runtime_init(FILE* out,
+    const acr_option init) {
+  const char* fun_name = acr_init_get_function_name(init);
+  fprintf(out, "static struct acr_runtime_data %s_runtime_data;\n", fun_name);
+  fprintf(out, "static void %s_acr_runtime_init", fun_name);
+  acr_print_parameters(out, init);
+  fprintf(out, " {\n"
+      "  %s_runtime_data.osl_relation =\n"
+      "    acr_read_scop_from_buffer(%s_acr_scop, %s_acr_scop_size);\n",
+      fun_name, fun_name, fun_name);
+  fprintf(out, "  %s_runtime_data.state =\n"
+      "    cloog_state_malloc();\n",
+      fun_name);
+  fprintf(out, "  %s_runtime_data.cloog_input =\n"
+      "    cloog_input_from_osl_scop(%s_runtime_data.state,\n"
+      "      %s_runtime_data.osl_relation);\n",
+      fun_name, fun_name, fun_name);
+  fprintf(out, "  %s_runtime_data.context =\n"
+      "    %s_runtime_data.cloog_input->context;\n",
+      fun_name, fun_name);
+
+  // Call function and change pointer to initial function
+  fprintf(out, "  %s = %s_acr_initial;\n",
+      fun_name, fun_name);
+  fprintf(out, "  ");
+  acr_print_init_function_call(out, init);
+  fprintf(out, "}\n\n");
+}
+
+
 void acr_print_init_function_declaration(FILE* kernel_file, FILE* out,
     const acr_option init,
     unsigned long kernel_start, unsigned long kernel_end) {
 
-  fprintf(out, "void %s_acr_initial", acr_init_get_function_name(init));
+  fprintf(out, "static void %s_acr_runtime_init",
+      acr_init_get_function_name(init));
+  acr_print_parameters(out, init);
+  fprintf(out, ";\n");
+  fprintf(out, "static void %s_acr_initial", acr_init_get_function_name(init));
   acr_print_parameters(out, init);
   fprintf(out, " {\n");
   fseek(kernel_file, kernel_start, SEEK_SET);
   acr_copy_from_file_to_file(kernel_file, out, kernel_start, kernel_end);
   fprintf(out, "\n}\n\n");
 
-  fprintf(out, "void (*%s)", acr_init_get_function_name(init));
+  fprintf(out, "static void (*%s)", acr_init_get_function_name(init));
   acr_print_parameters(out, init);
+  fprintf(out, " = %s_acr_runtime_init;\n", acr_init_get_function_name(init));
 
-  fprintf(out, " = %s_acr_initial;\n", acr_init_get_function_name(init));
+  acr_print_acr_runtime_init(out, init);
 }
 
 void acr_print_node_initialization(FILE* in, FILE* out,
@@ -187,8 +225,13 @@ void acr_print_node_initialization(FILE* in, FILE* out,
       kernel_start, kernel_end);
 }
 
-void acr_print_init_function_call(FILE* out, const acr_compute_node node) {
+void acr_print_node_init_function_call(FILE* out,
+    const acr_compute_node node) {
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
+  acr_print_init_function_call(out, init);
+}
+
+static void acr_print_init_function_call(FILE* out, const acr_option init) {
   fprintf(out, "%s(", acr_init_get_function_name(init));
   unsigned long num_parameters = acr_init_get_num_parameters(init);
   acr_parameter_declaration_list declaration_list =
@@ -231,6 +274,12 @@ void acr_print_scop_in_file(FILE* output,
   }
   fprintf(output, "\";\n\n");
   free(buffer);
+}
+
+void acr_print_destroy(FILE* output, const acr_compute_node node) {
+  acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
+  fprintf(output, "free_acr_runtime_data(&%s_runtime_data);\n",
+      acr_init_get_function_name(init));
 }
 
 void acr_generate_code(const char* filename) {
@@ -295,10 +344,20 @@ void acr_generate_code(const char* filename) {
             all_options);
 
         fprintf(new_file, "/* Do acr stuff here */\n");
-        acr_print_init_function_call(new_file, node);
+        acr_print_node_init_function_call(new_file, node);
         position_in_input = kernel_end;
         fseek(current_file, position_in_input, SEEK_SET);
         osl_scop_free(scop);
+
+        acr_option destroy =
+          acr_compute_node_get_option_of_type(acr_type_destroy, node, 1);
+        size_t destroy_pos = acr_destroy_get_pragma_position(destroy);
+        position_in_input = acr_copy_from_file_avoiding_pragmas(
+            current_file,
+            new_file,
+            position_in_input, destroy_pos,
+            all_options);
+        acr_print_destroy(new_file, node);
       }
     }
     fseek(current_file, 0l, SEEK_END);
@@ -334,7 +393,8 @@ void acr_generate_preamble(FILE* file, const char* filename) {
       "   Defunct input file: %s\n"
       "   Do not read this line.\n"
       "   Obviously you don't deserve dessert today by disobeying this basic order!\n"
-      " */\n\n", filename);
+      " */\n\n"
+      "#include <acr/acr_runtime.h>\n\n", filename);
       // # include here
 }
 
@@ -481,7 +541,7 @@ void acr_scop_coord_to_acr_coord(
     if (c == '\n')
       ++line_num;
   }
-  fprintf(stderr, "Bebor column %lu\n", current_position);
+  fprintf(stderr, "Befor column %lu\n", current_position);
   if (osl_coord->column_end > 0)
     current_position += osl_coord->column_end;
   *end = current_position;

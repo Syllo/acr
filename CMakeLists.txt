@@ -33,14 +33,14 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/")
 find_package(CLAN )#QUIET)
 message(STATUS "CLAN VERSION: ${CLAN_VERSION}")
 find_package(OSL )#QUIET)
-if(OSL_FOUND AND CLAN_FOUND AND "${CLAN_VERSION}" GREATER "0.8.0")
+if(CLAN_FOUND AND "${CLAN_VERSION}" GREATER "0.8.0")
   message (STATUS "CLAN and OSL are installed")
 else()
   message (WARNING "CLAN not installed or version not supported\n"
     "Fallback by trying to clone the repository from source")
   find_package(Git REQUIRED)
   execute_process(COMMAND
-    ${GIT_EXECUTABLE} submodule update --init --recursive
+    ${GIT_EXECUTABLE} submodule update --init
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     RESULT_VARIABLE OSL_SUBMODULE_UPDATE)
   if(NOT OSL_SUBMODULE_UPDATE EQUAL 0)
@@ -119,6 +119,10 @@ if(USING_CLAN_GIT)
     "${OSL_INCLUDE_DIRECTORIES}"
     "${CLAN_INCLUDE_DIRECTORIES}")
 else()
+  if(OSL_FOUND)
+    list(APPEND CURRENT_INCLUDE_DIRECTORIES
+      "${OSL_INCLUDE_DIRECTORIES}")
+  endif()
   list(APPEND CURRENT_INCLUDE_DIRECTORIES
     "${CLAN_INCLUDE_DIRS}")
 endif()
@@ -131,6 +135,7 @@ include_directories(${CURRENT_INCLUDE_DIRECTORIES})
 
 list(APPEND ACR_LIBRARY_C_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/source/acr_openscop.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/source/cloog_runtime.c
   ${CMAKE_CURRENT_SOURCE_DIR}/source/utils.c
   ${CMAKE_CURRENT_SOURCE_DIR}/source/pragma_struct.c
   ${CMAKE_CURRENT_SOURCE_DIR}/source/print.c)
@@ -151,7 +156,7 @@ add_library(acr
   ${ACR_LIBRARY_C_FILES})
 message(STATUS "Add acr library (shared)"
   " ${CMAKE_SHARED_LIBRARY_PREFIX}acr${CMAKE_SHARED_LIBRARY_SUFFIX}")
-if(USING_CLAN_GIT)
+if(NOT OSL_FOUND)
   target_link_libraries(acr osl)
 else()
   target_link_libraries(acr ${OSL_LIBRARIES})
@@ -163,10 +168,10 @@ add_library(acr_static
 set_target_properties(acr_static PROPERTIES OUTPUT_NAME acr)
 message(STATUS "Add acr library (static)"
   " ${CMAKE_STATIC_LIBRARY_PREFIX}acr${CMAKE_STATIC_LIBRARY_SUFFIX}")
-if(USING_CLAN_GIT)
-  target_link_libraries(acr osl)
+if(NOT OSL_FOUND)
+  target_link_libraries(acr_static osl)
 else()
-  target_link_libraries(acr ${OSL_LIBRARIES})
+  target_link_libraries(acr_static ${OSL_LIBRARIES})
 endif()
 
 #///////////////////////////////////////////////////////////////////#
@@ -176,7 +181,11 @@ endif()
 add_executable(acr_exe ${ACR_EXECUTABLE_C_FILES})
 set_target_properties(acr_exe PROPERTIES OUTPUT_NAME "acr")
 if(USING_CLAN_GIT)
-  target_link_libraries(acr_exe acr clan osl)
+  if(OSL_FOUND)
+    target_link_libraries(acr_exe acr clan ${OSL_LIBRARIES})
+  else()
+    target_link_libraries(acr_exe acr clan osl)
+  endif()
 else()
   target_link_libraries(acr_exe acr ${CLAN_LIBRARIES} ${OSL_LIBRARIES})
 endif()

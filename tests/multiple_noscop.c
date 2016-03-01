@@ -1,8 +1,7 @@
 #define N 15
 #define MAX 150
-#include "acr/acr_openscop.h"
 
-int temporary_array[MAX][MAX];
+int temporary_array[MAX+1][MAX+1];
 
 void lin_solve_computation(int k, int i, int j);
 void lin_solve_computation2(float alpha, int i, int j);
@@ -67,8 +66,11 @@ void lin_solve_computation2(float alpha, int i, int j) {
 }
 
 int main() {
-  osl_scop_p scop = acr_read_scop_from_buffer(a_acr_scop, a_acr_scop_size);
-  osl_scop_print(stderr, scop);
-  osl_scop_free(scop);
+  fprintf(stdout, "initial: %p\n", a_acr_runtime_init);
+  fprintf(stdout, "a: %p\n", a);
+  a();
+  fprintf(stdout, "a: %p\n", a);
+  osl_scop_print(stdout, a_runtime_data.osl_relation);
+  free_acr_runtime_data(&a_runtime_data);
   return 0;
 }
