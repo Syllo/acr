@@ -97,7 +97,8 @@ struct parser_option_list* option_list;
   struct parameter_declaration* parameter_decl;
   struct parameter_declaration_list* parameter_decl_list;
   struct acr_array_declaration array_declaration;
-  struct array_dimensions* array_dimensions;
+  acr_array_dimension array_dimensions;
+  struct array_dimensions_list *dimension_list;
   int monitor_processing_function;
   bool minus;
 }
@@ -143,8 +144,9 @@ struct parser_option_list* option_list;
 %type <parameter_decl> parameter_declaration
 %type <parameter_decl_list> parameter_declaration_list
 %type <array_declaration> acr_monitor_data_monitored
-%type <array_dimensions> array_dimensions
+%type <array_dimensions> add_expression mul_expression leaf_expression
 %type <monitor_processing_function> acr_monitor_processing_function
+%type <dimension_list> array_dimensions
 
 %destructor { acr_free_option($$); $$ = NULL;} <option>
 %destructor { free($$); $$ = NULL;} <identifier>
@@ -156,7 +158,8 @@ struct parser_option_list* option_list;
 %destructor { free_param_declarations($$); $$ = NULL;} <parameter_decl>
 %destructor { free_param_decl_list($$); $$ = NULL;} <parameter_decl_list>
 %destructor { acr_free_acr_array_declaration(&$$); } <array_declaration>
-%destructor { free_dimensions($$); $$ = NULL;} <array_dimensions>
+%destructor { acr_free_array_dimension($$); $$ = NULL;} <array_dimensions>
+%destructor { free_array_dim_list($$); $$ = NULL;} <dimension_list>
 
 %start acr_start
 
@@ -495,34 +498,25 @@ acr_monitor_data_monitored
       get_name_and_specifiers_and_free_parameter_declaration($1,
       &($$.array_name),
           &$$.parameter_specifiers_list);
-      $$.num_dimensions = get_size_and_dimensions_and_free($2,
+      $$.num_dimensions = array_dim_list_size_free_convert($2,
           &$$.array_dimensions_list);
     }
   ;
 
 array_dimensions
-  : array_dimensions '[' I_CONSTANT ']'
+  : array_dimensions '[' add_expression ']'
     {
-      $$ = add_dimension_uinteger($1, $3.value.integer_val.uinteger);
+      $$ = new_array_dim_list($3);
+      $$->next = $1;
     }
-  | '[' I_CONSTANT ']'
+  | '[' add_expression ']'
     {
-      $$ = add_dimension_uinteger(NULL, $2.value.integer_val.uinteger);
-    }
-  | '[' IDENTIFIER ']'
-    {
-      $$ = add_dimension_name(NULL, $2);
-      free($2);
-    }
-  | array_dimensions '[' IDENTIFIER ']'
-    {
-      $$ = add_dimension_name($1, $3);
-      free($3);
+      $$ = new_array_dim_list($2);
     }
   | array_dimensions '[' error ']'
     {
       $$ = NULL;
-      free_dimensions($1);
+      free_array_dim_list($1);
       fprintf(stderr, "[ACR] Hint: declare the array dimensions with positive"
       " integers or parameter name\n");
       error_print_last_pragma();
@@ -535,6 +529,52 @@ array_dimensions
       " or parameter name\n");
       error_print_last_pragma();
       yyerrok;
+    }
+  ;
+
+add_expression
+  : mul_expression
+    {
+      $$ = $1;
+    }
+  | add_expression '+' mul_expression
+    {
+      $$ = acr_new_array_dimensions_leaf_node(acr_array_dim_plus,
+        $1, $3);
+    }
+  | add_expression '-' mul_expression
+    {
+      $$ = acr_new_array_dimensions_leaf_node(acr_array_dim_minus,
+        $1, $3);
+    }
+  ;
+
+mul_expression
+  : leaf_expression
+    {
+      $$ = $1;
+    }
+  | mul_expression '*' leaf_expression
+    {
+      $$ = acr_new_array_dimensions_leaf_node(acr_array_dim_mul,
+        $1, $3);
+    }
+  | mul_expression '/' leaf_expression
+    {
+      $$ = acr_new_array_dimensions_leaf_node(acr_array_dim_div,
+        $1, $3);
+    }
+  ;
+
+leaf_expression
+  : I_CONSTANT
+    {
+      $$ = acr_new_array_dimensions_leaf_integer($1.value.integer_val.integer);
+    }
+  | IDENTIFIER
+    {
+      $$ = acr_new_array_dimensions_leaf_parameter($1);
+      free($1);
     }
   ;
 

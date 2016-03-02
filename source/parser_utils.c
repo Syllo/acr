@@ -121,65 +121,24 @@ unsigned long int get_name_and_specifiers_and_free_parameter_declaration(
   return num_specifiers;
 }
 
-struct array_dimensions* add_dimension_uinteger(
-    struct array_dimensions* previous,
-    unsigned long int dimension_size) {
-  struct array_dimensions* new_dim = malloc(sizeof(*new_dim));
-  acr_array_dimensions_set_dim_size(0, dimension_size, &new_dim->dimension);
-  new_dim->next = previous;
-  if (previous)
-    previous->previous = new_dim;
-  new_dim->previous = NULL;
-  return new_dim;
-}
-
-struct array_dimensions* add_dimension_name(
-    struct array_dimensions* previous,
-    char* dimension_name) {
-  struct array_dimensions* new_dim = malloc(sizeof(*new_dim));
-  acr_array_dimensions_set_dim_name(0, dimension_name, &new_dim->dimension);
-  new_dim->next = previous;
-  if (previous)
-    previous->previous = new_dim;
-  new_dim->previous = NULL;
-  return new_dim;
-}
-
-unsigned long int get_size_and_dimensions_and_free(
-    struct array_dimensions* dimension,
-    acr_array_dimensions_list* dimension_list) {
-  unsigned long int num_dimensions = 0;
-  if (dimension) {
-    num_dimensions = 1;
-    while (dimension->next) {
-      dimension = dimension->next;
-      ++num_dimensions;
-    }
-
-    *dimension_list = acr_new_array_dimensions_list(num_dimensions);
-
-    char* name;
-    for (unsigned long int i = 0; i < num_dimensions; ++i) {
-      switch (acr_array_dimensions_get_type(0, &dimension->dimension)) {
-        case acr_array_dimension_uinteger:
-          acr_array_dimensions_set_dim_size(i,
-              acr_array_dimensions_get_dim_size(0, &dimension->dimension),
-              *dimension_list);
-          break;
-        case acr_array_dimension_parameter:
-          name = acr_array_dimensions_get_dim_name(0, &dimension->dimension);
-          acr_array_dimensions_set_dim_name(i,
-              name,
-              *dimension_list);
-          free(name);
-          break;
-      }
-      if (dimension->previous) {
-        dimension = dimension->previous;
-        free(dimension->next);
-      }
-    }
-    free(dimension);
+unsigned long array_dim_list_size_free_convert(
+    struct array_dimensions_list* constructed_list,
+    acr_array_dimensions_list* list) {
+  unsigned long list_size = 0;
+  struct array_dimensions_list* temp_list = constructed_list;
+  while (temp_list) {
+    list_size += 1;
+    temp_list = temp_list->next;
   }
-  return num_dimensions;
+  *list = acr_new_array_dimensions_list(list_size);
+  temp_list = constructed_list;
+  list_size = 0;
+  while (temp_list) {
+    (*list)[list_size] = temp_list->dim;
+    temp_list->dim = NULL;
+    temp_list = temp_list->next;
+    list_size += 1;
+  }
+  free_array_dim_list(constructed_list);
+  return list_size;
 }

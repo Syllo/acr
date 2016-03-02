@@ -257,6 +257,43 @@ void pprint_acr_parameter_specifier_list(FILE* out,
   }
 }
 
+void print_acr_array_dimensions(FILE* out,
+    acr_array_dimension dim, bool print_braces) {
+  if (print_braces)
+    fprintf(out, "[");
+  if (dim->type != acr_array_dim_leaf) {
+    print_acr_array_dimensions(out, dim->val.node.left, false);
+    switch (dim->type) {
+      case acr_array_dim_plus:
+        fprintf(out, " + ");
+        break;
+      case acr_array_dim_minus:
+        fprintf(out, " - ");
+        break;
+      case acr_array_dim_mul:
+        fprintf(out, " * ");
+        break;
+      case acr_array_dim_div:
+        fprintf(out, " / ");
+        break;
+      case acr_array_dim_leaf:
+        break;
+    }
+    print_acr_array_dimensions(out, dim->val.node.right, false);
+  } else {
+    switch (dim->val.leaf.type) {
+      case acr_expr_leaf_int:
+        fprintf(out, "%ld", dim->val.leaf.value.integer);
+        break;
+      case acr_expr_leaf_param:
+        fprintf(out, "%s", dim->val.leaf.value.parameter);
+        break;
+    }
+  }
+  if (print_braces)
+    fprintf(out, "]");
+}
+
 void pprint_acr_array_declaration(FILE* out,
                                   acr_array_declaration* declaration) {
   pprint_acr_parameter_specifier_list(out,
@@ -268,14 +305,7 @@ void pprint_acr_array_declaration(FILE* out,
     acr_array_decl_get_dimensions_list(declaration);
 
   for (unsigned long int i = 0; i < num_dimensions; ++i) {
-    switch (acr_array_dimensions_get_type(i, dimensions)) {
-      case acr_array_dimension_uinteger:
-        fprintf(out, "[%lu]", acr_array_dimensions_get_dim_size(i, dimensions));
-        break;
-      case acr_array_dimension_parameter:
-        fprintf(out, "[%s]", acr_array_dimensions_get_dim_name(i, dimensions));
-        break;
-    }
+    print_acr_array_dimensions(out, dimensions[i], true);
   }
 }
 

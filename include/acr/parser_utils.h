@@ -50,10 +50,9 @@ static const struct acr_pragma_parser_name_error_utils
                                         " range construct?\n"},
   };
 
-struct array_dimensions {
-  acr_array_dimensions dimension;
-  struct array_dimensions* next;
-  struct array_dimensions* previous;
+struct array_dimensions_list {
+  acr_array_dimension dim;
+  struct array_dimensions_list* next;
 };
 
 struct parameter_declaration {
@@ -106,31 +105,6 @@ static inline void free_param_decl_list(struct parameter_declaration_list* dec) 
   free(dec);
 }
 
-struct array_dimensions* add_dimension_uinteger(
-    struct array_dimensions* previous,
-    unsigned long int dimension_size);
-
-struct array_dimensions* add_dimension_name(
-    struct array_dimensions* previous,
-    char* dimension_name);
-
-unsigned long int get_size_and_dimensions_and_free(
-    struct array_dimensions* dimension,
-    acr_array_dimensions_list* dimension_list);
-
-static inline void free_dimensions(struct array_dimensions* dimension) {
-  while(dimension && dimension->next) {
-    dimension = dimension->next;
-    if (dimension->previous->dimension.type == acr_array_dimension_parameter)
-      free(acr_array_dimensions_get_dim_name(0,
-            &dimension->previous->dimension));
-    free(dimension->previous);
-  }
-  if (dimension->dimension.type == acr_array_dimension_parameter)
-    free(acr_array_dimensions_get_dim_name(0, &dimension->dimension));
-  free(dimension);
-}
-
 static inline struct parser_option_list* parser_option_list_add(
     acr_option option,
     struct parser_option_list* option_list) {
@@ -179,5 +153,29 @@ static inline void parser_free_option_list(struct parser_option_list* list) {
   acr_free_option(list->option);
   free(list);
 }
+
+static inline struct array_dimensions_list* new_array_dim_list(
+    acr_array_dimension dim) {
+  struct array_dimensions_list* new_list = malloc(sizeof(*new_list));
+  new_list->next = NULL;
+  new_list->dim = dim;
+  return new_list;
+}
+
+static inline void free_array_dim_list(struct array_dimensions_list* list) {
+  if (!list)
+    return;
+  struct array_dimensions_list* next = list->next;
+  do {
+    next = list->next;
+    acr_free_array_dimension(list->dim);
+    free(list);
+    list = next;
+  }while (list);
+}
+
+unsigned long array_dim_list_size_free_convert(
+    struct array_dimensions_list* constructed_list,
+    acr_array_dimensions_list* list);
 
 #endif // __ACR_PARSER_UTILS_H

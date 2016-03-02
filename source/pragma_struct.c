@@ -751,6 +751,25 @@ acr_parameter_declaration_list acr_copy_parameter_declaration_list(
   return new_parameter_list;
 }
 
+acr_array_dimension acr_copy_array_dimensions(acr_array_dimension dim) {
+  acr_array_dimension copy = malloc(sizeof(*copy));
+  copy->type = dim->type;
+  if (dim->type != acr_array_dim_leaf) {
+    copy->val.node.left = acr_copy_array_dimensions(dim->val.node.left);
+    copy->val.node.right = acr_copy_array_dimensions(dim->val.node.right);
+  } else {
+    switch (dim->val.leaf.type) {
+      case acr_expr_leaf_param:
+        copy->val.leaf.value.parameter = acr_strdup(dim->val.leaf.value.parameter);
+        break;
+      case acr_expr_leaf_int:
+        break;
+    }
+    copy->val.leaf.type = dim->val.leaf.type;
+  }
+  return copy;
+}
+
 void acr_copy_array_declaration(
     const acr_array_declaration* array_declaration,
     acr_array_declaration* new_array_dec) {
@@ -764,19 +783,7 @@ void acr_copy_array_declaration(
     acr_new_array_dimensions_list(array_declaration->num_dimensions);
   new_array_dec->num_dimensions = array_declaration->num_dimensions;
   for (unsigned long i = 0 ; i< new_array_dec->num_dimensions; ++i) {
-    switch (array_declaration->array_dimensions_list[i].type) {
-      case acr_array_dimension_uinteger:
-        new_array_dec->array_dimensions_list[i] =
-          array_declaration->array_dimensions_list[i];
-        break;
-      case acr_array_dimension_parameter:
-        new_array_dec->array_dimensions_list[i].type =
-          array_declaration->array_dimensions_list[i].type;
-        new_array_dec->array_dimensions_list[i].value.parameter_name =
-          acr_strdup(
-              array_declaration->array_dimensions_list[i].value.parameter_name);
-        break;
-    }
+    new_array_dec->array_dimensions_list[i] = acr_copy_array_dimensions(array_declaration->array_dimensions_list[i]);
   }
 }
 
@@ -888,4 +895,31 @@ acr_option acr_compute_node_get_option_of_type(enum acr_type search_type,
     }
   }
   return NULL;
+}
+
+acr_array_dimension acr_new_array_dimensions_leaf_integer(long val) {
+  acr_array_dimension new_dim = malloc(sizeof(*new_dim));
+  new_dim->type = acr_array_dim_leaf;
+  new_dim->val.leaf.type = acr_expr_leaf_int;
+  new_dim->val.leaf.value.integer = val;
+  return new_dim;
+}
+
+acr_array_dimension acr_new_array_dimensions_leaf_node(
+    enum acr_array_dimensions_type type,
+    acr_array_dimension left,
+    acr_array_dimension right) {
+  acr_array_dimension new_dim = malloc(sizeof(*new_dim));
+  new_dim->type = type;
+  new_dim->val.node.left = left;
+  new_dim->val.node.right = right;
+  return new_dim;
+}
+
+acr_array_dimension acr_new_array_dimensions_leaf_parameter(const char* param) {
+  acr_array_dimension new_dim = malloc(sizeof(*new_dim));
+  new_dim->type = acr_array_dim_leaf;
+  new_dim->val.leaf.type = acr_expr_leaf_param;
+  new_dim->val.leaf.value.parameter = acr_strdup(param);
+  return new_dim;
 }

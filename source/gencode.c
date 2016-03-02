@@ -309,11 +309,12 @@ void acr_print_scanning_function(FILE* out, const acr_compute_node node,
     fprintf(stderr, "No data to monitor\n");
     exit(1);
   }
-  osl_scop_p newscop = acr_find_in_scop_monitor_loop(monitor, scop);
+  osl_scop_p newscop = acr_openscop_gen_monitor_loop(monitor, scop);
   if (newscop == NULL) {
     fprintf(stderr, "It is not possible to find monitor data boundaries\n");
     exit(1);
   }
+  fprintf(out, "");
 }
 
 void acr_generate_code(const char* filename) {

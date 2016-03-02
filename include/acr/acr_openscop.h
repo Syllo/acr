@@ -28,7 +28,9 @@ void acr_print_scop_to_buffer(osl_scop_p scop, char** buffer,
 
 osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer);
 
-osl_scop_p acr_find_in_scop_monitor_loop(const acr_option monitor,
+osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
     const osl_scop_p scop);
+
+osl_strings_p acr_openscop_get_monitor_parameters(const acr_option monitor);
 
 #endif // __ACR_OPENSCOP_H

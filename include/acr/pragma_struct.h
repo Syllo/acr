@@ -67,18 +67,35 @@ typedef struct acr_init {
   acr_parameter_declaration_list parameters_list;
 } acr_init;
 
-enum acr_array_dimensions_type{
-  acr_array_dimension_uinteger,
-  acr_array_dimension_parameter
+enum acr_array_dimensions_type {
+  acr_array_dim_leaf,
+  acr_array_dim_plus,
+  acr_array_dim_minus,
+  acr_array_dim_mul,
+  acr_array_dim_div,
 };
 
-typedef struct acr_array_dimensions{
+enum acr_expr_leaf_type {
+  acr_expr_leaf_int,
+  acr_expr_leaf_param,
+};
+
+typedef struct acr_array_dimension {
   enum acr_array_dimensions_type type;
   union {
-    unsigned long int dimension;
-    char* parameter_name;
-  } value;
-} acr_array_dimensions, *acr_array_dimensions_list;
+    struct {
+      enum acr_expr_leaf_type type;
+      struct {
+        long integer;
+        char* parameter;
+      } value;
+    } leaf;
+    struct {
+      struct acr_array_dimension* right;
+      struct acr_array_dimension* left;
+    } node;
+  } val;
+} *acr_array_dimension, **acr_array_dimensions_list;
 
 typedef struct acr_array_declaration {
   unsigned long int num_specifiers;
@@ -475,50 +492,44 @@ void acr_free_acr_array_declaration(
 
 acr_array_dimensions_list acr_new_array_dimensions_list(unsigned long int size);
 
+static inline void acr_free_array_dimension(acr_array_dimension dim) {
+  if (!dim)
+    return;
+  if (dim->type != acr_array_dim_leaf) {
+    acr_free_array_dimension(dim->val.node.left);
+    acr_free_array_dimension(dim->val.node.right);
+  } else {
+    switch (dim->val.leaf.type) {
+      case acr_expr_leaf_int:
+        break;
+      case acr_expr_leaf_param:
+        free(dim->val.leaf.value.parameter);
+    }
+  }
+  free(dim);
+}
+
+acr_array_dimension acr_new_array_dimensions_leaf_integer(long val);
+
+acr_array_dimension acr_new_array_dimensions_leaf_parameter(const char* param);
+
+acr_array_dimension acr_new_array_dimensions_leaf_node(
+    enum acr_array_dimensions_type type,
+    acr_array_dimension left,
+    acr_array_dimension right);
+
 static inline void acr_free_array_dimensions_list(
     unsigned long list_size,
     acr_array_dimensions_list list) {
+  if (!list)
+    return;
   for (unsigned long int i = 0; i < list_size; ++i) {
-    if (list[i].type == acr_array_dimension_parameter) {
-      free(list[i].value.parameter_name);
-    }
+    acr_free_array_dimension(list[i]);
   }
   free(list);
 }
 
-static inline enum acr_array_dimensions_type acr_array_dimensions_get_type(
-    unsigned int position,
-    const acr_array_dimensions_list dimension_list) {
-  return dimension_list[position].type;
-}
-
-static inline unsigned long int acr_array_dimensions_get_dim_size(
-    unsigned long int position,
-    const acr_array_dimensions_list dimension_list) {
-  return dimension_list[position].value.dimension;
-}
-
-static inline char* acr_array_dimensions_get_dim_name(
-    unsigned long int position,
-    const acr_array_dimensions_list dimension_list) {
-  return dimension_list[position].value.parameter_name;
-}
-
-static inline void acr_array_dimensions_set_dim_name(
-    unsigned long int position,
-    const char* name,
-    acr_array_dimensions_list dimension_list) {
-  dimension_list[position].type = acr_array_dimension_parameter;
-  dimension_list[position].value.parameter_name = acr_strdup(name);
-}
-
-static inline void acr_array_dimensions_set_dim_size(
-    unsigned long int position,
-    unsigned long int dim_size,
-    acr_array_dimensions_list dimension_list) {
-  dimension_list[position].type = acr_array_dimension_uinteger;
-  dimension_list[position].value.dimension = dim_size;
-}
+acr_array_dimension acr_copy_array_dimensions(acr_array_dimension dim);
 
 acr_compute_node_list acr_new_compute_node_list(unsigned long list_size);
 
