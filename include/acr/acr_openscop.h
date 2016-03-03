@@ -29,8 +29,13 @@ void acr_print_scop_to_buffer(osl_scop_p scop, char** buffer,
 osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer);
 
 osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
-    const osl_scop_p scop);
+    const osl_scop_p scop,
+    unsigned long grid_size);
 
 osl_strings_p acr_openscop_get_monitor_parameters(const acr_option monitor);
+
+void osl_relation_swap_column(osl_relation_p relation,
+    int pos1,
+    int pos2);
 
 #endif // __ACR_OPENSCOP_H

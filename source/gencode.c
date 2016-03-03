@@ -305,11 +305,14 @@ void acr_print_scanning_function(FILE* out, const acr_compute_node node,
   osl_generic_remove(&scop->extension, OSL_URI_ARRAYS);
   acr_option monitor =
     acr_compute_node_get_option_of_type(acr_type_monitor, node, 1);
+  acr_option grid =
+    acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
+  unsigned long grid_size = acr_grid_get_grid_size(grid);
   if (monitor == NULL) {
     fprintf(stderr, "No data to monitor\n");
     exit(1);
   }
-  osl_scop_p newscop = acr_openscop_gen_monitor_loop(monitor, scop);
+  osl_scop_p newscop = acr_openscop_gen_monitor_loop(monitor, scop, grid_size);
   if (newscop == NULL) {
     fprintf(stderr, "It is not possible to find monitor data boundaries\n");
     exit(1);
