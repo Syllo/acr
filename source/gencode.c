@@ -19,6 +19,7 @@
 #include "acr/gencode.h"
 
 #include <clan/scop.h>
+#include <cloog/cloog.h>
 #include <osl/extensions/coordinates.h>
 #include <osl/extensions/arrays.h>
 #include <osl/scop.h>
@@ -312,12 +313,34 @@ void acr_print_scanning_function(FILE* out, const acr_compute_node node,
     fprintf(stderr, "No data to monitor\n");
     exit(1);
   }
-  osl_scop_p newscop = acr_openscop_gen_monitor_loop(monitor, scop, grid_size);
-  if (newscop == NULL) {
+  osl_scop_p new_scop = acr_openscop_gen_monitor_loop(monitor, scop, grid_size);
+  if (new_scop == NULL) {
     fprintf(stderr, "It is not possible to find monitor data boundaries\n");
-    exit(1);
+    return;
   }
-  fprintf(out, "");
+
+  const char* filter = acr_monitor_get_filter_name(monitor);
+  switch (acr_monitor_get_function(monitor)) {
+    case acr_monitor_function_min:
+      acr_openscop_set_tiled_to_do_min_max(
+          monitor, filter, grid_size, false, new_scop);
+      break;
+    case acr_monitor_function_max:
+      acr_openscop_set_tiled_to_do_min_max(
+          monitor, filter, grid_size, true, new_scop);
+      break;
+    case acr_monitor_function_unknown:
+      break;
+  }
+  osl_scop_print(stderr, new_scop);
+
+  CloogState *cloog_state = cloog_state_malloc();
+  CloogInput *cloog_input = cloog_input_from_osl_scop(cloog_state, new_scop);
+  cloog_input_free(cloog_input);
+  cloog_state_free(cloog_state);
+
+  osl_scop_free(new_scop);
+  fprintf(out, " ");
 }
 
 void acr_generate_code(const char* filename) {

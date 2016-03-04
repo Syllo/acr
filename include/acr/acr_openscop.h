@@ -38,4 +38,11 @@ void osl_relation_swap_column(osl_relation_p relation,
     int pos1,
     int pos2);
 
+void acr_openscop_set_tiled_to_do_min_max(
+    const acr_option monitor,
+    const char* filter_function,
+    unsigned long grid_size,
+    bool max,
+    osl_scop_p scop);
+
 #endif // __ACR_OPENSCOP_H

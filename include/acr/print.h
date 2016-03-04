@@ -56,4 +56,7 @@ void pprint_acr_compute_node_list(FILE* out,
                                   acr_compute_node_list node_list,
                                   size_t indent_level);
 
+void print_acr_array_dimensions(FILE* out,
+    acr_array_dimension dim, bool print_braces);
+
 #endif // __ACR_PRINT_H

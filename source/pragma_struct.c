@@ -777,7 +777,7 @@ void acr_copy_array_declaration(
     acr_copy_parameter_specifier_list(
         array_declaration->parameter_specifiers_list,
         array_declaration->num_specifiers);
-  new_array_dec->num_specifiers = array_declaration->num_dimensions;
+  new_array_dec->num_specifiers = array_declaration->num_specifiers;
   new_array_dec->array_name = acr_strdup(array_declaration->array_name);
   new_array_dec->array_dimensions_list =
     acr_new_array_dimensions_list(array_declaration->num_dimensions);

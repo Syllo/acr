@@ -506,8 +506,8 @@ acr_monitor_data_monitored
 array_dimensions
   : array_dimensions '[' add_expression ']'
     {
-      $$ = new_array_dim_list($3);
-      $$->next = $1;
+      $$ = $1;
+      $1->next = new_array_dim_list($3);
     }
   | '[' add_expression ']'
     {
@@ -539,8 +539,11 @@ add_expression
     }
   | add_expression '+' mul_expression
     {
-      $$ = acr_new_array_dimensions_leaf_node(acr_array_dim_plus,
-        $1, $3);
+      if ($3 == NULL)
+        $$ = $1;
+      else
+        $$ = acr_new_array_dimensions_leaf_node(acr_array_dim_plus,
+          $1, $3);
     }
   | add_expression '-' mul_expression
     {
@@ -561,8 +564,11 @@ mul_expression
     }
   | mul_expression '/' leaf_expression
     {
-      $$ = acr_new_array_dimensions_leaf_node(acr_array_dim_div,
-        $1, $3);
+      $$ = NULL;
+      acr_free_array_dimension($1);
+      acr_free_array_dimension($3);
+      fprintf(stderr, "[ACR] error: non affine expression\n");
+      YYERROR;
     }
   ;
 
