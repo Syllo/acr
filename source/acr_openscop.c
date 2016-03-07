@@ -613,9 +613,11 @@ bool acr_osl_check_if_parameters_are_also_iterator(const osl_scop_p scop,
   return false;
 }
 
-static void acr_openscop_scan_min_max_init(
+static void acr_openscop_scan_min_max_op(
     const acr_option monitor,
     const char* filter_function,
+    unsigned long grid_size,
+    const char* data_location_prefix,
     bool max,
     osl_statement_p statement) {
   osl_body_p body = osl_body_malloc();
@@ -626,24 +628,173 @@ static void acr_openscop_scan_min_max_init(
   size_t size_string;
   FILE* tempbuffer = open_memstream(&statement_string, &size_string);
   acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
-  fprintf(tempbuffer, "tempval = ");
+  unsigned long num_dimensions = acr_array_decl_get_num_dimensions(decl);
+#ifndef ACR_DEBUG
+  fprintf(tempbuffer, "%s_monitor_result", data_location_prefix);
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "[c%lu]", (i+1)*2);
+  }
+  fprintf(tempbuffer, " = ");
+  fprintf(tempbuffer, "%s_monitor_result", data_location_prefix);
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "[c%lu]", (i+1)*2);
+  }
+  if (max) {
+    fprintf(tempbuffer, " < ");
+  }
+  else {
+    fprintf(tempbuffer, " > ");
+  }
   if (filter_function) {
     fprintf(tempbuffer, "%s(", filter_function);
   }
   fprintf(tempbuffer, "%s", acr_array_decl_get_array_name(decl));
-  if (filter_function) {
-    fprintf(tempbuffer, ")");
-  }
   char **current_string = iterators->string;
   while (*current_string) {
     fprintf(tempbuffer, "[%s]", *current_string);
     current_string++;
   }
+  if (filter_function) {
+    fprintf(tempbuffer, ")");
+  }
+  fprintf(tempbuffer, " ? ");
+  if (filter_function) {
+    fprintf(tempbuffer, "%s(", filter_function);
+  }
+  fprintf(tempbuffer, "%s", acr_array_decl_get_array_name(decl));
+  current_string = iterators->string;
+  while (*current_string) {
+    fprintf(tempbuffer, "[%s]", *current_string);
+    current_string++;
+  }
+  if (filter_function) {
+    fprintf(tempbuffer, ")");
+  }
+  fprintf(tempbuffer, " : ");
+  fprintf(tempbuffer, "%s_monitor_result", data_location_prefix);
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "[c%lu]", (i+1)*2);
+  }
   fprintf(tempbuffer, ";");
+#else
+  fprintf(tempbuffer, "fprintf(stderr, \"compare %%d %%d & %%d %%d\\n\"");
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, ", c%lu", (i+1)*2);
+  }
+  char **current_string = iterators->string;
+  while (*current_string) {
+    fprintf(tempbuffer, ", %s", *current_string);
+    current_string++;
+  }
+  fprintf(tempbuffer, ");");
+#endif
   fclose(tempbuffer);
   body->expression = osl_strings_encapsulate(statement_string);
   osl_generic_add(&statement->extension,
       osl_generic_shell(body, osl_body_interface()));
+  osl_relation_p scattering = statement->scattering;
+  osl_relation_insert_blank_row(scattering, -1);
+  int row_position = scattering->nb_rows - 1;
+  osl_int_decrement(scattering->precision,
+      &scattering->m[row_position][scattering->nb_columns-1],
+      scattering->m[row_position][scattering->nb_columns-1]);
+  osl_int_increment(scattering->precision,
+      &scattering->m[row_position][0],
+      scattering->m[row_position][0]);
+  osl_int_t temp;
+  osl_int_init_set_si(scattering->precision, &temp, grid_size);
+  for (unsigned long i = 0; i < num_dimensions; ++i) {
+    unsigned long initial_iterator_pos = 2 + 2*num_dimensions + i*2 ;
+    unsigned long initial_scattering_pos = 2 + i*2;
+    osl_int_increment(scattering->precision,
+        &scattering->m[row_position][initial_iterator_pos],
+        scattering->m[row_position][initial_iterator_pos]);
+    osl_int_sub(scattering->precision,
+        &scattering->m[row_position][initial_scattering_pos],
+        scattering->m[row_position][initial_scattering_pos],
+        temp);
+  }
+  osl_int_clear(scattering->precision, &temp);
+}
+
+static void acr_openscop_scan_init(
+    const acr_option monitor,
+    const char* filter_function,
+    unsigned long grid_size,
+    const char* data_location_prefix,
+    enum acr_monitor_processing_funtion process_fun,
+    osl_statement_p statement) {
+  osl_body_p body = osl_body_malloc();
+  unsigned int num_iterators = statement->domain->nb_output_dims;
+  osl_strings_p iterators = osl_strings_generate("i", num_iterators);
+  body->iterators = iterators;
+  char* statement_string;
+  size_t size_string;
+  FILE* tempbuffer = open_memstream(&statement_string, &size_string);
+  acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
+  unsigned long num_dimensions = acr_array_decl_get_num_dimensions(decl);
+#ifndef ACR_DEBUG
+  switch (process_fun) {
+    case acr_monitor_function_min:
+    case acr_monitor_function_max:
+      fprintf(tempbuffer, "%s_monitor_result", data_location_prefix);
+      for(unsigned long i = 0; i < num_dimensions; ++i) {
+        fprintf(tempbuffer, "[c%lu]", (i+1)*2);
+      }
+      break;
+    case acr_monitor_function_avg:
+      fprintf(tempbuffer, "temp_avg ");;
+      break;
+    case acr_monitor_function_unknown:
+      break;
+  }
+  fprintf(tempbuffer, " = ");
+  if (filter_function) {
+    fprintf(tempbuffer, "%s(", filter_function);
+  }
+  fprintf(tempbuffer, "%s", acr_array_decl_get_array_name(decl));
+  char **current_string = iterators->string;
+  while (*current_string) {
+    fprintf(tempbuffer, "[%s]", *current_string);
+    current_string++;
+  }
+  if (filter_function) {
+    fprintf(tempbuffer, ")");
+  }
+  fprintf(tempbuffer, ";");
+#else
+  fprintf(tempbuffer, "fprintf(stderr, \"Init %%d %%d = %%d %%d\\n\"");
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, ", c%lu", (i+1)*2);
+  }
+  char **current_string = iterators->string;
+  while (*current_string) {
+    fprintf(tempbuffer, ", %s", *current_string);
+    current_string++;
+  }
+  fprintf(tempbuffer, ");");
+#endif
+  fclose(tempbuffer);
+  body->expression = osl_strings_encapsulate(statement_string);
+  osl_generic_add(&statement->extension,
+      osl_generic_shell(body, osl_body_interface()));
+  osl_relation_p scattering = statement->scattering;
+  osl_relation_insert_blank_row(scattering, -1);
+  int row_position = scattering->nb_rows - 1;
+  osl_int_t temp;
+  osl_int_init_set_si(scattering->precision, &temp, grid_size);
+  for (unsigned long i = 0; i < num_dimensions; ++i) {
+    unsigned long initial_iterator_pos = 2 + 2*num_dimensions + i*2 ;
+    unsigned long initial_scattering_pos = 2 + i*2;
+    osl_int_increment(scattering->precision,
+        &scattering->m[row_position][initial_iterator_pos],
+        scattering->m[row_position][initial_iterator_pos]);
+    osl_int_sub(scattering->precision,
+        &scattering->m[row_position][initial_scattering_pos],
+        scattering->m[row_position][initial_scattering_pos],
+        temp);
+  }
+  osl_int_clear(scattering->precision, &temp);
 }
 
 void acr_openscop_set_tiled_to_do_min_max(
@@ -651,12 +802,170 @@ void acr_openscop_set_tiled_to_do_min_max(
     const char* filter_function,
     unsigned long grid_size,
     bool max,
+    const char* data_location_prefix,
     osl_scop_p scop) {
-  osl_statement_p init, inf_or_sup, end;
+  osl_statement_p init, inf_or_sup;
   init = scop->statement;
-  /*inf_or_sup = osl_statement_clone(init);*/
-  /*end = osl_statement_clone(init);*/
-  acr_openscop_scan_min_max_init(monitor, filter_function, max, init);
+  inf_or_sup = osl_statement_clone(init);
+  acr_openscop_scan_init(monitor, filter_function, grid_size,
+      data_location_prefix, acr_monitor_function_max, init);
+  acr_openscop_scan_min_max_op(monitor, filter_function, grid_size,
+      data_location_prefix, max, inf_or_sup);
+  scop->statement->next = inf_or_sup;
+}
+
+static void acr_openscop_scan_avg_add(
+    const acr_option monitor,
+    const char* filter_function,
+    unsigned long grid_size,
+    osl_statement_p statement) {
+  osl_body_p body = osl_body_malloc();
+  unsigned int num_iterators = statement->domain->nb_output_dims;
+  osl_strings_p iterators = osl_strings_generate("i", num_iterators);
+  body->iterators = iterators;
+  char* statement_string;
+  size_t size_string;
+  FILE* tempbuffer = open_memstream(&statement_string, &size_string);
+  acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
+  unsigned long num_dimensions = acr_array_decl_get_num_dimensions(decl);
+#ifndef ACR_DEBUG
+  fprintf(tempbuffer, "temp_avg += ");
+  if (filter_function) {
+    fprintf(tempbuffer, "%s(", filter_function);
+  }
+  fprintf(tempbuffer, "%s", acr_array_decl_get_array_name(decl));
+  char **current_string = iterators->string;
+  while (*current_string) {
+    fprintf(tempbuffer, "[%s]", *current_string);
+    current_string++;
+  }
+  if (filter_function) {
+    fprintf(tempbuffer, ")");
+  }
+  fprintf(tempbuffer, ";");
+#else
+  fprintf(tempbuffer, "fprintf(stderr, \"Avg add %%d %%d = %%d %%d\\n\"");
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, ", c%lu", (i+1)*2);
+  }
+  char **current_string = iterators->string;
+  while (*current_string) {
+    fprintf(tempbuffer, ", %s", *current_string);
+    current_string++;
+  }
+  fprintf(tempbuffer, ");");
+#endif
+  fclose(tempbuffer);
+  body->expression = osl_strings_encapsulate(statement_string);
+  osl_generic_add(&statement->extension,
+      osl_generic_shell(body, osl_body_interface()));
+  osl_relation_p scattering = statement->scattering;
+  osl_relation_insert_blank_row(scattering, -1);
+  int row_position = scattering->nb_rows - 1;
+  osl_int_decrement(scattering->precision,
+      &scattering->m[row_position][scattering->nb_columns-1],
+      scattering->m[row_position][scattering->nb_columns-1]);
+  osl_int_increment(scattering->precision,
+      &scattering->m[row_position][0],
+      scattering->m[row_position][0]);
+  osl_int_t temp;
+  osl_int_init_set_si(scattering->precision, &temp, grid_size);
+  for (unsigned long i = 0; i < num_dimensions; ++i) {
+    unsigned long initial_iterator_pos = 2 + 2*num_dimensions + i*2 ;
+    unsigned long initial_scattering_pos = 2 + i*2;
+    osl_int_increment(scattering->precision,
+        &scattering->m[row_position][initial_iterator_pos],
+        scattering->m[row_position][initial_iterator_pos]);
+    osl_int_sub(scattering->precision,
+        &scattering->m[row_position][initial_scattering_pos],
+        scattering->m[row_position][initial_scattering_pos],
+        temp);
+  }
+  osl_int_clear(scattering->precision, &temp);
+}
+
+static void acr_openscop_scan_avg_div(
+    const acr_option monitor,
+    unsigned long grid_size,
+    const char* data_location_prefix,
+    osl_statement_p statement) {
+  osl_body_p body = osl_body_malloc();
+  unsigned int num_iterators = statement->domain->nb_output_dims;
+  osl_strings_p iterators = osl_strings_generate("i", num_iterators);
+  body->iterators = iterators;
+  char* statement_string;
+  size_t size_string;
+  FILE* tempbuffer = open_memstream(&statement_string, &size_string);
+  acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
+  unsigned long num_dimensions = acr_array_decl_get_num_dimensions(decl);
+#ifndef ACR_DEBUG
+  fprintf(tempbuffer, "%s_monitor_result", data_location_prefix);
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "[c%lu]", (i+1)*2);
+  }
+  unsigned long num_elements_grid = grid_size;
+  for(unsigned int i = 1; i < num_dimensions; ++i) {
+    num_elements_grid *= grid_size;
+  }
+  fprintf(tempbuffer, " = temp_avg / %luul;", num_elements_grid);
+#else
+  fprintf(tempbuffer, "fprintf(stderr, \"Avg div %%d %%d by %%d\\n\"");
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, ", c%lu", (i+1)*2);
+  }
+  fprintf(tempbuffer, ", %lu);", grid_size);
+#endif
+  fclose(tempbuffer);
+  body->expression = osl_strings_encapsulate(statement_string);
+  osl_generic_add(&statement->extension,
+      osl_generic_shell(body, osl_body_interface()));
+  osl_relation_p scattering = statement->scattering;
+  osl_relation_insert_blank_row(scattering, -1);
+  int row_position = scattering->nb_rows - 1;
+  osl_int_t temp;
+  osl_int_init_set_si(scattering->precision, &temp, grid_size);
+  for (unsigned long i = 0; i < num_dimensions; ++i) {
+    unsigned long initial_iterator_pos = 2 + 2*num_dimensions + i*2 ;
+    unsigned long initial_scattering_pos = 2 + i*2;
+    osl_int_increment(scattering->precision,
+        &scattering->m[row_position][initial_iterator_pos],
+        scattering->m[row_position][initial_iterator_pos]);
+    osl_int_sub(scattering->precision,
+        &scattering->m[row_position][initial_scattering_pos],
+        scattering->m[row_position][initial_scattering_pos],
+        temp);
+  }
+  osl_int_decrement(scattering->precision,
+      &temp,
+      temp);
+  osl_int_mul_si(scattering->precision,
+      &scattering->m[row_position][scattering->nb_columns-1],
+      temp,
+      num_dimensions);
+  osl_int_oppose(scattering->precision,
+      &scattering->m[row_position][scattering->nb_columns-1],
+      scattering->m[row_position][scattering->nb_columns-1]);
+  osl_int_clear(scattering->precision, &temp);
+}
+
+void acr_openscop_set_tiled_to_do_avg(
+    const acr_option monitor,
+    const char* filter_function,
+    unsigned long grid_size,
+    const char* data_location_prefix,
+    osl_scop_p scop) {
+  osl_statement_p init, add, div;
+  init = scop->statement;
+  add = osl_statement_clone(init);
+  div = osl_statement_clone(init);
+  acr_openscop_scan_init(monitor, filter_function, grid_size,
+      data_location_prefix, acr_monitor_function_avg, init);
+  acr_openscop_scan_avg_add(monitor, filter_function, grid_size,
+      add);
+  acr_openscop_scan_avg_div(monitor, grid_size,
+      data_location_prefix, div);
+  init->next = add;
+  add->next = div;
 }
 
 osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
@@ -692,11 +1001,20 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
   osl_scop_p new_scop = osl_scop_malloc();
   new_scop->version = scop->version;
   new_scop->language = acr_strdup(scop->language);
+  new_scop->registry = osl_interface_get_default_registry();
   osl_generic_p generic_string = osl_generic_shell(parameters, osl_strings_interface());
   osl_generic_add(&new_scop->parameters, generic_string);
   new_scop->statement = new_statement;
+
   new_scop->context = osl_relation_malloc(0,num_param+2);
   osl_relation_set_type(new_scop->context, OSL_TYPE_CONTEXT);
   osl_relation_set_attributes(new_scop->context, 0, 0, 0, num_param);
+
+  osl_strings_p scattering_names = osl_strings_generate("c",
+      new_scop->statement->scattering->nb_output_dims);
+  osl_scatnames_p scatnames = osl_scatnames_malloc();
+  scatnames->names = scattering_names;
+  new_scop->extension = osl_generic_shell(scatnames, osl_scatnames_interface());
+
   return new_scop;
 }

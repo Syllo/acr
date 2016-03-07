@@ -43,6 +43,14 @@ void acr_openscop_set_tiled_to_do_min_max(
     const char* filter_function,
     unsigned long grid_size,
     bool max,
+    const char* data_location_prefix,
+    osl_scop_p scop);
+
+void acr_openscop_set_tiled_to_do_avg(
+    const acr_option monitor,
+    const char* filter_function,
+    unsigned long grid_size,
+    const char* data_location_prefix,
     osl_scop_p scop);
 
 #endif // __ACR_OPENSCOP_H

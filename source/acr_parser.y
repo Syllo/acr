@@ -49,6 +49,7 @@ static const char* acr_pragma_processing_functions[] =
   {
     [acr_monitor_function_min]  = "min",
     [acr_monitor_function_max]  = "max",
+    [acr_monitor_function_avg] = "avg",
   };
 
 void acrlex_destroy(void);

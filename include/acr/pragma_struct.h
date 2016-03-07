@@ -108,6 +108,7 @@ typedef struct acr_array_declaration {
 enum acr_monitor_processing_funtion {
   acr_monitor_function_min = 0,
   acr_monitor_function_max,
+  acr_monitor_function_avg,
   acr_monitor_function_unknown,
 };
 

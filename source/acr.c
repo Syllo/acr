@@ -30,7 +30,6 @@ static const char opt_options[] = "pvho:";
 
 int main(int argc, char** argv) {
 
-  char* output_file = NULL;
   bool print = false;
 
   for (;;) {
@@ -40,7 +39,6 @@ int main(int argc, char** argv) {
 
     switch (c) {
       case 'o':
-        output_file = optarg;
         break;
       case 'h':
         fprintf(stdout, help);

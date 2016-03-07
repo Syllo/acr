@@ -157,6 +157,9 @@ void pprint_acr_monitor(FILE* out, acr_option monitor, size_t indent_level) {
     case acr_monitor_function_max:
       fprintf(out, "| max\n");
       break;
+    case acr_monitor_function_avg:
+      fprintf(out, "| avg\n");
+      break;
     case acr_monitor_function_unknown:
       break;
   }

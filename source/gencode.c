@@ -319,28 +319,59 @@ void acr_print_scanning_function(FILE* out, const acr_compute_node node,
     return;
   }
 
+  const char *prefix = acr_get_scop_prefix(node);
+  acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
+  fprintf(out, "static unsigned char");
+  fprintf(out, " %s_monitor_result", prefix);
+  unsigned long int num_dimensions = acr_array_decl_get_num_dimensions(decl);
+  acr_array_dimensions_list dimensions =
+    acr_array_decl_get_dimensions_list(decl);
+  for (unsigned long int i = 0; i < num_dimensions; ++i) {
+    fprintf(out, "[(");
+    print_acr_array_dimensions(out, dimensions[i], false);
+    fprintf(out, ") / %lu + 1]", grid_size);
+  }
+  fprintf(out, ";\n");
+
+  fprintf(out, "void %s_monitoring_function(void) {\n", prefix);
   const char* filter = acr_monitor_get_filter_name(monitor);
   switch (acr_monitor_get_function(monitor)) {
     case acr_monitor_function_min:
       acr_openscop_set_tiled_to_do_min_max(
-          monitor, filter, grid_size, false, new_scop);
+          monitor, filter, grid_size, false, prefix, new_scop);
       break;
     case acr_monitor_function_max:
       acr_openscop_set_tiled_to_do_min_max(
-          monitor, filter, grid_size, true, new_scop);
+          monitor, filter, grid_size, true, prefix, new_scop);
+      break;
+    case acr_monitor_function_avg:
+      fprintf(out, "size_t temp_avg;\n");
+      acr_openscop_set_tiled_to_do_avg(
+          monitor, filter, grid_size, prefix, new_scop);
       break;
     case acr_monitor_function_unknown:
       break;
   }
-  osl_scop_print(stderr, new_scop);
 
   CloogState *cloog_state = cloog_state_malloc();
   CloogInput *cloog_input = cloog_input_from_osl_scop(cloog_state, new_scop);
-  cloog_input_free(cloog_input);
-  cloog_state_free(cloog_state);
+  CloogOptions *cloog_option = cloog_options_malloc(cloog_state);
+  cloog_option->quiet = 1;
+  cloog_option->openscop = 1;
+  cloog_option->scop = new_scop;
+  cloog_option->otl = 1;
+  cloog_option->language = 0;
+  CloogProgram *cloog_program = cloog_program_alloc(cloog_input->context,
+      cloog_input->ud, cloog_option);
+  cloog_program = cloog_program_generate(cloog_program, cloog_option);
 
-  osl_scop_free(new_scop);
-  fprintf(out, " ");
+  cloog_program_pprint(out, cloog_program, cloog_option);
+  fprintf(out, "}\n");
+
+  cloog_program_free(cloog_program);
+  cloog_state_free(cloog_state);
+  cloog_options_free(cloog_option);
+  free(cloog_input);
 }
 
 void acr_generate_code(const char* filename) {
