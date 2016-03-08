@@ -677,7 +677,15 @@ static void acr_openscop_scan_min_max_op(
   }
   fprintf(tempbuffer, ";");
 #else
-  fprintf(tempbuffer, "fprintf(stderr, \"compare %%d %%d & %%d %%d\\n\"");
+  fprintf(tempbuffer, "fprintf(stderr, \"compare ");
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "%%d ");
+  }
+  fprintf(tempbuffer, "= ");
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "%%d ");
+  }
+  fprintf(tempbuffer, "\\n\"");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, ", c%lu", (i+1)*2);
   }
@@ -743,7 +751,7 @@ static void acr_openscop_scan_init(
       }
       break;
     case acr_monitor_function_avg:
-      fprintf(tempbuffer, "temp_avg ");;
+      fprintf(tempbuffer, "temp_avg");;
       break;
     case acr_monitor_function_unknown:
       break;
@@ -763,7 +771,15 @@ static void acr_openscop_scan_init(
   }
   fprintf(tempbuffer, ";");
 #else
-  fprintf(tempbuffer, "fprintf(stderr, \"Init %%d %%d = %%d %%d\\n\"");
+  fprintf(tempbuffer, "fprintf(stderr, \"Scan init ");
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "%%d ");
+  }
+  fprintf(tempbuffer, "= ");
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "%%d ");
+  }
+  fprintf(tempbuffer, "\\n\"");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, ", c%lu", (i+1)*2);
   }
@@ -774,6 +790,9 @@ static void acr_openscop_scan_init(
   }
   fprintf(tempbuffer, ");");
 #endif
+  if (process_fun == acr_monitor_function_avg) {
+    fprintf(tempbuffer, " num_value = 1;");
+  }
   fclose(tempbuffer);
   body->expression = osl_strings_encapsulate(statement_string);
   osl_generic_add(&statement->extension,
@@ -844,7 +863,15 @@ static void acr_openscop_scan_avg_add(
   }
   fprintf(tempbuffer, ";");
 #else
-  fprintf(tempbuffer, "fprintf(stderr, \"Avg add %%d %%d = %%d %%d\\n\"");
+  fprintf(tempbuffer, "fprintf(stderr, \"Avg add ");
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "%%d ");
+  }
+  fprintf(tempbuffer, "= ");
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "%%d ");
+  }
+  fprintf(tempbuffer, "\\n\"");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, ", c%lu", (i+1)*2);
   }
@@ -855,6 +882,7 @@ static void acr_openscop_scan_avg_add(
   }
   fprintf(tempbuffer, ");");
 #endif
+  fprintf(tempbuffer, " num_value += 1;");
   fclose(tempbuffer);
   body->expression = osl_strings_encapsulate(statement_string);
   osl_generic_add(&statement->extension,
@@ -907,13 +935,17 @@ static void acr_openscop_scan_avg_div(
   for(unsigned int i = 1; i < num_dimensions; ++i) {
     num_elements_grid *= grid_size;
   }
-  fprintf(tempbuffer, " = temp_avg / %luul;", num_elements_grid);
+  fprintf(tempbuffer, " = temp_avg / num_value;");
 #else
-  fprintf(tempbuffer, "fprintf(stderr, \"Avg div %%d %%d by %%d\\n\"");
+  fprintf(tempbuffer, "fprintf(stderr, \"Avg div ");
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "%%d ");
+  }
+  fprintf(tempbuffer, "by %%zu\\n\"");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, ", c%lu", (i+1)*2);
   }
-  fprintf(tempbuffer, ", %lu);", grid_size);
+  fprintf(tempbuffer, ", num_value);");
 #endif
   fclose(tempbuffer);
   body->expression = osl_strings_encapsulate(statement_string);
@@ -935,16 +967,12 @@ static void acr_openscop_scan_avg_div(
         scattering->m[row_position][initial_scattering_pos],
         temp);
   }
-  osl_int_decrement(scattering->precision,
-      &temp,
-      temp);
-  osl_int_mul_si(scattering->precision,
-      &scattering->m[row_position][scattering->nb_columns-1],
-      temp,
-      num_dimensions);
-  osl_int_oppose(scattering->precision,
-      &scattering->m[row_position][scattering->nb_columns-1],
-      scattering->m[row_position][scattering->nb_columns-1]);
+  unsigned long row_pos = (num_dimensions % 2) == 1 ?
+    1 + 2*num_dimensions + 3*(num_dimensions-1)/2 :
+    num_dimensions;
+  osl_int_increment(scattering->precision,
+      &scattering->m[row_pos][scattering->nb_columns-1],
+      scattering->m[row_pos][scattering->nb_columns-1]);
   osl_int_clear(scattering->precision, &temp);
 }
 

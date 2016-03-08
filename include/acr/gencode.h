@@ -30,7 +30,7 @@ void acr_print_structure_and_related_scop(FILE* out, const char* filename);
 
 void acr_generate_preamble(FILE* out, const char* );
 
-void acr_print_node_initialization(FILE* kernel_file, FILE* out,
+bool acr_print_node_initialization(FILE* kernel_file, FILE* out,
     const acr_compute_node node,
     unsigned long kernel_start, unsigned long kernel_end);
 

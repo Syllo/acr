@@ -484,11 +484,21 @@ pointer
 acr_monitor_options
   : '(' acr_monitor_data_monitored ',' acr_monitor_processing_function ')'
     {
-      $$ = acr_new_monitor(&$2, $4, NULL, last_pragma_start_line);
+      if ($2.num_dimensions == 0 || $2.num_specifiers == 0) {
+        acr_free_acr_array_declaration(&$2);
+        $$ = NULL;
+      } else {
+        $$ = acr_new_monitor(&$2, $4, NULL, last_pragma_start_line);
+      }
     }
   | '(' acr_monitor_data_monitored ',' acr_monitor_processing_function ',' acr_monitor_filter ')'
     {
-      $$ = acr_new_monitor(&$2, $4, $6, last_pragma_start_line);
+      if ($2.num_dimensions == 0 || $2.num_specifiers == 0) {
+        acr_free_acr_array_declaration(&$2);
+        $$ = NULL;
+      } else {
+        $$ = acr_new_monitor(&$2, $4, $6, last_pragma_start_line);
+      }
       free($6);
     }
   ;
@@ -507,12 +517,26 @@ acr_monitor_data_monitored
 array_dimensions
   : array_dimensions '[' add_expression ']'
     {
-      $$ = $1;
-      $1->next = new_array_dim_list($3);
+      if ($1 == NULL || $3 == NULL) {
+        if ($1 != NULL)
+          free_array_dim_list($1);
+        if ($3 != NULL)
+          acr_free_array_dimension($3);
+        $$ = NULL;
+      } else {
+        $$ = $1;
+        while($1->next) {
+        $1 = $1->next;
+        }
+        $1->next = new_array_dim_list($3);
+      }
     }
   | '[' add_expression ']'
     {
-      $$ = new_array_dim_list($2);
+      if ($2 == NULL)
+        $$ = NULL;
+      else
+        $$ = new_array_dim_list($2);
     }
   | array_dimensions '[' error ']'
     {

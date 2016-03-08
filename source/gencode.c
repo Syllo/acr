@@ -229,7 +229,7 @@ void acr_print_init_function_declaration(FILE* kernel_file, FILE* out,
   fprintf(out, " = %s_acr_runtime_init;\n", acr_init_get_function_name(init));
 }
 
-void acr_print_node_initialization(FILE* in, FILE* out,
+bool acr_print_node_initialization(FILE* in, FILE* out,
     const acr_compute_node node,
     unsigned long kernel_start, unsigned long kernel_end) {
 
@@ -237,10 +237,11 @@ void acr_print_node_initialization(FILE* in, FILE* out,
   if (init == NULL) {
     fprintf(stderr, "Error no initialization in current node\n");
     pprint_acr_compute_node(stderr, node, 0);
-    exit(EXIT_FAILURE);
+    return false;
   }
   acr_print_init_function_declaration(in, out, init,
       kernel_start, kernel_end);
+  return true;
 
 }
 
@@ -301,7 +302,7 @@ void acr_print_destroy(FILE* output, const acr_compute_node node) {
       acr_init_get_function_name(init));
 }
 
-void acr_print_scanning_function(FILE* out, const acr_compute_node node,
+bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     osl_scop_p scop) {
   osl_generic_remove(&scop->extension, OSL_URI_ARRAYS);
   acr_option monitor =
@@ -311,12 +312,12 @@ void acr_print_scanning_function(FILE* out, const acr_compute_node node,
   unsigned long grid_size = acr_grid_get_grid_size(grid);
   if (monitor == NULL) {
     fprintf(stderr, "No data to monitor\n");
-    exit(1);
+    return false;
   }
   osl_scop_p new_scop = acr_openscop_gen_monitor_loop(monitor, scop, grid_size);
   if (new_scop == NULL) {
     fprintf(stderr, "It is not possible to find monitor data boundaries\n");
-    return;
+    return false;
   }
 
   const char *prefix = acr_get_scop_prefix(node);
@@ -345,7 +346,7 @@ void acr_print_scanning_function(FILE* out, const acr_compute_node node,
           monitor, filter, grid_size, true, prefix, new_scop);
       break;
     case acr_monitor_function_avg:
-      fprintf(out, "size_t temp_avg;\n");
+      fprintf(out, "size_t temp_avg, num_value;\n");
       acr_openscop_set_tiled_to_do_avg(
           monitor, filter, grid_size, prefix, new_scop);
       break;
@@ -372,6 +373,7 @@ void acr_print_scanning_function(FILE* out, const acr_compute_node node,
   cloog_state_free(cloog_state);
   cloog_options_free(cloog_option);
   free(cloog_input);
+  return true;
 }
 
 void acr_generate_code(const char* filename) {
@@ -413,6 +415,10 @@ void acr_generate_code(const char* filename) {
           osl_scop_free(scop->next);
           scop->next = NULL;
         }
+        char *buffer;
+        size_t size_buffer;
+        FILE* temp_buffer = open_memstream(&buffer, &size_buffer);
+        const size_t scop_start_position = position_in_input;
         const char* scop_prefix = acr_get_scop_prefix(node);
         unsigned long kernel_start, kernel_end;
         acr_scop_coord_to_acr_coord(current_file, scop, node,
@@ -420,26 +426,38 @@ void acr_generate_code(const char* filename) {
 
         fseek(current_file, position_in_input, SEEK_SET);
         position_in_input = acr_copy_from_file_avoiding_pragmas(
-            current_file, new_file, position_in_input,
+            current_file, temp_buffer, position_in_input,
             acr_position_of_init_in_node(node), all_options);
 
-        acr_print_scop_in_file(new_file, scop_prefix, scop);
+        acr_print_scop_in_file(temp_buffer, scop_prefix, scop);
 
-        acr_print_node_initialization(current_file, new_file, node,
-            kernel_start, kernel_end);
+        if (! acr_print_node_initialization(current_file, temp_buffer, node,
+            kernel_start, kernel_end)) {
+          fclose(temp_buffer);
+          free(buffer);
+          position_in_input = scop_start_position;
+          osl_scop_free(scop);
+          continue;
+        }
 
-        acr_print_scanning_function(new_file, node, scop);
-        acr_print_acr_runtime_init(new_file, node);
+        if (!acr_print_scanning_function(temp_buffer, node, scop)) {
+          fclose(temp_buffer);
+          free(buffer);
+          position_in_input = scop_start_position;
+          osl_scop_free(scop);
+          continue;
+        }
+        acr_print_acr_runtime_init(temp_buffer, node);
 
         fseek(current_file, position_in_input, SEEK_SET);
         position_in_input = acr_copy_from_file_avoiding_pragmas(
             current_file,
-            new_file,
+            temp_buffer,
             position_in_input, kernel_start,
             all_options);
 
-        fprintf(new_file, "/* Do acr stuff here */\n");
-        acr_print_node_init_function_call(new_file, node);
+        fprintf(temp_buffer, "/* Do acr stuff here */\n");
+        acr_print_node_init_function_call(temp_buffer, node);
         position_in_input = kernel_end;
         fseek(current_file, position_in_input, SEEK_SET);
         osl_scop_free(scop);
@@ -449,10 +467,13 @@ void acr_generate_code(const char* filename) {
         size_t destroy_pos = acr_destroy_get_pragma_position(destroy);
         position_in_input = acr_copy_from_file_avoiding_pragmas(
             current_file,
-            new_file,
+            temp_buffer,
             position_in_input, destroy_pos,
             all_options);
-        acr_print_destroy(new_file, node);
+        acr_print_destroy(temp_buffer, node);
+        fclose(temp_buffer);
+        fprintf(new_file, "%s", buffer);
+        free(buffer);
       }
     }
     fseek(current_file, 0l, SEEK_END);
