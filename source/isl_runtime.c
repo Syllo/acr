@@ -16,6 +16,8 @@
  *
  */
 
-#include "acr/cloog_runtime.h"
+#include "acr/isl_runtime.h"
+
+#include <isl/set.h>
 
 

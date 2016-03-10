@@ -66,6 +66,15 @@ if (OSL_FOUND AND NOT TARGET osl)
     ${OSL_LIBRARIES})
 endif()
 
+find_package(ISL REQUIRED)
+if (NOT TARGET isl)
+  add_library(isl INTERFACE IMPORTED)
+  set_property(TARGET isl PROPERTY INTERFACE_INCLUDE_DIRECTORIES
+    ${ISL_INCLUDE_DIRS})
+  set_property(TARGET isl PROPERTY INTERFACE_LINK_LIBRARIES
+    ${ISL_LIBRARIES})
+endif()
+
 find_package(CLOOG REQUIRED)
 if (NOT TARGET cloog)
   add_library(cloog INTERFACE IMPORTED)
@@ -106,7 +115,7 @@ set(CMAKE_C_FLAGS_RELEASE "${COMMON_C_FLAGS} -O3")
 set(CMAKE_C_FLAGS_DEBUG "${COMMON_C_FLAGS} -O0 -g")
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-  add_definitions(-DACR_DEBUG)
+  add_definitions()#-DACR_DEBUG)
 endif()
 
 # Use full RPATH on build tree
@@ -136,7 +145,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr.h.in"
 list(APPEND ACR_LIBRARY_C_FILES
   source/acr_openscop.c
   source/acr_runtime.c
-  source/cloog_runtime.c
+  source/isl_runtime.c
   source/utils.c
   source/pragma_struct.c
   source/print.c)
@@ -162,6 +171,7 @@ target_link_libraries(acr
     cloog
     osl
   PRIVATE
+    isl
     clan)
 target_include_directories(acr
   PUBLIC
@@ -182,6 +192,7 @@ target_link_libraries(acr_static
     cloog
     osl
   PRIVATE
+    isl
     clan)
 target_include_directories(acr_static
   PUBLIC
