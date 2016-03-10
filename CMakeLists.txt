@@ -31,7 +31,6 @@ include(cmake/config-dep.cmake)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/")
 
 find_package(CLAN QUIET)
-find_package(OSL QUIET)
 if(NOT CLAN_FOUND AND NOT "${CLAN_VERSION}" GREATER "0.8.0")
   if(NOT CLAN_FOUND)
     message(WARNING "CLAN is not installed")
@@ -43,19 +42,40 @@ if(NOT CLAN_FOUND AND NOT "${CLAN_VERSION}" GREATER "0.8.0")
   execute_process(COMMAND
     ${GIT_EXECUTABLE} submodule update --init
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    RESULT_VARIABLE OSL_SUBMODULE_UPDATE)
-  if(NOT OSL_SUBMODULE_UPDATE EQUAL 0)
+    RESULT_VARIABLE CLAN_SUBMODULE_UPDATE)
+  if (NOT CLAN_SUBMODULE_UPDATE EQUAL 0)
     message(FATAL_ERROR "Unable to clone CLAN, dependency not met")
   else()
     message(STATUS "CLAN successfully cloned, configuring")
-    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/clan)
-    set(USING_CLAN_GIT TRUE)
+    add_subdirectory(clan)
   endif()
-else()
-  set(USING_CLAN_GIT FALSE)
+elseif (NOT TARGET clan)
+  add_library(clan INTERFACE IMPORTED)
+  set_property(TARGET clan PROPERTY INTERFACE_INCLUDE_DIRECTORIES
+    ${CLAN_INCLUDE_DIRS})
+  set_property(TARGET clan PROPERTY INTERFACE_LINK_LIBRARIES
+    ${CLAN_LIBRARIES})
+endif()
+
+find_package(OSL QUIET)
+if (OSL_FOUND AND NOT TARGET osl)
+  add_library(osl INTERFACE IMPORTED)
+  set_property(TARGET osl PROPERTY INTERFACE_INCLUDE_DIRECTORIES
+    ${OSL_INCLUDE_DIRS})
+  set_property(TARGET osl PROPERTY INTERFACE_LINK_LIBRARIES
+    ${OSL_LIBRARIES})
 endif()
 
 find_package(CLOOG REQUIRED)
+if (NOT TARGET cloog)
+  add_library(cloog INTERFACE IMPORTED)
+  set_property(TARGET cloog PROPERTY INTERFACE_INCLUDE_DIRECTORIES
+    ${CLOOG_INCLUDE_DIRS})
+  set_property(TARGET cloog PROPERTY INTERFACE_LINK_LIBRARIES
+    ${CLOOG_LIBRARIES})
+  set_property(TARGET cloog PROPERTY INTERFACE_COMPILE_DEFINITIONS
+    CLOOG_INT_GMP)
+endif()
 
 find_package(BISON REQUIRED)
 find_package(FLEX REQUIRED)
@@ -85,10 +105,8 @@ set(COMMON_C_FLAGS "-Wall -Wextra -std=c99 -pedantic")
 set(CMAKE_C_FLAGS_RELEASE "${COMMON_C_FLAGS} -O3")
 set(CMAKE_C_FLAGS_DEBUG "${COMMON_C_FLAGS} -O0 -g")
 
-add_definitions(-D_POSIX_C_SOURCE=200809L -DCLOOG_INT_GMP)
-
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-  add_definitions()#-DACR_DEBUG)
+  add_definitions(-DACR_DEBUG)
 endif()
 
 # Use full RPATH on build tree
@@ -108,47 +126,25 @@ else()
 endif()
 
 #///////////////////////////////////////////////////////////////////#
-#                         INCLUDE & SOURCES                         #
+#                             SOURCES                               #
 #///////////////////////////////////////////////////////////////////#
-
-list(APPEND CURRENT_INCLUDE_DIRECTORIES
-  "${CMAKE_CURRENT_SOURCE_DIR}/include"
-  "${CMAKE_CURRENT_BINARY_DIR}/autogen/include")
-
-if(USING_CLAN_GIT)
-  list(APPEND CURRENT_INCLUDE_DIRECTORIES
-    "${OSL_INCLUDE_DIRECTORIES}"
-    "${CLAN_INCLUDE_DIRECTORIES}")
-else()
-  if(OSL_FOUND)
-    list(APPEND CURRENT_INCLUDE_DIRECTORIES
-      "${OSL_INCLUDE_DIRECTORIES}")
-  endif()
-  list(APPEND CURRENT_INCLUDE_DIRECTORIES
-    "${CLAN_INCLUDE_DIRS}")
-endif()
-
-list(APPEND CURRENT_INCLUDE_DIRECTORIES
-  "${CLOOG_INCLUDE_DIRS}")
 
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/acr/acr.h"
   IMMEDIATE @ONLY)
 
-include_directories(${CURRENT_INCLUDE_DIRECTORIES})
-
 list(APPEND ACR_LIBRARY_C_FILES
-  ${CMAKE_CURRENT_SOURCE_DIR}/source/acr_openscop.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/source/acr_runtime.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/source/cloog_runtime.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/source/utils.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/source/pragma_struct.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/source/print.c)
+  source/acr_openscop.c
+  source/acr_runtime.c
+  source/cloog_runtime.c
+  source/utils.c
+  source/pragma_struct.c
+  source/print.c)
 
 list(APPEND ACR_EXECUTABLE_C_FILES
-  ${CMAKE_CURRENT_SOURCE_DIR}/source/acr.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/source/gencode.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/source/parser_utils.c
+  source/acr.c
+  source/gencode.c
+  source/parser_utils.c
   ${FLEX_acr_scanner_OUTPUTS}
   ${BISON_acr_parser_OUTPUTS})
 
@@ -161,12 +157,19 @@ add_library(acr
   ${ACR_LIBRARY_C_FILES})
 message(STATUS "Add acr library (shared)"
   " ${CMAKE_SHARED_LIBRARY_PREFIX}acr${CMAKE_SHARED_LIBRARY_SUFFIX}")
-target_link_libraries(acr ${CLOOG_LIBRARIES})
-if(NOT OSL_FOUND)
-  target_link_libraries(acr osl)
-else()
-  target_link_libraries(acr ${OSL_LIBRARIES})
-endif()
+target_link_libraries(acr
+  PUBLIC
+    cloog
+    osl
+  PRIVATE
+    clan)
+target_include_directories(acr
+  PUBLIC
+    include/
+    "${CMAKE_CURRENT_BINARY_DIR}/autogen/include")
+target_compile_definitions(acr
+  PRIVATE
+    _POSIX_C_SOURCE=200809L)
 
 add_library(acr_static
   STATIC
@@ -174,12 +177,19 @@ add_library(acr_static
 set_target_properties(acr_static PROPERTIES OUTPUT_NAME acr)
 message(STATUS "Add acr library (static)"
   " ${CMAKE_STATIC_LIBRARY_PREFIX}acr${CMAKE_STATIC_LIBRARY_SUFFIX}")
-target_link_libraries(acr_static ${CLOOG_LIBRARIES})
-if(NOT OSL_FOUND)
-  target_link_libraries(acr_static osl)
-else()
-  target_link_libraries(acr_static ${OSL_LIBRARIES})
-endif()
+target_link_libraries(acr_static
+  PUBLIC
+    cloog
+    osl
+  PRIVATE
+    clan)
+target_include_directories(acr_static
+  PUBLIC
+  include/
+  "${CMAKE_CURRENT_BINARY_DIR}/autogen/include")
+target_compile_definitions(acr_static
+  PRIVATE
+    _POSIX_C_SOURCE=200809L)
 
 #///////////////////////////////////////////////////////////////////#
 #                            EXECUTABLE                             #
@@ -187,15 +197,10 @@ endif()
 
 add_executable(acr_exe ${ACR_EXECUTABLE_C_FILES})
 set_target_properties(acr_exe PROPERTIES OUTPUT_NAME "acr")
-if(USING_CLAN_GIT)
-  if(OSL_FOUND)
-    target_link_libraries(acr_exe acr clan ${OSL_LIBRARIES})
-  else()
-    target_link_libraries(acr_exe acr clan osl)
-  endif()
-else()
-  target_link_libraries(acr_exe acr ${CLAN_LIBRARIES} ${OSL_LIBRARIES})
-endif()
+target_link_libraries(acr_exe acr clan)
+target_compile_definitions(acr_exe
+  PRIVATE
+    _POSIX_C_SOURCE=200809L)
 
 #///////////////////////////////////////////////////////////////////#
 #                           DOCUMENTATION                           #
