@@ -18,12 +18,14 @@
 
 #include "acr/gencode.h"
 
+#include <limits.h>
+#include <string.h>
+
 #include <clan/scop.h>
 #include <cloog/cloog.h>
 #include <osl/extensions/coordinates.h>
 #include <osl/extensions/arrays.h>
 #include <osl/scop.h>
-#include <string.h>
 
 #include "acr/print.h"
 #include "acr/utils.h"
