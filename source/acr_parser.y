@@ -136,7 +136,7 @@ struct parser_option_list* option_list;
 %token <constant_value> I_CONSTANT F_CONSTANT
 
 %type <identifier> acr_monitor_filter
-%type <constant_value> constant pointer
+%type <constant_value> pointer /* constant */
 %type <minus> minus
 %type <option> acr_alternative_options acr_option
 %type <option> acr_strategy_options acr_monitor_options acr_init_option
@@ -639,11 +639,19 @@ acr_monitor_processing_function
   ;
 
 acr_strategy_options
-  : IDENTIFIER '(' constant ',' IDENTIFIER ')'
+  : IDENTIFIER '(' I_CONSTANT ',' IDENTIFIER ')'
     {
       if (strcmp($1, acr_pragma_strategy_names[acr_strategy_direct].name) != 0) {
         fprintf(stderr, "%s",
           acr_pragma_strategy_names[acr_strategy_direct].error_message);
+          free($1);
+          free($5);
+          YYERROR;
+      }
+      if ($3.value.integer_val.integer < 0 ||
+          $3.value.integer_val.integer >= 255) {
+        fprintf(stderr, "[ACR] Error: Strategy expect value between 0 and 254"
+          " inclusive\n");
           free($1);
           free($5);
           YYERROR;
@@ -658,7 +666,7 @@ acr_strategy_options
       free($1);
       free($5);
     }
-  | IDENTIFIER '(' constant ',' constant ',' IDENTIFIER ')'
+  | IDENTIFIER '(' I_CONSTANT ',' I_CONSTANT ',' IDENTIFIER ')'
     {
       if (strcmp($1, acr_pragma_strategy_names[acr_strategy_range].name) != 0) {
         fprintf(stderr, "%s",
@@ -730,7 +738,7 @@ acr_strategy_options
       free($7);
     }
   ;
-
+ /*
 constant
   : minus I_CONSTANT
     {
@@ -755,6 +763,7 @@ constant
       $$ = $1;
     }
   ;
+ */
 
 minus
   : '-'

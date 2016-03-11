@@ -585,4 +585,8 @@ bool acr_alternative_has_no_strategy_in_node(const acr_option alternative,
 bool acr_strategy_has_no_alternative_in_node(const acr_option strategy,
     const acr_compute_node node);
 
+bool acr_strategy_correspond_to_alternative(
+    const acr_option strategy,
+    const acr_option alternative);
+
 #endif // __ACR_PRAGMA_STRUCT_H

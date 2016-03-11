@@ -8,8 +8,8 @@ int temporary_array_bis[MAX1-5][MAX2+MAX1][MAX3+5-MAX1];
 
 void lin_solve_computation(int k, int i, int j);
 void lin_solve_computation2(float alpha, int i, int j, int k);
-static inline solve_to_char(int i) {
-  return (char) i;
+static inline unsigned char solve_to_char(int i) {
+  return (unsigned char) i;
 }
 
 #pragma acr init(void a(void))
@@ -27,6 +27,8 @@ int kernel1() {
     strategy direct(1, low)
 #pragma acr strategy direct(2, medium)
 #pragma acr strategy direct(3, high)
+#pragma acr strategy direct(55, low)
+#pragma acr strategy direct(254, medium)
     for (int k=0; k < N; ++k)
       for (int i=0; i < MAX1; ++i)
         for (int j=0; j < MAX2+MAX1*3; ++j)
@@ -50,7 +52,7 @@ int kernel2() {
 #pragma acr alternative high(parameter, N = 3)
 #pragma acr strategy direct(1, low)
 #pragma acr strategy direct(2, medium)
-#pragma acr strategy range(-5, 5, medium)
+#pragma acr strategy range(0, 5, medium)
 #pragma acr strategy direct(3, high)
     for (int n=0; n < N; ++n)
       for (int l=0; l < MAX1-5; ++l)
@@ -73,6 +75,20 @@ void lin_solve_computation2(float alpha, int i, int j, int k) {
 }
 
 int main() {
+  for(int i = 0; i < MAX1; ++i) {
+    for (int j = 0; j < MAX2/2; ++j) {
+      temporary_array[i][j] = 1;
+    }
+    for (int j = MAX2/2; j < MAX2/2+MAX2/4; ++j) {
+      temporary_array[i][j] = 2;
+    }
+    for (int j = MAX2/2+MAX2/4; j < MAX2; ++j) {
+      temporary_array[i][j] = 3;
+    }
+  }
+  a_monitoring_function();
+  acr_isl_set_from_monitor((unsigned char*) a_monitor_result,
+      3, 2, 2, (size_t[]){ [0] = MAX1, [1] = MAX2 }, (MAX1/4+1)*(MAX2/4+1), 4, a_get_alternative_from_val);
   a_monitoring_function();
   b_monitoring_function();
   return 0;

@@ -30,6 +30,11 @@
 
 int start_acr_parsing(FILE* file, acr_compute_node* node_to_init);
 
+static char* acr_get_scop_prefix(const acr_compute_node node) {
+  acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
+  return acr_init_get_function_name(init);
+}
+
 static size_t acr_copy_from_file_to_file(FILE* input, FILE* output,
     size_t starting_position, size_t ending_position) {
   if (starting_position > ending_position)
@@ -159,11 +164,171 @@ static void acr_print_parameters(FILE* out, const acr_option init) {
 
 static void acr_print_init_function_call(FILE* out, const acr_option init);
 
-static void acr_print_acr_strategy_init(FILE* out,
+static unsigned long acr_strategy_get_min(const acr_option strategy) {
+  long values[2];
+  acr_strategy_get_int_val(strategy, values);
+  return values[0];
+}
+
+static unsigned long acr_strategy_get_max(const acr_option strategy) {
+  long values[2];
+  acr_strategy_get_int_val(strategy, values);
+  switch (acr_strategy_get_strategy_type(strategy)) {
+    case acr_strategy_direct:
+      return values[0];
+      break;
+    case acr_strategy_range:
+      return values[1];
+      break;
+    case acr_strategy_unknown:
+      break;
+  }
+  return 0;
+}
+
+static void acr_populate_strategy_and_alternative_list(
+    const acr_compute_node node,
+    unsigned long strategy_list_size,
+    acr_option_list strategy_list,
+    unsigned long alternative_list_size,
+    acr_option_list alternative_list,
+    unsigned long *strategy_to_alternative_index) {
+
+  unsigned long size_list = acr_compute_node_get_option_list_size(node);
+  acr_option_list options = acr_compute_node_get_option_list(node);
+  unsigned long current_strategy_position = 0ul;
+  unsigned long current_alternative_position = 0ul;
+  for (unsigned long i = 0ul; i < size_list; ++i) {
+    acr_option current_option = acr_option_list_get_option(i, options);
+    if (acr_option_get_type(current_option) == acr_type_strategy) {
+      acr_option_list_set_option(current_option, current_strategy_position,
+          strategy_list);
+      current_strategy_position += 1;
+    }
+    if (acr_option_get_type(current_option) == acr_type_alternative) {
+      acr_option_list_set_option(current_option, current_alternative_position,
+          alternative_list);
+      current_alternative_position += 1;
+    }
+  }
+
+  // sort strategies
+  bool moved = true;
+  for (unsigned long i = 0; moved && i < strategy_list_size - 1; ++i) {
+    moved = false;
+    for (unsigned long j = 0; j < strategy_list_size - 1 - i; ++j) {
+      acr_option current = acr_option_list_get_option(j, strategy_list);
+      acr_option next = acr_option_list_get_option(j+1, strategy_list);
+      unsigned long max_current = acr_strategy_get_max(current);
+      unsigned long min_next = acr_strategy_get_min(next);
+      if (min_next < max_current) {
+        acr_option_list_set_option(next, j, strategy_list);
+        acr_option_list_set_option(current, j+1, strategy_list);
+        moved = true;
+      }
+    }
+  }
+
+  for (unsigned long i = 0; i < strategy_list_size; ++i) {
+    acr_option strategy = acr_option_list_get_option(i, strategy_list);
+    for (unsigned long j = 0; j < alternative_list_size; ++j) {
+      acr_option alternative = acr_option_list_get_option(j, alternative_list);
+      if (acr_strategy_correspond_to_alternative(strategy, alternative)) {
+        strategy_to_alternative_index[i] = j;
+      }
+    }
+  }
+}
+
+void acr_print_acr_alternatives(FILE *out,
+      const char *prefix,
+      unsigned long num_alternatives,
+      const acr_option_list alternative_list) {
+  static const char* alternative_types_char[] = {
+    [acr_alternative_function] = "acr_runtime_alternative_function",
+    [acr_alternative_parameter] = "acr_runtime_alternative_function"};
+  fprintf(out, "static struct runtime_alternative %s_alternatives[] = {\n",
+      prefix);
+  for (unsigned long i = 0; i < num_alternatives; ++i) {
+    const acr_option alternative =
+      acr_option_list_get_option(i, alternative_list);
+    enum acr_alternative_type alternative_type =
+      acr_alternative_get_type(alternative);
+    if (i > 0) {
+      fprintf(out, ",\n");
+    }
+    fprintf(out, "  [%ld] = { .type = %s, ",
+        i,
+        alternative_types_char[alternative_type]);
+    switch (alternative_type) {
+      case acr_alternative_parameter:
+        fprintf(out,
+            ".value = { .alt.parameter_value = %ldl"
+            " , .name_to_swap = \"%s\" } ",
+            acr_alternative_get_replacement_parameter(alternative),
+            acr_alternative_get_object_to_swap_name(alternative));
+        break;
+      case acr_alternative_function:
+        fprintf(out,
+            ".value = { .alt.function_to_swap = %s"
+            " , .name_to_swap = \"%s\" } ",
+            acr_alternative_get_replacement_function(alternative),
+            acr_alternative_get_object_to_swap_name(alternative));
+        break;
+      case acr_alternative_unknown:
+        break;
+    }
+    fprintf(out, "}");
+  }
+  fprintf(out, "\n};\n");
+}
+
+static void acr_print_get_alternetive_from_val(
+    FILE *out,
+    const char* prefix,
+    unsigned long strategy_list_size,
+    acr_option_list strategy_list,
+    unsigned long *strategy_to_alternative_index) {
+
+  fprintf(out, "static struct runtime_alternative *%s_alternative_fun[%u] = {\n",
+      prefix, UCHAR_MAX);
+  long max_current;
+  long min_current;
+  long previous_max = 0l;
+  for (unsigned long i = 0; i < strategy_list_size; ++i) {
+      acr_option current = acr_option_list_get_option(i, strategy_list);
+      max_current = acr_strategy_get_max(current);
+      min_current = acr_strategy_get_min(current);
+      for (long j = previous_max; j < min_current; ++j) {
+        if (j != 0)
+          fprintf(out, ", ");
+        fprintf(out, "NULL");
+      }
+      for (long j = min_current; j <= max_current; ++j) {
+        if (j != 0)
+          fprintf(out, ", ");
+        fprintf(out, "&%s_alternatives[%lu]", prefix,
+            strategy_to_alternative_index[i]);
+      }
+      previous_max = max_current + 1;
+  }
+  for (long i = max_current+1; i < UCHAR_MAX; ++i) {
+    if (i != 0)
+      fprintf(out, ", ");
+    fprintf(out, "NULL");
+  }
+  fprintf(out, "};\n");
+  fprintf(out, "struct runtime_alternative* %s_get_alternative_from_val(\n"
+      "    acr_monitored_data data) {\n"
+      "  return %s_alternative_fun[data];\n"
+      "}\n", prefix, prefix);
+}
+
+void acr_print_acr_alternative_and_strategy_init(FILE* out,
     const acr_compute_node node) {
-  acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
-  const char* fun_name = acr_init_get_function_name(init);
+  const char* prefix = acr_get_scop_prefix(node);
   unsigned long num_strategy = 0ul;
+  unsigned long num_alternatives = 0ul;
   unsigned long size_list = acr_compute_node_get_option_list_size(node);
   acr_option_list options = acr_compute_node_get_option_list(node);
   for (unsigned long i = 0ul; i < size_list; ++i) {
@@ -171,10 +336,31 @@ static void acr_print_acr_strategy_init(FILE* out,
     if (acr_option_get_type(current_option) == acr_type_strategy) {
       ++num_strategy;
     }
+    if (acr_option_get_type(current_option) == acr_type_alternative) {
+      ++num_alternatives;
+    }
   }
-  fprintf(out, "  %s_runtime_data.num_strategy = %lu;\n",
-      fun_name,
-      num_strategy);
+  acr_option_list strategy_list = acr_new_option_list(num_strategy);
+  unsigned long *strategy_to_alternative_index =
+    malloc(num_strategy * sizeof(*strategy_to_alternative_index));
+  acr_option_list alternative_list = acr_new_option_list(num_alternatives);
+
+  acr_populate_strategy_and_alternative_list(
+      node,
+      num_strategy,
+      strategy_list,
+      num_alternatives,
+      alternative_list,
+      strategy_to_alternative_index);
+
+  acr_print_acr_alternatives(out,
+      prefix,
+      num_alternatives,
+      alternative_list);
+
+  acr_print_get_alternetive_from_val(out,
+      prefix, num_strategy, strategy_list, strategy_to_alternative_index);
+
 }
 
 void acr_print_acr_runtime_init(FILE* out,
@@ -198,7 +384,6 @@ void acr_print_acr_runtime_init(FILE* out,
   fprintf(out, "  %s_runtime_data.context =\n"
       "    %s_runtime_data.cloog_input->context;\n",
       fun_name, fun_name);
-  acr_print_acr_strategy_init(out, node);
 
   // Call function and change pointer to initial function
   fprintf(out, "  %s = %s_acr_initial;\n",
@@ -267,11 +452,6 @@ static void acr_print_init_function_call(FILE* out, const acr_option init) {
         acr_parameter_declaration_get_parameter_name(declaration_list,i));
   }
   fprintf(out, ");\n");
-}
-
-static char* acr_get_scop_prefix(const acr_compute_node node) {
-  acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
-  return acr_init_get_function_name(init);
 }
 
 void acr_print_scop_in_file(FILE* output,
@@ -447,6 +627,7 @@ void acr_generate_code(const char* filename) {
           osl_scop_free(scop);
           continue;
         }
+        acr_print_acr_alternative_and_strategy_init(temp_buffer, node);
         acr_print_acr_runtime_init(temp_buffer, node);
 
         fseek(current_file, position_in_input, SEEK_SET);

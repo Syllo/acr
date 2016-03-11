@@ -19,7 +19,6 @@
 #ifndef __ACR_RUNTIME_STRATEGIES__H
 #define __ACR_RUNTIME_STRATEGIES__H
 
-typedef unsigned char *acr_monitored_data;
 
 enum acr_runtime_alternative_type {
   acr_runtime_alternative_parameter,
@@ -28,37 +27,13 @@ enum acr_runtime_alternative_type {
 
 struct runtime_alternative {
   enum acr_runtime_alternative_type type;
-  union {
-    struct {
-      char *parameter_name;
+  struct {
+    union {
+      char *function_to_swap;
       long parameter_value;
-    } parameter;
-    char *function;
+    } alt;
+    char *name_to_swap;
   } value;
 };
-
-typedef struct runtime_alternative *runtime_alternative;
-
-enum acr_runtime_strategy_type {
-  acr_runtime_strategy_direct,
-  acr_runtime_strategy_range,
-};
-
-struct runtime_strategies {
-  enum acr_runtime_strategy_type type;
-  unsigned char strategy_value_min;
-  unsigned char strategy_value_max;
-  runtime_alternative *corresponding_alternative;
-};
-
-typedef struct {
-  struct runtime_strategies *strategies;
-  size_t num_strategies;
-} *runtime_strategies;
-
-runtime_alternative acr_runtime_get_alternative_from_val(
-    size_t position,
-    acr_monitored_data data,
-    runtime_strategies strategies);
 
 #endif // __ACR_RUNTIME_STRATEGIES__H

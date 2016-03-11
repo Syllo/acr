@@ -923,3 +923,12 @@ acr_array_dimension acr_new_array_dimensions_leaf_parameter(const char* param) {
   new_dim->val.leaf.value.parameter = acr_strdup(param);
   return new_dim;
 }
+
+bool acr_strategy_correspond_to_alternative(
+    const acr_option strategy,
+    const acr_option alternative) {
+  const char *strategy_name = acr_strategy_get_name(strategy);
+  const char *alternative_name =
+    acr_alternative_get_alternative_name(alternative);
+  return strcmp(strategy_name, alternative_name) == 0;
+}
