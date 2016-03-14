@@ -20,9 +20,7 @@
 #define __ACR_ISL_RUNTIME_H
 
 #include <assert.h>
-#include <isl/ctx.h>
 #include <isl/set.h>
-#include <isl/space.h>
 
 #include "acr/runtime_strategies.h"
 

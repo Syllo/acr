@@ -29,6 +29,10 @@ struct acr_runtime_data {
   CloogDomain* context;
   CloogState* state;
   struct osl_scop* osl_relation;
+  unsigned long num_strategies;
+  size_t *monitor_dimensions;
+  size_t monitor_total_size;
+  unsigned long grid_size;
 };
 
 void free_acr_runtime_data(struct acr_runtime_data* data);

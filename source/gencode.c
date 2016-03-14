@@ -363,11 +363,56 @@ void acr_print_acr_alternative_and_strategy_init(FILE* out,
 
 }
 
+static void _acr_print_monitor_dimensions_static_init(FILE *out,
+    const acr_compute_node node, unsigned long grid_size) {
+  fprintf(out, "(size_t[]) { ");
+  acr_option monitor =
+    acr_compute_node_get_option_of_type(acr_type_monitor, node, 1);
+  acr_array_declaration *array_decl =
+    acr_monitor_get_array_declaration(monitor);
+  unsigned long dim_list_size = acr_array_decl_get_num_dimensions(array_decl);
+  acr_array_dimensions_list dim_list =
+    acr_array_decl_get_dimensions_list(array_decl);
+  for (unsigned long i = 0ul; i < dim_list_size; ++i) {
+    if (i != 0)
+      fprintf(out, ", ");
+    fprintf(out, "(");
+    print_acr_array_dimensions(out, dim_list[i], false);
+      fprintf(out, ")/%luul + 1ul", grid_size);
+  }
+  fprintf(out, "} , (");
+  for (unsigned long i = 0ul; i < dim_list_size; ++i) {
+    if (i != 0)
+      fprintf(out, " * ");
+    fprintf(out, "(");
+    print_acr_array_dimensions(out, dim_list[i], false);
+    fprintf(out, ")");
+  }
+  fprintf(out, ")");
+}
+
 void acr_print_acr_runtime_init(FILE* out,
     const acr_compute_node node) {
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   const char* fun_name = acr_init_get_function_name(init);
-  fprintf(out, "static struct acr_runtime_data %s_runtime_data;\n", fun_name);
+  unsigned long num_strategies = 0ul;
+
+  unsigned long size_list = acr_compute_node_get_option_list_size(node);
+  acr_option_list options = acr_compute_node_get_option_list(node);
+  for (unsigned long i = 0ul; i < size_list; ++i) {
+    acr_option current_option = acr_option_list_get_option(i, options);
+    if (acr_option_get_type(current_option) == acr_type_strategy) {
+      ++num_strategies;
+    }
+  }
+
+  acr_option grid = acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
+  fprintf(out, "static struct acr_runtime_data %s_runtime_data =\n"
+      "    { NULL, NULL, NULL, NULL, %luul, ", fun_name, num_strategies);
+  _acr_print_monitor_dimensions_static_init(out, node,
+      acr_grid_get_grid_size(grid));
+  fprintf(out, ", %luul };\n", acr_grid_get_grid_size(grid));
+
   fprintf(out, "static void %s_acr_runtime_init", fun_name);
   acr_print_parameters(out, init);
   fprintf(out, " {\n"
