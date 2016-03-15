@@ -245,7 +245,8 @@ static void acr_populate_strategy_and_alternative_list(
 void acr_print_acr_alternatives(FILE *out,
       const char *prefix,
       unsigned long num_alternatives,
-      const acr_option_list alternative_list) {
+      const acr_option_list alternative_list,
+      const osl_scop_p scop) {
   static const char* alternative_types_char[] = {
     [acr_alternative_function] = "acr_runtime_alternative_function",
     [acr_alternative_parameter] = "acr_runtime_alternative_function"};
@@ -259,9 +260,9 @@ void acr_print_acr_alternatives(FILE *out,
     if (i > 0) {
       fprintf(out, ",\n");
     }
-    fprintf(out, "  [%ld] = { .type = %s, ",
+    fprintf(out, "  [%ld] = { .type = %s, .alternative_number = %luul, ",
         i,
-        alternative_types_char[alternative_type]);
+        alternative_types_char[alternative_type], i);
     switch (alternative_type) {
       case acr_alternative_parameter:
         fprintf(out,
@@ -327,7 +328,8 @@ static void acr_print_get_alternetive_from_val(
 }
 
 void acr_print_acr_alternative_and_strategy_init(FILE* out,
-    const acr_compute_node node) {
+    const acr_compute_node node,
+    const osl_scop_p scop) {
   const char* prefix = acr_get_scop_prefix(node);
   unsigned long num_strategy = 0ul;
   unsigned long num_alternatives = 0ul;
@@ -358,7 +360,8 @@ void acr_print_acr_alternative_and_strategy_init(FILE* out,
   acr_print_acr_alternatives(out,
       prefix,
       num_alternatives,
-      alternative_list);
+      alternative_list,
+      scop);
 
   acr_print_get_alternetive_from_val(out,
       prefix, num_strategy, strategy_list, strategy_to_alternative_index);
@@ -397,20 +400,20 @@ void acr_print_acr_runtime_init(FILE* out,
     const acr_compute_node node) {
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   const char* fun_name = acr_init_get_function_name(init);
-  unsigned long num_strategies = 0ul;
+  unsigned long num_alternatives = 0ul;
 
   unsigned long size_list = acr_compute_node_get_option_list_size(node);
   acr_option_list options = acr_compute_node_get_option_list(node);
   for (unsigned long i = 0ul; i < size_list; ++i) {
     acr_option current_option = acr_option_list_get_option(i, options);
-    if (acr_option_get_type(current_option) == acr_type_strategy) {
-      ++num_strategies;
+    if (acr_option_get_type(current_option) == acr_type_alternative) {
+      ++num_alternatives;
     }
   }
 
   acr_option grid = acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
   fprintf(out, "static struct acr_runtime_data %s_runtime_data =\n"
-      "    { NULL, NULL, NULL, NULL, %luul, ", fun_name, num_strategies);
+      "    { NULL, NULL, NULL, %luul, ", fun_name, num_alternatives);
   _acr_print_monitor_dimensions_static_init(out, node,
       acr_grid_get_grid_size(grid));
   fprintf(out, ", %luul };\n", acr_grid_get_grid_size(grid));
@@ -428,9 +431,6 @@ void acr_print_acr_runtime_init(FILE* out,
       "    cloog_input_from_osl_scop(%s_runtime_data.state,\n"
       "      %s_runtime_data.osl_relation);\n",
       fun_name, fun_name, fun_name);
-  fprintf(out, "  %s_runtime_data.context =\n"
-      "    %s_runtime_data.cloog_input->context;\n",
-      fun_name, fun_name);
 
   // Call function and change pointer to initial function
   fprintf(out, "  %s = %s_acr_initial;\n",
@@ -674,7 +674,7 @@ void acr_generate_code(const char* filename) {
           osl_scop_free(scop);
           continue;
         }
-        acr_print_acr_alternative_and_strategy_init(temp_buffer, node);
+        acr_print_acr_alternative_and_strategy_init(temp_buffer, node, scop);
         acr_print_acr_runtime_init(temp_buffer, node);
 
         fseek(current_file, position_in_input, SEEK_SET);

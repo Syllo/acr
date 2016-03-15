@@ -23,9 +23,10 @@
 #include <isl/space.h>
 #include <isl/val.h>
 
-isl_set* acr_isl_set_from_monitor(
+isl_set** acr_isl_set_from_monitor(
+    isl_ctx *ctx,
     acr_monitored_data *data,
-    unsigned long num_strategies,
+    unsigned long num_alternatives,
     unsigned long int num_param,
     unsigned long num_dimensions,
     size_t *dimensions,
@@ -34,60 +35,48 @@ isl_set* acr_isl_set_from_monitor(
     struct runtime_alternative*
         (*get_alternative_from_val)(acr_monitored_data data)) {
 
-  isl_ctx *ctx = isl_ctx_alloc();
   isl_space *space = isl_space_set_alloc(ctx, num_param, num_dimensions);
   isl_val *tiling_size_val = isl_val_int_from_ui(ctx, tiling_size);
 
-  isl_basic_set **sets = malloc(dimensions_total_size * sizeof(*sets));
-  for (size_t i = 0; i < dimensions_total_size; ++i) {
-    sets[i] = isl_basic_set_universe(isl_space_copy(space));
+  isl_set **sets = malloc(num_alternatives * sizeof(*sets));
+  for (size_t i = 0; i < num_alternatives; ++i) {
+    sets[i] = isl_set_empty(isl_space_copy(space));
   }
-  isl_local_space *local_space = isl_local_space_from_space(space);
+  unsigned long *current_dimension =
+    calloc(num_dimensions, sizeof(*current_dimension));
+  isl_local_space *local_space =
+    isl_local_space_from_space(isl_space_copy(space));
 
-  unsigned long *current_dimension = malloc(num_dimensions * sizeof(*current_dimension));
-  for (unsigned long i = 0; i < num_dimensions; ++i) {
-    current_dimension[i] = 0ul;
-  }
   for(size_t i = 0; i < dimensions_total_size; ++i) {
-    /*fprintf(stderr, "Data %lu : %d\n", i, data[i]);*/
     struct runtime_alternative *alternative = get_alternative_from_val(data[i]);
     assert(alternative != NULL);
+    fprintf(stderr, "Data : %d, alternativd %lu\n", data[i], alternative->alternative_number);
 
-    for (unsigned long j = 0; j < num_dimensions; ++j) {
-      unsigned long dimensions_pos = current_dimension[j];
-      fprintf(stderr, "current dimension %lu\n", dimensions_pos);
+    isl_set *tempset = isl_set_universe(isl_space_copy(space));
+    for (size_t j = 0; j < num_dimensions; ++j) {
+      unsigned long dimensions_pos = current_dimension[num_dimensions - 1 - j];
       isl_constraint *c_lower = isl_constraint_alloc_inequality(
           isl_local_space_copy(local_space));
       isl_constraint *c_upper = isl_constraint_copy(c_lower);
       isl_val *lower_bound =
-        isl_val_mul_ui(isl_val_copy(tiling_size_val), 3);
+        isl_val_mul_ui(isl_val_copy(tiling_size_val), dimensions_pos);
       lower_bound = isl_val_neg(lower_bound);
       isl_val *upper_bound =
-        isl_val_mul_ui(isl_val_copy(tiling_size_val), 1);
-      upper_bound =
-        isl_val_mul_ui(upper_bound, dimensions_pos);
+        isl_val_mul_ui(isl_val_copy(tiling_size_val), dimensions_pos);
       upper_bound = isl_val_add(upper_bound, isl_val_copy(tiling_size_val));
       upper_bound = isl_val_sub_ui(upper_bound, 1ul);
-      fprintf(stderr, "Lower bound: %ld\n", isl_val_get_num_si(lower_bound));
       c_lower =
         isl_constraint_set_constant_val(c_lower, lower_bound);
       c_lower = isl_constraint_set_coefficient_si(c_lower, isl_dim_set, j, 1);
-      fprintf(stderr, "Upper bound: %ld\n", isl_val_get_num_si(upper_bound));
       c_upper =
         isl_constraint_set_constant_val(c_upper, upper_bound);
       c_upper = isl_constraint_set_coefficient_si(c_upper, isl_dim_set, j, -1);
-      /*sets[j] = isl_basic_set_add_constraint(sets[j], c_lower);*/
-      isl_basic_set_print_internal(sets[i], stderr, 0);
-      sets[i] = isl_basic_set_add_constraint(sets[j], c_upper);
-      isl_basic_set_print_internal(sets[i], stderr, 0);
+      tempset = isl_set_add_constraint(tempset, c_lower);
+      tempset = isl_set_add_constraint(tempset, c_upper);
     }
-
-
-    fprintf(stderr, "Dimension: ");
-    for (size_t j = 0; j < num_dimensions; ++j) {
-      fprintf(stderr, "%lu ", current_dimension[j]);
-    }
-    fprintf(stderr, "\n");
+    isl_set_print_internal(tempset, stderr, 0);
+    sets[alternative->alternative_number] =
+      isl_set_union(sets[alternative->alternative_number], tempset);
 
     for (size_t j = 0; j < num_dimensions; ++j) {
       current_dimension[j] += 1;
@@ -98,5 +87,46 @@ isl_set* acr_isl_set_from_monitor(
       }
     }
   }
+
+  for (unsigned long i = 0; i < num_alternatives; ++i) {
+    fprintf(stderr, "Alternative nb %lu\n", i);
+    isl_set_print_internal(sets[i], stderr, 0);
+    isl_printer *print = isl_printer_to_str(ctx);
+    print = isl_printer_print_set(print, sets[i]);
+    char* str = isl_printer_get_str(print);
+    fprintf(stderr, "%s\n", str);
+    free(str);
+    isl_printer_free(print);
+  }
+
+  isl_space_free(space);
+  isl_local_space_free(local_space);
+  isl_val_free(tiling_size_val);
   free(current_dimension);
+  return sets;
+}
+
+static isl_set* isl_set_from_alternative_parameter_construct(
+    isl_ctx *ctx,
+    unsigned long num_parameters,
+    unsigned long num_dimensions,
+    unsigned long position_in_alt_list,
+    struct runtime_alternative *alternative_list) {
+
+  isl_val *constraint_value =
+    isl_val_int_from_si(ctx,
+        alternative_list[position_in_alt_list].value.alt.parameter.parameter_value);
+  isl_space *space = isl_space_set_alloc(ctx, num_parameters, num_dimensions);
+  isl_set *new_set = isl_set_universe(isl_space_copy(space));
+  isl_local_space *local_space = isl_local_space_from_space(space);
+  isl_constraint *parameter_constraint = isl_constraint_alloc_equality(
+      isl_local_space_copy(local_space));
+  parameter_constraint =
+    isl_constraint_set_constant_val(parameter_constraint, constraint_value);
+  parameter_constraint =
+    isl_constraint_set_coefficient_si(parameter_constraint, isl_dim_param,
+        alternative_list[position_in_alt_list].value.alt.parameter.parameter_position,
+        -1);
+  new_set = isl_set_add_constraint(new_set, parameter_constraint);
+  return new_set;
 }

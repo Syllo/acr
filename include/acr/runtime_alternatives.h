@@ -16,8 +16,8 @@
  *
  */
 
-#ifndef __ACR_RUNTIME_STRATEGIES__H
-#define __ACR_RUNTIME_STRATEGIES__H
+#ifndef __ACR_RUNTIME_ALTERNATIVES__H
+#define __ACR_RUNTIME_ALTERNATIVES__H
 
 
 enum acr_runtime_alternative_type {
@@ -27,13 +27,17 @@ enum acr_runtime_alternative_type {
 
 struct runtime_alternative {
   enum acr_runtime_alternative_type type;
+  unsigned long alternative_number;
   struct {
     union {
       char *function_to_swap;
-      long parameter_value;
+      struct {
+        unsigned long parameter_position;
+        long parameter_value;
+      } parameter;
     } alt;
     char *name_to_swap;
   } value;
 };
 
-#endif // __ACR_RUNTIME_STRATEGIES__H
+#endif // __ACR_RUNTIME_ALTERNATIVES__H

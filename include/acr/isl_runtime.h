@@ -22,11 +22,12 @@
 #include <assert.h>
 #include <isl/set.h>
 
-#include "acr/runtime_strategies.h"
+#include "acr/runtime_alternatives.h"
 
 typedef unsigned char acr_monitored_data;
 
-isl_set* acr_isl_set_from_monitor(
+isl_set** acr_isl_set_from_monitor(
+    isl_ctx *ctx,
     acr_monitored_data *data,
     unsigned long num_strategies,
     unsigned long int num_param,
@@ -36,5 +37,12 @@ isl_set* acr_isl_set_from_monitor(
     unsigned long tiling_size,
     struct runtime_alternative*
         (*get_alternative_from_val)(acr_monitored_data data));
+
+static isl_set* isl_set_from_alternative_parameter_construct(
+    isl_ctx *ctx,
+    unsigned long num_parameters,
+    unsigned long num_dimensions,
+    unsigned long position_in_alt_list,
+    struct runtime_alternative* alternative_list);
 
 #endif // __ACR_ISL_RUNTIME_H
