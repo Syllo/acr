@@ -67,6 +67,9 @@ if (OSL_FOUND AND NOT TARGET osl)
 endif()
 
 find_package(ISL REQUIRED)
+if(ISL_VERSION AND "${ISL_VERSION}" LESS "0.15.0")
+  message(FATAL_ERROR "ISL version >= 0.15 required but found ${ISL_VERSION}")
+endif()
 if (NOT TARGET isl)
   add_library(isl INTERFACE IMPORTED)
   set_property(TARGET isl PROPERTY INTERFACE_INCLUDE_DIRECTORIES
@@ -209,7 +212,7 @@ target_compile_definitions(acr_static
 
 add_executable(acr_exe ${ACR_EXECUTABLE_C_FILES})
 set_target_properties(acr_exe PROPERTIES OUTPUT_NAME "acr")
-target_link_libraries(acr_exe acr clan)
+target_link_libraries(acr_exe acr clan isl)
 target_compile_definitions(acr_exe
   PRIVATE
     _POSIX_C_SOURCE=200809L)
