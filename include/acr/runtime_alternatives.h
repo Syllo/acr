@@ -19,6 +19,7 @@
 #ifndef __ACR_RUNTIME_ALTERNATIVES__H
 #define __ACR_RUNTIME_ALTERNATIVES__H
 
+#include <isl/set.h>
 
 enum acr_runtime_alternative_type {
   acr_runtime_alternative_parameter,
@@ -34,6 +35,7 @@ struct runtime_alternative {
       struct {
         unsigned long parameter_position;
         long parameter_value;
+        isl_set **parameter_constraints;
       } parameter;
     } alt;
     char *name_to_swap;

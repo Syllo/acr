@@ -487,6 +487,11 @@ acr_monitor_options
       if ($2.num_dimensions == 0 || $2.num_specifiers == 0) {
         acr_free_acr_array_declaration(&$2);
         $$ = NULL;
+        if ($2.num_dimensions == 0)
+          yyerror("[ACR] error: Declaration of array of dimension zero");
+        if ($2.num_specifiers == 0)
+          yyerror("[ACR] error: Declaration of array without type");
+        YYERROR;
       } else {
         $$ = acr_new_monitor(&$2, $4, NULL, last_pragma_start_line);
       }

@@ -589,4 +589,10 @@ bool acr_strategy_correspond_to_alternative(
     const acr_option strategy,
     const acr_option alternative);
 
+void acr_compute_node_delete_option_from_position(
+    unsigned long position,
+    acr_compute_node node);
+
+bool acr_simplify_compute_node(acr_compute_node node);
+
 #endif // __ACR_PRAGMA_STRUCT_H

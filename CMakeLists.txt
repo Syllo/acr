@@ -144,7 +144,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr.h.in"
 
 list(APPEND ACR_LIBRARY_C_FILES
   source/acr_openscop.c
-  source/acr_runtime.c
+  source/acr_runtime_data.c
   source/cloog_runtime.c
   source/isl_runtime.c
   source/utils.c

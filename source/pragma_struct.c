@@ -19,6 +19,7 @@
 #include "acr/pragma_struct.h"
 
 #include <string.h>
+#include <acr/print.h>
 
 acr_option acr_new_alternative_function(const char* alternative_name,
                                         const char* function_to_swap,
@@ -337,7 +338,7 @@ acr_compute_node_list acr_new_compute_node_list(unsigned long list_size) {
   return list;
 }
 
-static void acr_compute_node_delete_option_from_position(
+void acr_compute_node_delete_option_from_position(
     unsigned long position,
     acr_compute_node node) {
   acr_option_list option_list = acr_compute_node_get_option_list(node);
@@ -498,8 +499,10 @@ bool acr_alternative_has_no_strategy_in_node(const acr_option alternative,
     }
   }
   fprintf(stderr,
-      "[ACR] Warning: Alternative named %s has no known strategy using it\n",
+      "[ACR] Warning: Alternative named %s has no known strategy using it.\n"
+      "               Ignoring the following strategy:\n",
       alternative_name);
+  pprint_acr_option(stderr, alternative, 0);
   return true;
 }
 
@@ -519,12 +522,15 @@ bool acr_strategy_has_no_alternative_in_node(const acr_option strategy,
     }
   }
   fprintf(stderr,
-      "[ACR] Warning: A strategy is using an undeclared alternative named \"%s\"\n",
+      "[ACR] Warning: A strategy is using an undeclared alternative named \"%s\"\n"
+      "               The following strategy will be ignored:\n",
       strategy_name);
+  pprint_acr_option(stderr, strategy, 0);
   return true;
 }
 
-void acr_simplify_compute_node(acr_compute_node node) {
+bool acr_simplify_compute_node(acr_compute_node node) {
+  bool simplified = false;
   acr_option_list option_list;
   for (unsigned long i = 0; i < acr_compute_node_get_option_list_size(node); ++i) {
     option_list = acr_compute_node_get_option_list(node);
@@ -536,6 +542,7 @@ void acr_simplify_compute_node(acr_compute_node node) {
               acr_option_list_get_option(i, option_list), node)) {
           acr_compute_node_delete_option_from_position(i, node);
           i -= 1ul;
+          simplified = true;
           break;
         }
         for (unsigned int j = 1; j < i; ++j) {
@@ -543,9 +550,14 @@ void acr_simplify_compute_node(acr_compute_node node) {
           acr_option to_compare = acr_option_list_get_option(j, option_list);
           if (acr_option_are_same_alternative(
                 acr_option_list_get_option(i, option_list), to_compare)) {
+            fprintf(stderr,
+                "[ACR] Warning: Two alternatives with the same name,\n"
+                "               The following alternative will be ignored:\n");
+            pprint_acr_option(stderr, to_compare, 0);
             acr_compute_node_delete_option_from_position(j, node);
             i -= 1ul;
             j -= 1ul;
+            simplified = true;
           }
         }
         break;
@@ -560,14 +572,17 @@ void acr_simplify_compute_node(acr_compute_node node) {
             acr_compute_node_delete_option_from_position(j, node);
             i -= 1ul;
             j -= 1ul;
+            simplified = true;
           }
         }
         break;
       case acr_type_strategy:
         if(acr_strategy_has_no_alternative_in_node(
               acr_option_list_get_option(i, option_list), node)) {
+          pprint_acr_option(stderr, acr_option_list_get_option(i, option_list), 0);
           acr_compute_node_delete_option_from_position(i, node);
           i -= 1ul;
+          simplified = true;
           break;
         }
         for (unsigned int j = 1; j < i; ++j) {
@@ -575,14 +590,24 @@ void acr_simplify_compute_node(acr_compute_node node) {
             acr_option to_compare = acr_option_list_get_option(j, option_list);
           if (acr_strategy_first_included_in_second(to_compare,
                 acr_option_list_get_option(i, option_list))) {
+            fprintf(stderr,
+                "[ACR] Warning: Two strategies overlap\n"
+                "               The following strategy will be ignored:\n");
+            pprint_acr_option(stderr, to_compare, 0);
             acr_compute_node_delete_option_from_position(j, node);
             i -= 1ul;
             j -= 1ul;
+            simplified = true;
           } else {
             if (acr_strategy_first_included_in_second(
                   acr_option_list_get_option(i, option_list), to_compare)) {
+              fprintf(stderr,
+                  "[ACR] Warning: Two strategies overlap\n"
+                  "               The following strategy will be ignored:\n");
+              pprint_acr_option(stderr, acr_option_list_get_option(i, option_list), 0);
               acr_compute_node_delete_option_from_position(i, node);
               i -= 1ul;
+              simplified = true;
               break;
             }
           }
@@ -592,6 +617,7 @@ void acr_simplify_compute_node(acr_compute_node node) {
         break;
     }
   }
+  return simplified;
 }
 
 static unsigned long acr_compute_node_count_num_type(
@@ -669,7 +695,7 @@ acr_compute_node_list acr_new_compute_node_list_split_node(
       acr_option_list_set_option(NULL, j, option_list);
     }
     acr_compute_node new_node = acr_new_compute_node(new_size, new_options);
-    acr_simplify_compute_node(new_node);
+    while(acr_simplify_compute_node(new_node));
     acr_compute_node_list_set_node(i, new_node, new_list);
     next_destroy += 1;
     actual_position = next_destroy;

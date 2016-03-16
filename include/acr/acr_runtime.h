@@ -19,22 +19,8 @@
 #ifndef __ACR_RUNTIME_H
 #define __ACR_RUNTIME_H
 
-#include <cloog/cloog.h>
-#include <acr/acr_openscop.h>
-#include <acr/runtime_alternatives.h>
+#include <acr/acr_runtime_data.h>
 #include <acr/isl_runtime.h>
 #include <acr/cloog_runtime.h>
-
-struct acr_runtime_data {
-  CloogInput* cloog_input;
-  CloogState* state;
-  struct osl_scop* osl_relation;
-  unsigned long num_alternatives;
-  size_t *monitor_dimensions;
-  size_t monitor_total_size;
-  unsigned long grid_size;
-};
-
-void free_acr_runtime_data(struct acr_runtime_data* data);
 
 #endif // __ACR_RUNTIME_H

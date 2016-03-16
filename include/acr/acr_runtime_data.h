@@ -16,19 +16,31 @@
  *
  */
 
-#ifndef __ACR_CLOOG_RUNTIME_H
-#define __ACR_CLOOG_RUNTIME_H
+#ifndef __ACR_RUNTIME_DATA_H
+#define __ACR_RUNTIME_DATA_H
 
-#include <acr/acr_runtime_data.h>
+#include <cloog/cloog.h>
+#include <acr/acr_openscop.h>
 #include <acr/runtime_alternatives.h>
-#include <isl/set.h>
 
-void acr_cloog_generate_alternative_code_from_input(
-    FILE* output,
-    struct acr_runtime_data *data);
+struct acr_runtime_data {
+  CloogInput* cloog_input;
+  CloogState* state;
+  struct osl_scop* osl_relation;
+  unsigned long num_alternatives;
+  struct runtime_alternative *alternatives;
+  unsigned long num_parameters;
+  unsigned long num_dimensions;
+  size_t *monitor_dimensions;
+  size_t monitor_total_size;
+  unsigned long grid_size;
+};
 
+void init_acr_runtime_data(
+    struct acr_runtime_data* data,
+    char *scop,
+    size_t scop_size);
 
-void acr_cloog_init_alternative_constraint_from_cloog_union_domain(
-    struct acr_runtime_data *data);
+void free_acr_runtime_data(struct acr_runtime_data* data);
 
-#endif // __ACR_CLOOG_RUNTIME_H
+#endif // __ACR_RUNTIME_DATA_H

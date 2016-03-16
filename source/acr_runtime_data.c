@@ -16,10 +16,21 @@
  *
  */
 
-#include "acr/acr_runtime.h"
+#include "acr/acr_runtime_data.h"
+#include <acr/acr_runtime_data.h>
 
 void free_acr_runtime_data(struct acr_runtime_data* data) {
   cloog_input_free(data->cloog_input);
   cloog_state_free(data->state);
   osl_scop_free(data->osl_relation);
+}
+
+void init_acr_runtime_data(
+    struct acr_runtime_data* data,
+    char *scop,
+    size_t scop_size) {
+  data->osl_relation = acr_read_scop_from_buffer(scop, scop_size);
+  data->state = cloog_state_malloc();
+  data->cloog_input = cloog_input_from_osl_scop(data->state,
+      data->osl_relation);
 }

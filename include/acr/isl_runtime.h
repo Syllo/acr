@@ -38,11 +38,10 @@ isl_set** acr_isl_set_from_monitor(
     struct runtime_alternative*
         (*get_alternative_from_val)(acr_monitored_data data));
 
-static isl_set* isl_set_from_alternative_parameter_construct(
+isl_set* isl_set_from_alternative_parameter_construct(
     isl_ctx *ctx,
     unsigned long num_parameters,
     unsigned long num_dimensions,
-    unsigned long position_in_alt_list,
     struct runtime_alternative* alternative_list);
 
 #endif // __ACR_ISL_RUNTIME_H
