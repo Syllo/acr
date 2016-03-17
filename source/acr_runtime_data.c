@@ -17,12 +17,25 @@
  */
 
 #include "acr/acr_runtime_data.h"
-#include <acr/acr_runtime_data.h>
+
+#include <isl/set.h>
 
 void free_acr_runtime_data(struct acr_runtime_data* data) {
+  for (unsigned long i = 0; i < data->num_alternatives; ++i) {
+    struct runtime_alternative *alt = &data->alternatives[i];
+    if (alt->type == acr_runtime_alternative_parameter) {
+      for (unsigned long j = 0; j < alt->value.alt.parameter.num_domains; ++j) {
+        isl_set_free(alt->value.alt.parameter.parameter_constraints[j]);
+      }
+      free(alt->value.alt.parameter.parameter_constraints);
+    }
+  }
   cloog_input_free(data->cloog_input);
+  data->cloog_input = NULL;
   cloog_state_free(data->state);
+  data->state = NULL;
   osl_scop_free(data->osl_relation);
+  data->osl_relation = NULL;
 }
 
 void init_acr_runtime_data(

@@ -35,6 +35,7 @@ struct runtime_alternative {
       struct {
         unsigned long parameter_position;
         long parameter_value;
+        unsigned long num_domains;
         isl_set **parameter_constraints;
       } parameter;
     } alt;

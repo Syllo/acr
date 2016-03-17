@@ -212,7 +212,7 @@ target_compile_definitions(acr_static
 
 add_executable(acr_exe ${ACR_EXECUTABLE_C_FILES})
 set_target_properties(acr_exe PROPERTIES OUTPUT_NAME "acr")
-target_link_libraries(acr_exe acr clan isl)
+target_link_libraries(acr_exe acr clan)
 target_compile_definitions(acr_exe
   PRIVATE
     _POSIX_C_SOURCE=200809L)

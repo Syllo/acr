@@ -25,15 +25,15 @@
 
 isl_set** acr_isl_set_from_monitor(
     isl_ctx *ctx,
-    acr_monitored_data *data,
+    const unsigned char *data,
     unsigned long num_alternatives,
     unsigned long int num_param,
     unsigned long num_dimensions,
-    size_t *dimensions,
+    const size_t *dimensions,
     size_t dimensions_total_size,
     unsigned long tiling_size,
     struct runtime_alternative*
-        (*get_alternative_from_val)(acr_monitored_data data)) {
+        (*get_alternative_from_val)(unsigned char data)) {
 
   isl_space *space = isl_space_set_alloc(ctx, num_param, num_dimensions);
   isl_val *tiling_size_val = isl_val_int_from_ui(ctx, tiling_size);
@@ -119,7 +119,7 @@ isl_set* isl_set_from_alternative_parameter_construct(
   isl_set *new_set = isl_set_universe(isl_space_copy(space));
   isl_local_space *local_space = isl_local_space_from_space(space);
   isl_constraint *parameter_constraint = isl_constraint_alloc_equality(
-      isl_local_space_copy(local_space));
+      local_space);
   parameter_constraint =
     isl_constraint_set_constant_val(parameter_constraint, constraint_value);
   parameter_constraint =

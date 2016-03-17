@@ -23,4 +23,6 @@
 #include <acr/isl_runtime.h>
 #include <acr/cloog_runtime.h>
 
+typedef unsigned char acr_monitored_data;
+
 #endif // __ACR_RUNTIME_H

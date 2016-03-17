@@ -24,24 +24,22 @@
 
 #include "acr/runtime_alternatives.h"
 
-typedef unsigned char acr_monitored_data;
-
 isl_set** acr_isl_set_from_monitor(
     isl_ctx *ctx,
-    acr_monitored_data *data,
+    const unsigned char *data,
     unsigned long num_strategies,
     unsigned long int num_param,
     unsigned long num_dimensions,
-    size_t *dimensions,
+    const size_t *dimensions,
     size_t dimensions_total_size,
     unsigned long tiling_size,
     struct runtime_alternative*
-        (*get_alternative_from_val)(acr_monitored_data data));
+        (*get_alternative_from_val)(unsigned char data));
 
 isl_set* isl_set_from_alternative_parameter_construct(
     isl_ctx *ctx,
     unsigned long num_parameters,
     unsigned long num_dimensions,
-    struct runtime_alternative* alternative_list);
+    struct runtime_alternative* alternative);
 
 #endif // __ACR_ISL_RUNTIME_H

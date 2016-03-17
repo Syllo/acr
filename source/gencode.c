@@ -456,6 +456,9 @@ void acr_print_acr_runtime_init(FILE* out,
       "      %s_acr_scop,\n"
       "      %s_acr_scop_size);\n",
       fun_name, fun_name, fun_name);
+  fprintf(out,
+      "  acr_cloog_init_alternative_constraint_from_cloog_union_domain(\n"
+      "      &%s_runtime_data);\n", fun_name);
 
   // Call function and change pointer to initial function
   fprintf(out, "  %s = %s_acr_initial;\n",
