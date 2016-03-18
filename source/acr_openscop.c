@@ -18,6 +18,8 @@
 
 #include "acr/acr_openscop.h"
 
+#include <isl/constraint.h>
+#include <isl/set.h>
 #include <osl/body.h>
 #include <osl/extensions/scatnames.h>
 #include <osl/macros.h>
@@ -154,22 +156,22 @@ static osl_relation_p acr_openscop_new_scattering_relation(
   return scattering;
 }
 
-static void _acr_openscop_add_missing_parameters(unsigned long* size_string,
-    osl_strings_p parameters,
+static void _acr_openscop_add_missing_identifiers(unsigned long* size_string,
+    osl_strings_p identifiers,
     const acr_array_dimension dimension) {
   if (dimension->type != acr_array_dim_leaf) {
-    _acr_openscop_add_missing_parameters(size_string, parameters,
+    _acr_openscop_add_missing_identifiers(size_string, identifiers,
         dimension->val.node.left);
-    _acr_openscop_add_missing_parameters(size_string, parameters,
+    _acr_openscop_add_missing_identifiers(size_string, identifiers,
         dimension->val.node.right);
   } else {
     switch (dimension->val.leaf.type) {
       case acr_expr_leaf_int:
         break;
       case acr_expr_leaf_param:
-        if (osl_strings_find(parameters, dimension->val.leaf.value.parameter)
+        if (osl_strings_find(identifiers, dimension->val.leaf.value.parameter)
             == *size_string) {
-          osl_strings_add(parameters, dimension->val.leaf.value.parameter);
+          osl_strings_add(identifiers, dimension->val.leaf.value.parameter);
           *size_string += 1;
         }
         break;
@@ -177,16 +179,16 @@ static void _acr_openscop_add_missing_parameters(unsigned long* size_string,
   }
 }
 
-osl_strings_p acr_openscop_get_monitor_parameters(const acr_option monitor) {
+osl_strings_p acr_openscop_get_monitor_identifiers(const acr_option monitor) {
   size_t string_size = 0;
-  osl_strings_p parameters = osl_strings_malloc();
+  osl_strings_p identifiers = osl_strings_malloc();
   acr_array_declaration* array_decl =
     acr_monitor_get_array_declaration(monitor);
   acr_array_dimensions_list dim_list = array_decl->array_dimensions_list;
   for (unsigned long i = 0; i < array_decl->num_dimensions; ++i) {
-    _acr_openscop_add_missing_parameters(&string_size, parameters, dim_list[i]);
+    _acr_openscop_add_missing_identifiers(&string_size, identifiers, dim_list[i]);
   }
-  return parameters;
+  return identifiers;
 }
 
 unsigned long acr_monitor_num_dimensions(const acr_option monitor) {
@@ -596,21 +598,21 @@ osl_relation_p acr_openscop_domain_from_monitor(
   return new_relation;
 }
 
-bool acr_osl_check_if_parameters_are_also_iterator(const osl_scop_p scop,
-    osl_strings_p parameters) {
-  size_t num_parameters = osl_strings_size(parameters);
+bool acr_osl_check_if_identifiers_are_not_parameters(const osl_scop_p scop,
+    osl_strings_p identifiers) {
+  size_t num_identifiers = osl_strings_size(identifiers);
   osl_statement_p statements = scop->statement;
   while (statements) {
     osl_body_p body = osl_generic_lookup(statements->extension, OSL_URI_BODY);
     size_t num_iterators = osl_strings_size(body->iterators);
-    for (size_t i = 0; i < num_parameters; ++i) {
-      if (osl_strings_find(body->iterators, parameters->string[i]) < num_iterators) {
-        return true;
+    for (size_t i = 0; i < num_identifiers; ++i) {
+      if (osl_strings_find(body->iterators, identifiers->string[i]) < num_iterators) {
+        return false;
       }
     }
     statements = statements->next;
   }
-  return false;
+  return true;
 }
 
 static void acr_openscop_scan_min_max_op(
@@ -1000,13 +1002,10 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
     const osl_scop_p scop,
     unsigned long grid_size) {
 
+  // PLACEHOLDER
+  return NULL;
+
   osl_strings_p parameters = acr_openscop_get_monitor_parameters(monitor);
-  if (acr_osl_check_if_parameters_are_also_iterator(scop, parameters)) {
-    fprintf(stdout, "[ACR] error: iterators used in array declaration:\n");
-    pprint_acr_option(stderr, monitor, 0);
-    osl_strings_free(parameters);
-    return NULL;
-  }
 
   size_t num_param = osl_strings_size(parameters);
   size_t num_dimensions = acr_monitor_num_dimensions(monitor);
@@ -1030,7 +1029,8 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
   new_scop->version = scop->version;
   new_scop->language = acr_strdup(scop->language);
   new_scop->registry = osl_interface_get_default_registry();
-  osl_generic_p generic_string = osl_generic_shell(parameters, osl_strings_interface());
+  osl_generic_p generic_string =
+    osl_generic_shell(parameters, osl_strings_interface());
   osl_generic_add(&new_scop->parameters, generic_string);
   new_scop->statement = new_statement;
 
@@ -1045,4 +1045,335 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
   new_scop->extension = osl_generic_shell(scatnames, osl_scatnames_interface());
 
   return new_scop;
+}
+
+struct acr_get_min_max {
+  dimensions_upper_lower_bounds *bounds;
+  unsigned long current_dimension;
+};
+
+#ifdef ACR_DEBUG
+static void pprint_isl_set(isl_set *set, const char* print) {
+  fprintf(stderr, "PPRINT SET %s\n", print);
+  isl_ctx *ctx = isl_set_get_ctx(set);
+  isl_printer *splinter = isl_printer_to_file(ctx, stderr);
+  isl_printer_print_set(splinter, set);
+  isl_printer_flush(splinter);
+  isl_printer_free(splinter);
+  fprintf(stderr, "\nEND PPRINT SET %s\n", print);
+}
+
+static void pprint_isl_constraint(isl_constraint *co, const char* print) {
+  fprintf(stderr, "PPRINT CONSTRAINT %s\n", print);
+  isl_ctx *ctx = isl_constraint_get_ctx(co);
+  isl_printer *splinter = isl_printer_to_file(ctx, stderr);
+  isl_printer_print_constraint(splinter, co);
+  isl_printer_flush(splinter);
+  isl_printer_free(splinter);
+  fprintf(stderr, "\nEND PPRINT CONSTRAINT %s\n", print);
+}
+#endif
+
+static isl_stat _acr_get_min_max_in_constraint(isl_constraint *co, void* user) {
+  struct acr_get_min_max *wrapper = (struct acr_get_min_max*) user;
+  dimensions_upper_lower_bounds *bounds = wrapper->bounds;
+  unsigned long dimension = wrapper->current_dimension;
+  if (isl_constraint_involves_dims(co, isl_dim_set, 0, 1)) {
+    isl_bool lower_bound = isl_constraint_is_lower_bound(co, isl_dim_set, 0);
+#ifdef ACR_DEBUG
+    if (lower_bound == isl_bool_true) {
+      pprint_isl_constraint(co, "LOWER");
+    } else {
+        if (lower_bound == isl_bool_false) {
+          pprint_isl_constraint(co, "UPPPER");
+        } else {
+          fprintf(stderr, "ERROR\n");
+        }
+    }
+#endif
+    for (unsigned long i = 0; i < bounds->num_parameters; ++i) {
+      isl_val *dim_val =
+        isl_constraint_get_coefficient_val(co, isl_dim_param, i);
+      long dim_val_long =
+        isl_val_get_num_si(dim_val) / isl_val_get_den_si(dim_val);
+      if (lower_bound == isl_bool_true) {
+        bounds->lower_bound[dimension][i] = dim_val_long;
+      } else {
+        if (lower_bound == isl_bool_false) {
+          bounds->upper_bound[dimension][i] = dim_val_long;
+        } else {
+          isl_val_free(dim_val);
+          isl_constraint_free(co);
+          return isl_stat_error;
+        }
+      }
+#ifdef ACR_DEBUG
+      fprintf(stderr, "Dimension %lu PARAMETER %lu val %ld\n",
+          dimension, i, dim_val_long);
+#endif
+      isl_val_free(dim_val);
+    }
+    isl_val *cst_val =
+      isl_constraint_get_constant_val(co);
+    long cst_val_long =
+      isl_val_get_num_si(cst_val) / isl_val_get_den_si(cst_val);
+    if (lower_bound == isl_bool_true) {
+      bounds->lower_bound[dimension][bounds->num_parameters] = cst_val_long;
+    } else {
+      if (lower_bound == isl_bool_false) {
+        bounds->upper_bound[dimension][bounds->num_parameters] = cst_val_long;
+      } else {
+        isl_val_free(cst_val);
+        isl_constraint_free(co);
+        return isl_stat_error;
+      }
+    }
+#ifdef ACR_DEBUG
+    fprintf(stderr, "Dimension %lu CONSTANT %ld\n",
+        dimension, cst_val_long);
+#endif
+    isl_val_free(cst_val);
+  }
+
+  isl_constraint_free(co);
+  return isl_stat_ok;
+}
+
+static isl_stat _acr_get_min_max_in_bset(isl_basic_set *bs, void* user) {
+  isl_stat stat =
+    isl_basic_set_foreach_constraint(bs, _acr_get_min_max_in_constraint, user);
+  isl_basic_set_free(bs);
+  return stat;
+}
+
+dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
+    const osl_statement_p statement) {
+  char* str;
+  str = osl_relation_spprint_polylib(statement->domain, NULL);
+  isl_ctx *ctx = isl_ctx_alloc();
+  isl_set *domain = isl_set_read_from_str(ctx, str);
+  free(str);
+  dimensions_upper_lower_bounds *bounds = malloc(sizeof(*bounds));
+  bounds->num_dimensions = isl_set_n_dim(domain);
+  bounds->num_parameters = isl_set_n_param(domain);
+  bounds->upper_bound =
+    malloc(bounds->num_dimensions * sizeof(*bounds->upper_bound));
+  bounds->lower_bound =
+    malloc(bounds->num_dimensions * sizeof(*bounds->lower_bound));
+  bounds->free_dims_position = NULL;
+  bounds->num_free_dims = 0ul;
+  for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
+    bounds->lower_bound[i] =
+      calloc((bounds->num_parameters+1), sizeof(**bounds->lower_bound));
+    bounds->upper_bound[i] =
+      calloc((bounds->num_parameters+1), sizeof(**bounds->upper_bound));
+  }
+
+  for (unsigned long dim = 0; dim < bounds->num_dimensions; ++dim) {
+    isl_set *project_domain = isl_set_copy(domain);
+#ifdef ACR_DEBUG
+    pprint_isl_set(project_domain, "BEFOR PROJECT");
+#endif
+    if (dim+1 < bounds->num_dimensions)
+      project_domain = isl_set_project_out(project_domain, isl_dim_set,
+          dim+1, bounds->num_dimensions - dim - 1);
+    if (dim != 0)
+      project_domain = isl_set_project_out(project_domain, isl_dim_set,
+          0ul, dim);
+#ifdef ACR_DEBUG
+    pprint_isl_set(project_domain, "AFTER PROJECT");
+#endif
+    struct acr_get_min_max wrapper =
+        { .current_dimension = dim, .bounds = bounds};
+    isl_set_foreach_basic_set(project_domain,
+        _acr_get_min_max_in_bset, (void*) &wrapper);
+    isl_set_free(project_domain);
+  }
+  isl_set_free(domain);
+  isl_ctx_free(ctx);
+  return bounds;
+}
+
+dimensions_upper_lower_bounds_all_statements* acr_osl_get_upper_lower_bound_all(
+        const osl_statement_p statement_list) {
+  dimensions_upper_lower_bounds_all_statements *bounds_all =
+    malloc(sizeof(*bounds_all));
+  osl_statement_p statement_iterator = statement_list;
+  bounds_all->num_statements = 0;
+  while (statement_iterator) {
+    bounds_all->num_statements += 1;
+    statement_iterator = statement_iterator->next;
+  }
+  bounds_all->statements_bounds =
+    malloc(bounds_all->num_statements * sizeof(*bounds_all->statements_bounds));
+  statement_iterator = statement_list;
+  unsigned long statement_num = 0ul;
+  while (statement_iterator) {
+    bounds_all->statements_bounds[statement_num] =
+      acr_osl_get_min_max_bound_statement(statement_iterator);
+    statement_iterator = statement_iterator->next;
+    statement_num += 1;
+  }
+  return bounds_all;
+}
+
+void acr_osl_free_dimension_upper_lower_bounds(
+    dimensions_upper_lower_bounds *bounds) {
+  for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
+    free(bounds->lower_bound[i]);
+    free(bounds->upper_bound[i]);
+  }
+  if (bounds->free_dims_position)
+    free(bounds->free_dims_position);
+  free(bounds->upper_bound);
+  free(bounds->lower_bound);
+  free(bounds);
+}
+
+void acr_osl_free_dimension_upper_lower_bounds_all(
+    dimensions_upper_lower_bounds_all_statements *bounds_all) {
+  for (unsigned long i = 0; i < bounds_all->num_statements; ++i) {
+    acr_osl_free_dimension_upper_lower_bounds(bounds_all->statements_bounds[i]);
+  }
+  free(bounds_all->statements_bounds);
+  free(bounds_all);
+}
+
+bool _acr_osl_test_and_set_free_dims(
+    const osl_statement_p statement,
+    const osl_strings_p non_free_iterators_name,
+    const osl_strings_p non_free_forbidden_parameters,
+    const osl_strings_p context_parameters,
+    dimensions_upper_lower_bounds *bounds) {
+
+  unsigned long size_nf_iter = osl_strings_size(non_free_iterators_name);
+  unsigned long size_nf_param = osl_strings_size(non_free_forbidden_parameters);
+  unsigned long size_con_param = osl_strings_size(context_parameters);
+  osl_body_p body = osl_generic_lookup(statement->extension, OSL_URI_BODY);
+  char **iterators = body->iterators->string;
+  unsigned long num_iterators = osl_strings_size(body->iterators);
+  bool *is_free = malloc(num_iterators * sizeof(*is_free));
+  unsigned long num_free_folks =0ul;
+
+  fprintf(stderr, "Real iterators\n");
+  osl_strings_print(stderr, body->iterators);
+
+  for (unsigned long i = 0; i < num_iterators; ++i) {
+    if (osl_strings_find(non_free_iterators_name,iterators[i]) < size_nf_iter){
+      char **forbidden_params = non_free_forbidden_parameters->string;
+      bool is_really_not_free = true;
+      unsigned long forbidden_param_pos;
+      for (unsigned int j = 0; is_really_not_free && j < size_nf_param; ++j) {
+        unsigned long pos_in_context = osl_strings_find(context_parameters,
+            forbidden_params[j]);
+        if (pos_in_context == size_con_param) {
+          fprintf(stderr,
+              "[ACR] error: Parameter %s is used in alternative but is not"
+              " present in context\n", forbidden_params[j]);
+          free(is_free);
+          return false;
+        } else {
+          if (bounds->lower_bound[i][pos_in_context] != 0 ||
+              bounds->upper_bound[i][pos_in_context] != 0) {
+            is_really_not_free = false;
+            forbidden_param_pos = j;
+          }
+        }
+      }
+      if (is_really_not_free) {
+        fprintf(stderr, "%s is not free\n", iterators[i]);
+        is_free[i] = false;
+        num_free_folks += 1;
+      } else {
+        fprintf(stderr,
+            "[ACR] error: It appears that the iterator %s used by the"
+            " monitoring function\n"
+            "             can be tampered by the %s parameter alternative.\n"
+            "             This case is forbidden.\n",
+            iterators[i], forbidden_params[forbidden_param_pos]);
+        free(is_free);
+        return false;
+      }
+    } else {
+      fprintf(stderr, "%s is free\n", iterators[i]);
+      is_free[i] = true;
+    }
+  }
+
+  if (num_free_folks > 0) {
+    bounds->num_free_dims = num_free_folks;
+    bounds->free_dims_position =
+      malloc(num_free_folks * sizeof(*bounds->free_dims_position));
+    num_free_folks = 0;
+    for (unsigned int i = 0; i < bounds->num_free_dims; ++i) {
+      if (is_free[i]) {
+        bounds->free_dims_position[num_free_folks] = i;
+        num_free_folks += 1;
+      }
+    }
+  }
+
+  free(is_free);
+  return true;
+}
+
+bool acr_osl_find_and_verify_free_dims_position(
+    const acr_compute_node node,
+    const osl_scop_p scop,
+    dimensions_upper_lower_bounds_all_statements *bounds_all) {
+  osl_strings_p pragma_alternative_parameters = osl_strings_malloc();
+  size_t string_size = 0;
+  osl_strings_p pragma_monitor_iterators;
+  acr_option_list opt_list = acr_compute_node_get_option_list(node);
+  unsigned long list_size = acr_compute_node_get_option_list_size(node);
+  for (unsigned long i = 0; i < list_size; ++i) {
+    acr_option current_option =
+      acr_option_list_get_option(i, opt_list);
+    if (acr_option_get_type(current_option) == acr_type_alternative &&
+        acr_alternative_get_type(current_option) == acr_alternative_parameter) {
+      const char *parameter_to_swap =
+        acr_alternative_get_object_to_swap_name(current_option);
+      if (osl_strings_find(pragma_alternative_parameters, parameter_to_swap)
+          == string_size) {
+        osl_strings_add(pragma_alternative_parameters, parameter_to_swap);
+        string_size += 1;
+      }
+    } else {
+      if (acr_option_get_type(current_option) == acr_type_monitor) {
+        pragma_monitor_iterators =
+          acr_openscop_get_monitor_identifiers(current_option);
+        if (acr_osl_check_if_identifiers_are_not_parameters(
+              scop, pragma_monitor_iterators)) {
+          fprintf(stdout,
+              "[ACR] error: parameters used in array declaration:\n");
+          pprint_acr_option(stderr, current_option, 0);
+          osl_strings_free(pragma_monitor_iterators);
+          osl_strings_free(pragma_alternative_parameters);
+          return false;
+        }
+      }
+    }
+  }
+  fprintf(stderr, "Iterators\n");
+  osl_strings_print(stderr, pragma_monitor_iterators);
+  fprintf(stderr, "Parameters\n");
+  osl_strings_print(stderr, pragma_alternative_parameters);
+
+  osl_statement_p current_statement = scop->statement;
+  bool valid = true;
+  osl_strings_p context_parameters =
+    osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
+  for (unsigned long i = 0; valid && i < bounds_all->num_statements; ++i) {
+    valid = _acr_osl_test_and_set_free_dims(
+        current_statement,
+        pragma_monitor_iterators,
+        pragma_alternative_parameters,
+        context_parameters,
+        bounds_all->statements_bounds[i]);
+    current_statement = current_statement->next;
+  }
+
+  osl_strings_free(pragma_monitor_iterators);
+  osl_strings_free(pragma_alternative_parameters);
+  return valid;
 }

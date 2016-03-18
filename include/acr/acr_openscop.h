@@ -23,6 +23,20 @@
 
 #include <osl/scop.h>
 
+typedef struct dimensions_upper_lower_bounds {
+  unsigned long num_dimensions;
+  unsigned long num_parameters;
+  long **lower_bound;
+  long **upper_bound;
+  unsigned long num_free_dims;
+  unsigned long *free_dims_position;
+} dimensions_upper_lower_bounds;
+
+typedef struct dimensions_upper_lower_bounds_all_statements {
+  unsigned long num_statements;
+  dimensions_upper_lower_bounds **statements_bounds;
+} dimensions_upper_lower_bounds_all_statements;
+
 void acr_print_scop_to_buffer(osl_scop_p scop, char** buffer,
     size_t* size_buffer);
 
@@ -52,5 +66,22 @@ void acr_openscop_set_tiled_to_do_avg(
     unsigned long grid_size,
     const char* data_location_prefix,
     osl_scop_p scop);
+
+dimensions_upper_lower_bounds_all_statements* acr_osl_get_upper_lower_bound_all(
+        const osl_statement_p statement_list);
+
+dimensions_upper_lower_bounds* acr_osl_get_upper_lower_bound_statement(
+    const osl_statement_p statement);
+
+void acr_osl_free_dimension_upper_lower_bounds(
+    dimensions_upper_lower_bounds *bounds);
+
+void acr_osl_free_dimension_upper_lower_bounds_all(
+    dimensions_upper_lower_bounds_all_statements *bounds_all);
+
+bool acr_osl_find_and_verify_free_dims_position(
+    const acr_compute_node node,
+    const osl_scop_p scop,
+    dimensions_upper_lower_bounds_all_statements *bounds_all);
 
 #endif // __ACR_OPENSCOP_H

@@ -24,30 +24,6 @@
 #include <cloog/isl/backend.h>
 #include <isl/map.h>
 
-static void pprint_isl(isl_set *set, const char* print) {
-  fprintf(stderr, "PPRINT %s\n", print);
-  isl_ctx *ctx = isl_set_get_ctx(set);
-  isl_printer *splinter = isl_printer_to_file(ctx, stderr);
-  isl_printer_print_set(splinter, set);
-  isl_printer_flush(splinter);
-  isl_printer_free(splinter);
-  fprintf(stderr, "END PPRINT %s\n", print);
-}
-
-isl_stat allconstraint(isl_constraint *co, void* user) {
-  size_t* lol = (size_t*) user;
-  fprintf(stderr, "I %zu\n", (*lol)++);
-  if(isl_constraint_involves_dims(co, isl_dim_param, 0, 1)
-      && isl_constraint_involves_dims(co, isl_dim_set, 0, 1))
-    fprintf(stderr, "WOLALA\n");
-  return isl_stat_ok;
-}
-
-isl_stat allbasicset(isl_basic_set *bs, void* user) {
-  size_t i = 0;
-  return isl_basic_set_foreach_constraint(bs, allconstraint, &i);
-}
-
 void acr_cloog_init_alternative_constraint_from_cloog_union_domain(
     struct acr_runtime_data *data) {
   CloogNamedDomainList *named_domain = data->cloog_input->ud->domain;
@@ -70,17 +46,6 @@ void acr_cloog_init_alternative_constraint_from_cloog_union_domain(
         isl_set *isl_temp_set = isl_set_from_cloog_domain(domain);
         unsigned long num_dim = isl_set_n_dim(isl_temp_set);
         unsigned long num_param = isl_set_n_param(isl_temp_set);
-
-        isl_set_print_internal(isl_temp_set, stderr, 4);
-        pprint_isl(isl_temp_set, "BEFOR PROJECT");
-        isl_temp_set = isl_set_project_out(isl_set_copy(isl_temp_set), isl_dim_set, 2, 1);
-        isl_temp_set = isl_set_project_out(isl_temp_set, isl_dim_set, 0, 1);
-        pprint_isl(isl_temp_set, "AFTER PROJECT");
-        isl_set_print_internal(isl_temp_set, stderr, 4);
-
-        isl_set_foreach_basic_set(isl_temp_set, allbasicset, NULL);
-        isl_set_free(isl_temp_set);
-
         isl_ctx *ctx = isl_set_get_ctx(isl_temp_set);
         alt->value.alt.parameter.parameter_constraints[j] =
           isl_set_from_alternative_parameter_construct(ctx,

@@ -55,4 +55,8 @@ void acr_scop_coord_to_acr_coord(
 void acr_print_node_init_function_call(FILE* out,
     const acr_compute_node node);
 
+bool acr_verify_bounds_and_node_options(
+    const dimensions_upper_lower_bounds_all_statements *bounds,
+    const acr_compute_node node);
+
 #endif // __ACR_GENCODE_H

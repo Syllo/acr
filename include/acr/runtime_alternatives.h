@@ -37,6 +37,10 @@ struct runtime_alternative {
         long parameter_value;
         unsigned long num_domains;
         isl_set **parameter_constraints;
+        struct {
+          unsigned long num_free_dim;
+          unsigned long *free_dim_position;
+        } free_dims;
       } parameter;
     } alt;
     char *name_to_swap;

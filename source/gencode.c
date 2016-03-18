@@ -704,6 +704,16 @@ void acr_generate_code(const char* filename) {
             node,
             scop);
         while(acr_simplify_compute_node(node));
+
+        dimensions_upper_lower_bounds_all_statements *bounds_all =
+          acr_osl_get_upper_lower_bound_all(scop->statement);
+        if(!acr_osl_find_and_verify_free_dims_position(node, scop, bounds_all)){
+          acr_osl_free_dimension_upper_lower_bounds_all(bounds_all);
+          osl_scop_free(scop);
+          continue;
+        }
+        acr_osl_free_dimension_upper_lower_bounds_all(bounds_all);
+
         char *buffer;
         size_t size_buffer;
         FILE* temp_buffer = open_memstream(&buffer, &size_buffer);
@@ -720,7 +730,7 @@ void acr_generate_code(const char* filename) {
 
         acr_print_scop_in_file(temp_buffer, scop_prefix, scop);
 
-        if (! acr_print_node_initialization(current_file, temp_buffer, node,
+        if (!acr_print_node_initialization(current_file, temp_buffer, node,
             kernel_start, kernel_end)) {
           fclose(temp_buffer);
           free(buffer);
