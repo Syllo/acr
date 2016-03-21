@@ -256,6 +256,7 @@ static bool acr_array_dim_get_identifier(const acr_array_dimension dim,
       return false;
       break;
   }
+  *identifier = NULL;
   return false;
 }
 
@@ -379,6 +380,9 @@ static bool acr_osl_update_mul(
             plus,
             param);
       break;
+    default:
+      left_up = false;
+      break;
   }
 
   switch (right_hand_side->type) {
@@ -402,6 +406,9 @@ static bool acr_osl_update_mul(
           parameters,
           plus,
           param);
+      break;
+    default:
+      right_up = false;
       break;
   }
   return right_up && left_up;
@@ -444,6 +451,9 @@ static bool acr_osl_update_plus_minus(
           NULL);
       break;
     case acr_array_dim_div:
+      left_up = false;
+      break;
+    default:
       left_up = false;
       break;
   }
@@ -500,6 +510,9 @@ static bool acr_osl_update_plus_minus(
       }
       break;
     case acr_array_dim_div:
+      right_up = false;
+      break;
+    default:
       right_up = false;
       break;
   }
@@ -1060,25 +1073,25 @@ struct acr_get_min_max {
 };
 
 #ifdef ACR_DEBUG
-static void pprint_isl_set(isl_set *set, const char* print) {
-  fprintf(stderr, "PPRINT SET %s\n", print);
-  isl_ctx *ctx = isl_set_get_ctx(set);
-  isl_printer *splinter = isl_printer_to_file(ctx, stderr);
-  isl_printer_print_set(splinter, set);
-  isl_printer_flush(splinter);
-  isl_printer_free(splinter);
-  fprintf(stderr, "\nEND PPRINT SET %s\n", print);
-}
+/*static void pprint_isl_set(isl_set *set, const char* print) {*/
+  /*fprintf(stderr, "PPRINT SET %s\n", print);*/
+  /*isl_ctx *ctx = isl_set_get_ctx(set);*/
+  /*isl_printer *splinter = isl_printer_to_file(ctx, stderr);*/
+  /*isl_printer_print_set(splinter, set);*/
+  /*isl_printer_flush(splinter);*/
+  /*isl_printer_free(splinter);*/
+  /*fprintf(stderr, "\nEND PPRINT SET %s\n", print);*/
+/*}*/
 
-static void pprint_isl_constraint(isl_constraint *co, const char* print) {
-  fprintf(stderr, "PPRINT CONSTRAINT %s\n", print);
-  isl_ctx *ctx = isl_constraint_get_ctx(co);
-  isl_printer *splinter = isl_printer_to_file(ctx, stderr);
-  isl_printer_print_constraint(splinter, co);
-  isl_printer_flush(splinter);
-  isl_printer_free(splinter);
-  fprintf(stderr, "\nEND PPRINT CONSTRAINT %s\n", print);
-}
+/*static void pprint_isl_constraint(isl_constraint *co, const char* print) {*/
+  /*fprintf(stderr, "PPRINT CONSTRAINT %s\n", print);*/
+  /*isl_ctx *ctx = isl_constraint_get_ctx(co);*/
+  /*isl_printer *splinter = isl_printer_to_file(ctx, stderr);*/
+  /*isl_printer_print_constraint(splinter, co);*/
+  /*isl_printer_flush(splinter);*/
+  /*isl_printer_free(splinter);*/
+  /*fprintf(stderr, "\nEND PPRINT CONSTRAINT %s\n", print);*/
+/*}*/
 #endif
 
 static isl_stat _acr_get_min_max_in_constraint(isl_constraint *co, void* user) {
@@ -1433,7 +1446,7 @@ bool acr_osl_find_and_verify_free_dims_position(
     dimensions_upper_lower_bounds_all_statements *bounds_all) {
   osl_strings_p pragma_alternative_parameters = osl_strings_malloc();
   size_t string_size = 0;
-  osl_strings_p pragma_monitor_iterators;
+  osl_strings_p pragma_monitor_iterators = NULL;
   acr_option_list opt_list = acr_compute_node_get_option_list(node);
   unsigned long list_size = acr_compute_node_get_option_list_size(node);
   for (unsigned long i = 0; i < list_size; ++i) {

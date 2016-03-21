@@ -400,7 +400,7 @@ static bool acr_strategy_first_included_in_second(const acr_option strategy1,
                 else {
                   acr_strategy_get_float_val(strategy1, val_float1);
                   acr_strategy_get_float_val(strategy2, val_float2);
-                  return val_float1[0] == val_int2[0];
+                  return val_float1[0] == val_float2[0];
                 }
               }
             }

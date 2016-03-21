@@ -177,8 +177,6 @@ void pprint_acr_monitor(FILE* out, acr_option monitor, size_t indent_level) {
 void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level) {
   long int strategy_val_integer[2];
   float strategy_val_floating_point[2];
-  acr_strategy_get_int_val(strategy, strategy_val_integer);
-  acr_strategy_get_float_val(strategy, strategy_val_floating_point);
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| STRATEGY\n");
   pprint_acr_indent(out, indent_level + 1);
@@ -193,9 +191,11 @@ void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level) {
           acr_strategy_get_name(strategy));
       switch (acr_strategy_get_value_type(strategy)) {
         case acr_strategy_integer:
+          acr_strategy_get_int_val(strategy, strategy_val_integer);
           fprintf(out, "%ld\n", strategy_val_integer[0]);
           break;
         case acr_strategy_floating_point:
+          acr_strategy_get_float_val(strategy, strategy_val_floating_point);
           fprintf(out, "%f\n", strategy_val_floating_point[0]);
           break;
       }
@@ -206,15 +206,14 @@ void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level) {
       pprint_acr_indent(out, indent_level + 2);
       fprintf(out, "| %s <- ",
           acr_strategy_get_name(strategy));
-      switch (acr_strategy_get_value_type(strategy)) {
-        case acr_strategy_integer:
+      if (acr_strategy_get_value_type(strategy) == acr_strategy_integer) {
+          acr_strategy_get_int_val(strategy, strategy_val_integer);
           fprintf(out, "[%ld , %ld]\n", strategy_val_integer[0],
               strategy_val_integer[1]);
-          break;
-        case acr_strategy_floating_point:
+      } else {
+          acr_strategy_get_float_val(strategy, strategy_val_floating_point);
           fprintf(out, "[%f , %f]\n", strategy_val_floating_point[0],
               strategy_val_floating_point[1]);
-          break;
       }
       break;
     case acr_strategy_unknown:
