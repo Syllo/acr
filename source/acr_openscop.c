@@ -679,6 +679,9 @@ static void acr_openscop_scan_min_max_op(
   }
   fprintf(tempbuffer, ";");
 #else
+  (void) filter_function;
+  (void) data_location_prefix;
+  (void) max;
   fprintf(tempbuffer, "fprintf(stderr, \"compare ");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "%%d ");
@@ -773,6 +776,8 @@ static void acr_openscop_scan_init(
   }
   fprintf(tempbuffer, ";");
 #else
+  (void) filter_function;
+  (void) data_location_prefix;
   fprintf(tempbuffer, "fprintf(stderr, \"Scan init ");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "%%d ");
@@ -865,6 +870,7 @@ static void acr_openscop_scan_avg_add(
   }
   fprintf(tempbuffer, ";");
 #else
+  (void) filter_function;
   fprintf(tempbuffer, "fprintf(stderr, \"Avg add ");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "%%d ");
@@ -939,6 +945,7 @@ static void acr_openscop_scan_avg_div(
   }
   fprintf(tempbuffer, " = temp_avg / num_value;");
 #else
+  (void) data_location_prefix;
   fprintf(tempbuffer, "fprintf(stderr, \"Avg div ");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "%%d ");
@@ -1081,58 +1088,44 @@ static isl_stat _acr_get_min_max_in_constraint(isl_constraint *co, void* user) {
   if (isl_constraint_involves_dims(co, isl_dim_set, 0, 1)) {
     isl_bool lower_bound = isl_constraint_is_lower_bound(co, isl_dim_set, 0);
 #ifdef ACR_DEBUG
-    if (lower_bound == isl_bool_true) {
-      pprint_isl_constraint(co, "LOWER");
-    } else {
-        if (lower_bound == isl_bool_false) {
-          pprint_isl_constraint(co, "UPPPER");
-        } else {
-          fprintf(stderr, "ERROR\n");
-        }
-    }
+    /*if (lower_bound == isl_bool_true) {*/
+      /*pprint_isl_constraint(co, "LOWER");*/
+    /*} else {*/
+        /*if (lower_bound == isl_bool_false) {*/
+          /*pprint_isl_constraint(co, "UPPPER");*/
+        /*} else {*/
+          /*fprintf(stderr, "ERROR\n");*/
+        /*}*/
+    /*}*/
 #endif
     for (unsigned long i = 0; i < bounds->num_parameters; ++i) {
       isl_val *dim_val =
         isl_constraint_get_coefficient_val(co, isl_dim_param, i);
-      long dim_val_long =
-        isl_val_get_num_si(dim_val) / isl_val_get_den_si(dim_val);
       if (lower_bound == isl_bool_true) {
-        bounds->lower_bound[dimension][i] = dim_val_long;
+        if (isl_val_is_zero(dim_val) == isl_bool_false) {
+          bounds->lower_bound[dimension][i] = true;
+#ifdef ACR_DEBUG
+          fprintf(stderr, "Dimension %lu depend on parameter %lu\n",
+              dimension, i);
+#endif
+        }
       } else {
         if (lower_bound == isl_bool_false) {
-          bounds->upper_bound[dimension][i] = dim_val_long;
+          if (isl_val_is_zero(dim_val) == isl_bool_false) {
+            bounds->upper_bound[dimension][i] = true;
+#ifdef ACR_DEBUG
+            fprintf(stderr, "Dimension %lu depend on parameter %lu\n",
+                dimension, i);
+#endif
+          }
         } else {
           isl_val_free(dim_val);
           isl_constraint_free(co);
           return isl_stat_error;
         }
       }
-#ifdef ACR_DEBUG
-      fprintf(stderr, "Dimension %lu PARAMETER %lu val %ld\n",
-          dimension, i, dim_val_long);
-#endif
       isl_val_free(dim_val);
     }
-    isl_val *cst_val =
-      isl_constraint_get_constant_val(co);
-    long cst_val_long =
-      isl_val_get_num_si(cst_val) / isl_val_get_den_si(cst_val);
-    if (lower_bound == isl_bool_true) {
-      bounds->lower_bound[dimension][bounds->num_parameters] = cst_val_long;
-    } else {
-      if (lower_bound == isl_bool_false) {
-        bounds->upper_bound[dimension][bounds->num_parameters] = cst_val_long;
-      } else {
-        isl_val_free(cst_val);
-        isl_constraint_free(co);
-        return isl_stat_error;
-      }
-    }
-#ifdef ACR_DEBUG
-    fprintf(stderr, "Dimension %lu CONSTANT %ld\n",
-        dimension, cst_val_long);
-#endif
-    isl_val_free(cst_val);
   }
 
   isl_constraint_free(co);
@@ -1142,6 +1135,39 @@ static isl_stat _acr_get_min_max_in_constraint(isl_constraint *co, void* user) {
 static isl_stat _acr_get_min_max_in_bset(isl_basic_set *bs, void* user) {
   isl_stat stat =
     isl_basic_set_foreach_constraint(bs, _acr_get_min_max_in_constraint, user);
+  isl_basic_set_free(bs);
+  return stat;
+}
+static isl_stat _acr_get_dimensions_dep_constraint(
+    isl_constraint *co, void* user) {
+  dimensions_upper_lower_bounds *bounds = (dimensions_upper_lower_bounds*) user;
+  for (unsigned long dim = 1; dim < bounds->num_dimensions; ++dim) {
+    for (unsigned long previous_dims = 0; previous_dims < dim; ++previous_dims){
+      if (isl_constraint_involves_dims(co, isl_dim_set, dim, 1) &&
+          isl_constraint_involves_dims(co, isl_dim_set, previous_dims, 1)) {
+        bounds->has_constraint_with_previous_dim[dim][previous_dims] = true;
+        if (previous_dims != 0) {
+          for (unsigned long i = 0; i < previous_dims-1; ++i) {
+            bounds->has_constraint_with_previous_dim[dim][i] =
+              bounds->has_constraint_with_previous_dim[dim][i] ||
+              bounds->has_constraint_with_previous_dim[previous_dims][i];
+          }
+        }
+#ifdef ACR_DEBUG
+        fprintf(stderr, "Dimension %lu has constraint with dim %lu\n",
+            dim, previous_dims);
+#endif
+      }
+    }
+  }
+  isl_constraint_free(co);
+  return isl_stat_ok;
+}
+
+static isl_stat _acr_get_dimensions_dep_set(isl_basic_set *bs, void* user) {
+  isl_stat stat =
+    isl_basic_set_foreach_constraint(bs,
+        _acr_get_dimensions_dep_constraint, user);
   isl_basic_set_free(bs);
   return stat;
 }
@@ -1160,19 +1186,35 @@ dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
     malloc(bounds->num_dimensions * sizeof(*bounds->upper_bound));
   bounds->lower_bound =
     malloc(bounds->num_dimensions * sizeof(*bounds->lower_bound));
-  bounds->free_dims_position = NULL;
-  bounds->num_free_dims = 0ul;
+  bounds->dimensions_type =
+    malloc(bounds->num_dimensions * sizeof(*bounds->dimensions_type));
+  bounds->has_constraint_with_previous_dim =
+    malloc(bounds->num_dimensions *
+        sizeof(*bounds->has_constraint_with_previous_dim));
   for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
     bounds->lower_bound[i] =
-      calloc((bounds->num_parameters+1), sizeof(**bounds->lower_bound));
+      malloc((bounds->num_parameters) * sizeof(**bounds->lower_bound));
     bounds->upper_bound[i] =
-      calloc((bounds->num_parameters+1), sizeof(**bounds->upper_bound));
+      malloc((bounds->num_parameters) * sizeof(**bounds->upper_bound));
+    for (unsigned long j = 0 ; j <bounds->num_parameters; ++j) {
+      bounds->lower_bound[i][j] = false;
+      bounds->upper_bound[i][j] = false;
+    }
+    if (i == 0) {
+      bounds->has_constraint_with_previous_dim[i] = NULL;
+    } else {
+      bounds->has_constraint_with_previous_dim[i] =
+        malloc(i * sizeof(**bounds->has_constraint_with_previous_dim));
+      for (unsigned long j = 0 ; j < i; ++j) {
+        bounds->has_constraint_with_previous_dim[i][j] = false;
+      }
+    }
   }
 
   for (unsigned long dim = 0; dim < bounds->num_dimensions; ++dim) {
     isl_set *project_domain = isl_set_copy(domain);
 #ifdef ACR_DEBUG
-    pprint_isl_set(project_domain, "BEFOR PROJECT");
+    /*pprint_isl_set(project_domain, "BEFOR PROJECT");*/
 #endif
     if (dim+1 < bounds->num_dimensions)
       project_domain = isl_set_project_out(project_domain, isl_dim_set,
@@ -1181,7 +1223,15 @@ dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
       project_domain = isl_set_project_out(project_domain, isl_dim_set,
           0ul, dim);
 #ifdef ACR_DEBUG
-    pprint_isl_set(project_domain, "AFTER PROJECT");
+    /*pprint_isl_set(project_domain, "AFTER PROJECT");*/
+    /*isl_set *project_domainlexmin = isl_set_copy(domain);*/
+    /*project_domainlexmin = isl_set_lexmin(project_domainlexmin);*/
+    /*pprint_isl_set(project_domainlexmin, "AFTER LEXMIN");*/
+    /*isl_set *project_domainlexmax = isl_set_copy(domain);*/
+    /*project_domainlexmax = isl_set_lexmax(project_domainlexmax);*/
+    /*pprint_isl_set(project_domainlexmax, "AFTER LEXMAX");*/
+    /*isl_set_free(project_domainlexmax);*/
+    /*isl_set_free(project_domainlexmin);*/
 #endif
     struct acr_get_min_max wrapper =
         { .current_dimension = dim, .bounds = bounds};
@@ -1189,6 +1239,8 @@ dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
         _acr_get_min_max_in_bset, (void*) &wrapper);
     isl_set_free(project_domain);
   }
+  isl_set_foreach_basic_set(domain,
+      _acr_get_dimensions_dep_set, (void*) bounds);
   isl_set_free(domain);
   isl_ctx_free(ctx);
   return bounds;
@@ -1222,11 +1274,12 @@ void acr_osl_free_dimension_upper_lower_bounds(
   for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
     free(bounds->lower_bound[i]);
     free(bounds->upper_bound[i]);
+    free(bounds->has_constraint_with_previous_dim[i]);
   }
-  if (bounds->free_dims_position)
-    free(bounds->free_dims_position);
+  free(bounds->dimensions_type);
   free(bounds->upper_bound);
   free(bounds->lower_bound);
+  free(bounds->has_constraint_with_previous_dim);
   free(bounds);
 }
 
@@ -1239,81 +1292,138 @@ void acr_osl_free_dimension_upper_lower_bounds_all(
   free(bounds_all);
 }
 
-bool _acr_osl_test_and_set_free_dims(
+bool acr_osl_dim_has_constraints_with_dim(
+    unsigned long dim1,
+    unsigned long dim2,
+    const dimensions_upper_lower_bounds *bounds) {
+  if (dim1 > dim2) {
+    unsigned long tempdim = dim1;
+    dim1 = dim2;
+    dim2 = tempdim;
+  }
+  if (dim2 >= bounds->num_dimensions) {
+    return false;
+  }
+  if (dim1 == dim2)
+    return true;
+  else
+    return bounds->has_constraint_with_previous_dim[dim2][dim1];
+}
+
+bool acr_osl_dim_has_constraints_with_previous_dims(
+    unsigned long dim1,
+    const dimensions_upper_lower_bounds *bounds) {
+  if (dim1 >= bounds->num_dimensions)
+    return false;
+  bool has_anything_to_do_with_other = false;
+  for (unsigned long i = 0; !has_anything_to_do_with_other && i < dim1; ++i) {
+    has_anything_to_do_with_other =
+      bounds->has_constraint_with_previous_dim[dim1][i];
+  }
+  return has_anything_to_do_with_other;
+}
+
+static bool _acr_osl_test_and_set_dims_type(
     const osl_statement_p statement,
-    const osl_strings_p non_free_iterators_name,
-    const osl_strings_p non_free_forbidden_parameters,
+    const osl_strings_p monitor_parameters_name,
+    const osl_strings_p alternative_parameters,
     const osl_strings_p context_parameters,
     dimensions_upper_lower_bounds *bounds) {
 
-  unsigned long size_nf_iter = osl_strings_size(non_free_iterators_name);
-  unsigned long size_nf_param = osl_strings_size(non_free_forbidden_parameters);
-  unsigned long size_con_param = osl_strings_size(context_parameters);
+  unsigned long num_monitor_dim = osl_strings_size(monitor_parameters_name);
+  unsigned long num_alt_param = osl_strings_size(alternative_parameters);
   osl_body_p body = osl_generic_lookup(statement->extension, OSL_URI_BODY);
   char **iterators = body->iterators->string;
   unsigned long num_iterators = osl_strings_size(body->iterators);
-  bool *is_free = malloc(num_iterators * sizeof(*is_free));
-  unsigned long num_free_folks =0ul;
 
   fprintf(stderr, "Real iterators\n");
   osl_strings_print(stderr, body->iterators);
 
+  char **alt_params = alternative_parameters->string;
   for (unsigned long i = 0; i < num_iterators; ++i) {
-    if (osl_strings_find(non_free_iterators_name,iterators[i]) < size_nf_iter){
-      char **forbidden_params = non_free_forbidden_parameters->string;
-      bool is_really_not_free = true;
-      unsigned long forbidden_param_pos;
-      for (unsigned int j = 0; is_really_not_free && j < size_nf_param; ++j) {
-        unsigned long pos_in_context = osl_strings_find(context_parameters,
-            forbidden_params[j]);
-        if (pos_in_context == size_con_param) {
-          fprintf(stderr,
-              "[ACR] error: Parameter %s is used in alternative but is not"
-              " present in context\n", forbidden_params[j]);
-          free(is_free);
-          return false;
-        } else {
-          if (bounds->lower_bound[i][pos_in_context] != 0 ||
-              bounds->upper_bound[i][pos_in_context] != 0) {
-            is_really_not_free = false;
-            forbidden_param_pos = j;
+    if (osl_strings_find(monitor_parameters_name,iterators[i])<num_monitor_dim){
+      if (i > 0) {
+        for (unsigned long j = 0; j < i ; ++j) {
+          if (bounds->has_constraint_with_previous_dim[i][j] &&
+              bounds->dimensions_type[j] == acr_dimension_type_bound_to_alternative) {
+            fprintf(stderr,
+                "[ACR] error: Dimension described by iterator %s depends on"
+                " dimension represented by iterator %s.\n"
+                "             This dimension is bounded by an alternative"
+                " parameter and can not be used to represent the monitoring domain.\n"
+                , iterators[i], iterators[j]);
+            return false;
           }
         }
       }
-      if (is_really_not_free) {
-        fprintf(stderr, "%s is not free\n", iterators[i]);
-        is_free[i] = false;
-        num_free_folks += 1;
-      } else {
-        fprintf(stderr,
-            "[ACR] error: It appears that the iterator %s used by the"
-            " monitoring function\n"
-            "             can be tampered by the %s parameter alternative.\n"
-            "             This case is forbidden.\n",
-            iterators[i], forbidden_params[forbidden_param_pos]);
-        free(is_free);
-        return false;
+      for (unsigned long j = 0; j < num_alt_param; ++j) {
+        unsigned long param_pos =
+          osl_strings_find(context_parameters, alt_params[j]);
+        if (bounds->upper_bound[i][param_pos] == true ||
+            bounds->lower_bound[i][param_pos] == true) {
+          fprintf(stderr,
+              "[ACR] error: Dimension described by iterator %s depends on"
+              " parameter %s.\n  "
+              "           The same parameter is used in alternative parameter\n"
+              "             construct and can not also be used to represent the"
+              " monitoring domain.\n"
+              , iterators[i], alt_params[j]);
+          return false;
+        }
       }
-    } else {
-      fprintf(stderr, "%s is free\n", iterators[i]);
-      is_free[i] = true;
+      bounds->dimensions_type[i] = acr_dimension_type_bound_to_monitor;
+#ifdef ACR_DEBUG
+      fprintf(stderr, "Dim %s is bound to monitor\n", iterators[i]);
+#endif
+    } else { // not monitoring
+      bool has_alt_param = false;
+      for (unsigned long j = 0; !has_alt_param && j < num_alt_param; ++j) {
+        unsigned long param_pos =
+          osl_strings_find(context_parameters, alt_params[j]);
+        if (bounds->upper_bound[i][param_pos] == true ||
+            bounds->lower_bound[i][param_pos] == true) {
+          bounds->dimensions_type[i] = acr_dimension_type_bound_to_alternative;
+          has_alt_param = true;
+#ifdef ACR_DEBUG
+          fprintf(stderr, "Dim %s is bound to alternative\n", iterators[i]);
+#endif
+        }
+      }
+      if (!has_alt_param) {
+        if (i > 0) {
+          bool has_constraint = false;
+          for (unsigned long j = 0; !has_constraint && j < i ; ++j) {
+            if (bounds->has_constraint_with_previous_dim[i][j]) {
+              switch (bounds->dimensions_type[j]) {
+                case acr_dimension_type_bound_to_alternative:
+                  bounds->dimensions_type[i] = bounds->dimensions_type[j];
+                  has_constraint = true;
+#ifdef ACR_DEBUG
+                  fprintf(stderr, "Dim %s is bound to alternative\n",
+                      iterators[i]);
+#endif
+                  break;
+                case acr_dimension_type_bound_to_monitor:
+                case acr_dimension_type_free_dim:
+                  break;
+              }
+            }
+          }
+          if (!has_constraint) {
+            bounds->dimensions_type[i] = acr_dimension_type_free_dim;
+#ifdef ACR_DEBUG
+            fprintf(stderr, "Dim %s is free\n", iterators[i]);
+#endif
+          }
+        } else {
+          bounds->dimensions_type[i] = acr_dimension_type_free_dim;
+#ifdef ACR_DEBUG
+          fprintf(stderr, "Dim %s is free\n", iterators[i]);
+#endif
+        }
+      }
     }
   }
-
-  if (num_free_folks > 0) {
-    bounds->num_free_dims = num_free_folks;
-    bounds->free_dims_position =
-      malloc(num_free_folks * sizeof(*bounds->free_dims_position));
-    num_free_folks = 0;
-    for (unsigned int i = 0; i < bounds->num_free_dims; ++i) {
-      if (is_free[i]) {
-        bounds->free_dims_position[num_free_folks] = i;
-        num_free_folks += 1;
-      }
-    }
-  }
-
-  free(is_free);
   return true;
 }
 
@@ -1356,15 +1466,17 @@ bool acr_osl_find_and_verify_free_dims_position(
   }
   fprintf(stderr, "Iterators\n");
   osl_strings_print(stderr, pragma_monitor_iterators);
-  fprintf(stderr, "Parameters\n");
+  fprintf(stderr, "Alternative Parameters\n");
   osl_strings_print(stderr, pragma_alternative_parameters);
 
   osl_statement_p current_statement = scop->statement;
   bool valid = true;
   osl_strings_p context_parameters =
     osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
+  fprintf(stderr, "Context Parameters\n");
+  osl_strings_print(stderr, context_parameters);
   for (unsigned long i = 0; valid && i < bounds_all->num_statements; ++i) {
-    valid = _acr_osl_test_and_set_free_dims(
+    valid = _acr_osl_test_and_set_dims_type(
         current_statement,
         pragma_monitor_iterators,
         pragma_alternative_parameters,

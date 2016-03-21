@@ -18,7 +18,7 @@ int kernel1() {
 
   while (1) {
 #pragma acr grid(4)
-#pragma acr monitor(int temporary_array[MAX1][MAX2], avg, solve_to_char)
+#pragma acr monitor(int temporary_array[i][j], avg, solve_to_char)
 #pragma acr alternative \
     low(parameter, N = 1)
 #pragma acr alternative medium(parameter, N = 2)
@@ -31,8 +31,9 @@ int kernel1() {
 #pragma acr strategy direct(254, medium)
     for (int k=0; k < N; ++k)
       for (int i=0; i < MAX1; ++i)
-        for (int j=0; j < MAX2+MAX1*3; ++j)
-          lin_solve_computation(k,i,j);
+        for (int p=0; p < MAX1; ++p)
+          for (int j=p; j < MAX2; ++j)
+            lin_solve_computation(k,i,j);
   }
 #pragma acr destroy
 }
@@ -45,23 +46,23 @@ int kernel2() {
   float* pedro_addr = &pedro;
 
   while (1) {
-#pragma acr monitor(int temporary_array_bis[MAX1-5][MAX2+MAX1][MAX3+5-MAX1], min)
+#pragma acr monitor(int temporary_array_bis[l][m][n], min)
 #pragma acr grid (6)
 #pragma acr alternative low(parameter, N = 1)
 #pragma acr alternative medium(parameter, N = 2)
 #pragma acr alternative high(parameter, N = 3)
-#pragma acr strategy direct(1, low)
-#pragma acr strategy direct(2, medium)
-#pragma acr strategy range(0, 5, medium)
+#pragma acr strategy direct(0, low)
+#pragma acr strategy range(1, 2, medium)
 #pragma acr strategy direct(3, high)
-    for (int n=0; n < N; ++n)
-      for (int l=0; l < MAX1-5; ++l)
+    for (int a=0; a < N; ++a)
+      for (int l=0; l < MAX1-5; ++l) {
+        *pedro_addr += 3;
         for (int m=0; m < MAX2+MAX1; ++m) {
           for (int n=0; n < MAX3+5-MAX1; ++n) {
             lin_solve_computation2(pedro, l, m, n);
-            *pedro_addr += 3;
           }
         }
+      }
   }
 #pragma acr destroy
 }
@@ -87,9 +88,22 @@ int main() {
     }
   }
   a_monitoring_function();
-  acr_isl_set_from_monitor((unsigned char*) a_monitor_result,
-      3, 2, 2, (size_t[]){ [0] = MAX1, [1] = MAX2 }, (MAX1/4+1)*(MAX2/4+1), 4, a_get_alternative_from_val);
-  a_monitoring_function();
+
+  float pedro = 3.14f;
+  a();
+  CloogNamedDomainList *domain = a_runtime_data.cloog_input->ud->domain;
+  while(domain) {
+    cloog_domain_print_structure(stderr, domain->domain, 0, "A");
+    domain = domain->next;
+  }
+  free_acr_runtime_data(&a_runtime_data);
+  b(pedro, &pedro);
+  domain = b_runtime_data.cloog_input->ud->domain;
+  while(domain) {
+    cloog_domain_print_structure(stderr, domain->domain, 0, "B");
+    domain = domain->next;
+  }
   b_monitoring_function();
+  free_acr_runtime_data(&b_runtime_data);
   return 0;
 }

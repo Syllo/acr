@@ -23,13 +23,19 @@
 
 #include <osl/scop.h>
 
+enum acr_dimension_type {
+  acr_dimension_type_bound_to_alternative,
+  acr_dimension_type_bound_to_monitor,
+  acr_dimension_type_free_dim,
+};
+
 typedef struct dimensions_upper_lower_bounds {
   unsigned long num_dimensions;
   unsigned long num_parameters;
-  long **lower_bound;
-  long **upper_bound;
-  unsigned long num_free_dims;
-  unsigned long *free_dims_position;
+  bool **lower_bound;
+  bool **upper_bound;
+  enum acr_dimension_type *dimensions_type;
+  bool **has_constraint_with_previous_dim;
 } dimensions_upper_lower_bounds;
 
 typedef struct dimensions_upper_lower_bounds_all_statements {
@@ -83,5 +89,14 @@ bool acr_osl_find_and_verify_free_dims_position(
     const acr_compute_node node,
     const osl_scop_p scop,
     dimensions_upper_lower_bounds_all_statements *bounds_all);
+
+bool acr_osl_dim_has_constraints_with_dim(
+    unsigned long dim1,
+    unsigned long dim2,
+    const dimensions_upper_lower_bounds *bounds);
+
+bool acr_osl_dim_has_constraints_with_previous_dims(
+    unsigned long dim1,
+    const dimensions_upper_lower_bounds *bounds);
 
 #endif // __ACR_OPENSCOP_H
