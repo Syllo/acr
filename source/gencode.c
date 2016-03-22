@@ -404,13 +404,16 @@ void acr_print_isl_lex_min_max_bound(FILE *out,
   unsigned long num_dim = isl_set_n_dim(set);
   unsigned long num_param = isl_set_n_param(set);
   isl_set *only_dim_wanted = isl_set_copy(set);
+  fprintf(stderr, "AVANT\n");
+  isl_set_print_internal(only_dim_wanted, stderr, 0);
   if (dim_to_print+1 < num_dim)
     only_dim_wanted = isl_set_project_out(only_dim_wanted, isl_dim_set,
         dim_to_print+1, num_dim - dim_to_print - 1);
   if (dim_to_print != 0)
     only_dim_wanted = isl_set_project_out(only_dim_wanted, isl_dim_set,
         0ul, dim_to_print);
-  fprintf(stderr, "ICI\n");
+  /*only_dim_wanted = isl_set_coalesce(only_dim_wanted);*/
+  fprintf(stderr, "APRES\n");
   isl_set_print_internal(only_dim_wanted, stderr, 0);
   isl_basic_set_list *bset_list = isl_set_get_basic_set_list(only_dim_wanted);
   int num_basic_set = isl_basic_set_list_n_basic_set(bset_list);
@@ -426,18 +429,29 @@ void acr_print_isl_lex_min_max_bound(FILE *out,
     for (int j = 0; j < num_constraints; ++j) {
       isl_constraint *co = isl_constraint_list_get_constraint(clist, j);
       if (isl_constraint_involves_dims(co, isl_dim_set, 0, 1)) {
+        isl_val *dim_val =
+          isl_constraint_get_constant_val(co);
+        dim_val = isl_val_neg(dim_val);
+        dim_val = isl_val_add_ui(dim_val, 1ul);
+        isl_printer_print_val(printer, dim_val);
+        isl_printer_flush(printer);
+        isl_val_free(dim_val);
         for (unsigned long k = 0; k < num_param; ++k) {
           if (isl_constraint_involves_dims(co, isl_dim_param, k, 1)) {
-            fprintf(out, "%s*", parameters->string[j]);
-            isl_val *dim_val =
-              isl_constraint_get_coefficient_val(co, isl_dim_param, i);
+            fprintf(out, " + %s*", parameters->string[j]);
+            dim_val =
+              isl_constraint_get_coefficient_val(co, isl_dim_param, k);
+            dim_val = isl_val_neg(dim_val);
             isl_printer_print_val(printer, dim_val);
             isl_printer_flush(printer);
+            isl_val_free(dim_val);
           }
         }
       }
     }
-    fprintf(out, ", ");
+    if (remaining_basic_set > 1) {
+      fprintf(out, ", ");
+    }
   }
   remaining_basic_set = num_basic_set;
   for (int i = 0; i < num_basic_set; ++i, --remaining_basic_set) {
@@ -445,6 +459,7 @@ void acr_print_isl_lex_min_max_bound(FILE *out,
       fprintf(out, ")");
     }
   }
+  isl_printer_free(printer);
 }
 
 static void acr_print_monitor_max_dims(FILE *out,
@@ -459,11 +474,17 @@ static void acr_print_monitor_max_dims(FILE *out,
   osl_strings_p parameters = osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
   fprintf(out, "#define min(a,b) (((a)>(b))?(b):(a))\n");
   fprintf(out, "#define max(a,b) (((a)>(b))?(a):(b))\n");
+
+  unsigned long current_dim = 0;
   for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
-    fprintf(out, "%s_runtime_data.monitor_dimensions[%lu] = ", prefix, i);
-    acr_print_isl_lex_min_max_bound(out,
-        true, bounds->bound_lexmax, i, parameters);
-    fprintf(out, ";\n");
+    if (bounds->dimensions_type[i] == acr_dimension_type_bound_to_monitor) {
+      fprintf(stderr, "Printing dim %lu\n", current_dim);
+      fprintf(out, "%s_runtime_data.monitor_dimensions[%lu] = ",
+          prefix, current_dim++);
+      acr_print_isl_lex_min_max_bound(out,
+          true, bounds->bound_lexmax, i, parameters);
+      fprintf(out, ";\n");
+    }
   }
 }
 
@@ -762,7 +783,7 @@ void acr_generate_code(const char* filename) {
             current_file, temp_buffer, position_in_input,
             acr_position_of_init_in_node(node), all_options);
 
-        acr_print_scop_in_file(new_file, scop_prefix, scop);
+        acr_print_scop_in_file(temp_buffer, scop_prefix, scop);
 
         if (!acr_print_node_initialization(current_file, temp_buffer, node,
             kernel_start, kernel_end)) {
