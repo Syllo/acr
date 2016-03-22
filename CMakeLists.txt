@@ -118,7 +118,7 @@ set(CMAKE_C_FLAGS_RELEASE "${COMMON_C_FLAGS} -O3")
 set(CMAKE_C_FLAGS_DEBUG "${COMMON_C_FLAGS} -O0 -g")
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-  add_definitions()#-DACR_DEBUG)
+  add_definitions(-DACR_DEBUG)
 endif()
 
 # Use full RPATH on build tree
@@ -212,7 +212,7 @@ target_compile_definitions(acr_static
 
 add_executable(acr_exe ${ACR_EXECUTABLE_C_FILES})
 set_target_properties(acr_exe PROPERTIES OUTPUT_NAME "acr")
-target_link_libraries(acr_exe acr clan)
+target_link_libraries(acr_exe acr clan isl)
 target_compile_definitions(acr_exe
   PRIVATE
     _POSIX_C_SOURCE=200809L)

@@ -39,7 +39,8 @@ struct acr_runtime_data {
 void init_acr_runtime_data(
     struct acr_runtime_data* data,
     char *scop,
-    size_t scop_size);
+    size_t scop_size,
+    unsigned long num_monitor_dims);
 
 void free_acr_runtime_data(struct acr_runtime_data* data);
 

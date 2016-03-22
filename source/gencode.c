@@ -23,6 +23,8 @@
 
 #include <clan/scop.h>
 #include <cloog/cloog.h>
+#include <isl/constraint.h>
+#include <isl/printer.h>
 #include <osl/extensions/coordinates.h>
 #include <osl/extensions/arrays.h>
 #include <osl/scop.h>
@@ -391,42 +393,87 @@ bool acr_print_acr_alternative_and_strategy_init(FILE* out,
   return true;
 }
 
-static void _acr_print_monitor_dimensions_static_init(FILE *out,
-    const acr_compute_node node, unsigned long grid_size) {
-  acr_option monitor =
-    acr_compute_node_get_option_of_type(acr_type_monitor, node, 1);
-  acr_array_declaration *array_decl =
-    acr_monitor_get_array_declaration(monitor);
-  unsigned long dim_list_size = acr_array_decl_get_num_dimensions(array_decl);
-  acr_array_dimensions_list dim_list =
-    acr_array_decl_get_dimensions_list(array_decl);
+void acr_print_isl_lex_min_max_bound(FILE *out,
+    bool upper_bound,
+    isl_set *set,
+    unsigned long dim_to_print,
+    const osl_strings_p parameters) {
+  const char max_char[] = "max";
+  const char min_char[] = "min";
+  const char *aggregator = upper_bound ? max_char : min_char;
+  unsigned long num_dim = isl_set_n_dim(set);
+  unsigned long num_param = isl_set_n_param(set);
+  isl_set *only_dim_wanted = isl_set_copy(set);
+  if (dim_to_print+1 < num_dim)
+    only_dim_wanted = isl_set_project_out(only_dim_wanted, isl_dim_set,
+        dim_to_print+1, num_dim - dim_to_print - 1);
+  if (dim_to_print != 0)
+    only_dim_wanted = isl_set_project_out(only_dim_wanted, isl_dim_set,
+        0ul, dim_to_print);
+  fprintf(stderr, "ICI\n");
+  isl_set_print_internal(only_dim_wanted, stderr, 0);
+  isl_basic_set_list *bset_list = isl_set_get_basic_set_list(only_dim_wanted);
+  int num_basic_set = isl_basic_set_list_n_basic_set(bset_list);
+  int remaining_basic_set = num_basic_set;
+  isl_printer *printer = isl_printer_to_file(isl_set_get_ctx(set), out);
+  for (int i = 0; i < num_basic_set; ++i, --remaining_basic_set) {
+    if (remaining_basic_set > 1) {
+      fprintf(out, "%s(", aggregator);
+    }
+    isl_basic_set *bset = isl_basic_set_list_get_basic_set(bset_list, i);
+    isl_constraint_list *clist = isl_basic_set_get_constraint_list(bset);
+    int num_constraints = isl_constraint_list_n_constraint(clist);
+    for (int j = 0; j < num_constraints; ++j) {
+      isl_constraint *co = isl_constraint_list_get_constraint(clist, j);
+      if (isl_constraint_involves_dims(co, isl_dim_set, 0, 1)) {
+        for (unsigned long k = 0; k < num_param; ++k) {
+          if (isl_constraint_involves_dims(co, isl_dim_param, k, 1)) {
+            fprintf(out, "%s*", parameters->string[j]);
+            isl_val *dim_val =
+              isl_constraint_get_coefficient_val(co, isl_dim_param, i);
+            isl_printer_print_val(printer, dim_val);
+            isl_printer_flush(printer);
+          }
+        }
+      }
+    }
+    fprintf(out, ", ");
+  }
+  remaining_basic_set = num_basic_set;
+  for (int i = 0; i < num_basic_set; ++i, --remaining_basic_set) {
+    if (remaining_basic_set > 1) {
+      fprintf(out, ")");
+    }
+  }
+}
 
-  fprintf(out,
-      ".num_dimensions = %luul, .monitor_dimensions = (size_t[%luul]) { ",
-      dim_list_size, dim_list_size);
-  for (unsigned long i = 0ul; i < dim_list_size; ++i) {
-    if (i != 0)
-      fprintf(out, ", ");
-    fprintf(out, "(");
-    print_acr_array_dimensions(out, dim_list[i], false);
-      fprintf(out, ")/%luul + 1ul", grid_size);
+static void acr_print_monitor_max_dims(FILE *out,
+    const char *prefix,
+    dimensions_upper_lower_bounds *bounds,
+    const osl_scop_p scop) {
+  unsigned long num_monitor_dims = 0;
+  for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
+    if (bounds->dimensions_type[i] == acr_dimension_type_bound_to_monitor)
+      num_monitor_dims++;
   }
-  fprintf(out, "} , .monitor_total_size = (");
-  for (unsigned long i = 0ul; i < dim_list_size; ++i) {
-    if (i != 0)
-      fprintf(out, " * ");
-    fprintf(out, "(");
-    print_acr_array_dimensions(out, dim_list[i], false);
-    fprintf(out, ")");
+  osl_strings_p parameters = osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
+  fprintf(out, "#define min(a,b) (((a)>(b))?(b):(a))\n");
+  fprintf(out, "#define max(a,b) (((a)>(b))?(a):(b))\n");
+  for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
+    fprintf(out, "%s_runtime_data.monitor_dimensions[%lu] = ", prefix, i);
+    acr_print_isl_lex_min_max_bound(out,
+        true, bounds->bound_lexmax, i, parameters);
+    fprintf(out, ";\n");
   }
-  fprintf(out, ")");
 }
 
 void acr_print_acr_runtime_init(FILE* out,
     const acr_compute_node node,
-    unsigned long num_parameters) {
+    unsigned long num_parameters,
+    dimensions_upper_lower_bounds *bounds,
+    const osl_scop_p scop) {
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
-  const char* fun_name = acr_init_get_function_name(init);
+  const char* prefix = acr_init_get_function_name(init);
   unsigned long num_alternatives = 0ul;
 
   unsigned long size_list = acr_compute_node_get_option_list_size(node);
@@ -437,32 +484,38 @@ void acr_print_acr_runtime_init(FILE* out,
       ++num_alternatives;
     }
   }
+  unsigned long num_monitor_dims = 0;
+  for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
+    if (bounds->dimensions_type[i] == acr_dimension_type_bound_to_monitor)
+      num_monitor_dims++;
+  }
 
   acr_option grid = acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
   fprintf(out, "static struct acr_runtime_data %s_runtime_data =\n"
       "    { .num_alternatives = %luul, "
       ".alternatives = %s_alternatives, "
       ".num_parameters = %luul, ",
-      fun_name, num_alternatives, fun_name, num_parameters);
-  _acr_print_monitor_dimensions_static_init(out, node,
-      acr_grid_get_grid_size(grid));
+      prefix, num_alternatives, prefix, num_parameters);
   fprintf(out, ", .grid_size = %luul };\n", acr_grid_get_grid_size(grid));
 
-  fprintf(out, "static void %s_acr_runtime_init", fun_name);
+  fprintf(out, "static void %s_acr_runtime_init", prefix);
   acr_print_parameters(out, init);
   fprintf(out, " {\n"
       "  init_acr_runtime_data(\n"
       "      &%s_runtime_data,\n"
       "      %s_acr_scop,\n"
-      "      %s_acr_scop_size);\n",
-      fun_name, fun_name, fun_name);
+      "      %s_acr_scop_size,\n"
+      "      %luul);\n",
+      prefix, prefix, prefix, num_monitor_dims);
   fprintf(out,
       "  acr_cloog_init_alternative_constraint_from_cloog_union_domain(\n"
-      "      &%s_runtime_data);\n", fun_name);
+      "      &%s_runtime_data);\n", prefix);
+
+  acr_print_monitor_max_dims(out, prefix, bounds, scop);
 
   // Call function and change pointer to initial function
   fprintf(out, "  %s = %s_acr_initial;\n",
-      fun_name, fun_name);
+      prefix, prefix);
   fprintf(out, "  ");
   acr_print_init_function_call(out, init);
   fprintf(out, "}\n\n");
@@ -558,7 +611,9 @@ void acr_print_destroy(FILE* output, const acr_compute_node node) {
 }
 
 bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
-    osl_scop_p scop) {
+    osl_scop_p scop,
+    const dimensions_upper_lower_bounds_all_statements *dims,
+    dimensions_upper_lower_bounds **bound_used) {
   osl_generic_remove(&scop->extension, OSL_URI_ARRAYS);
   acr_option monitor =
     acr_compute_node_get_option_of_type(acr_type_monitor, node, 1);
@@ -569,41 +624,21 @@ bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     fprintf(stderr, "No data to monitor\n");
     return false;
   }
-  osl_scop_p new_scop = acr_openscop_gen_monitor_loop(monitor, scop, grid_size);
+  const char *prefix = acr_get_scop_prefix(node);
+  osl_scop_p new_scop = acr_openscop_gen_monitor_loop(monitor, prefix, scop,
+      grid_size, dims, bound_used);
   if (new_scop == NULL) {
     fprintf(stderr, "It is not possible to find monitor data boundaries\n");
     return false;
   }
 
-  const char *prefix = acr_get_scop_prefix(node);
-  acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
-  fprintf(out, "static unsigned char");
-  fprintf(out, " %s_monitor_result", prefix);
-  unsigned long int num_dimensions = acr_array_decl_get_num_dimensions(decl);
-  acr_array_dimensions_list dimensions =
-    acr_array_decl_get_dimensions_list(decl);
-  for (unsigned long int i = 0; i < num_dimensions; ++i) {
-    fprintf(out, "[(");
-    print_acr_array_dimensions(out, dimensions[i], false);
-    fprintf(out, ") / %lu + 1]", grid_size);
-  }
-  fprintf(out, ";\n");
-
   fprintf(out, "void %s_monitoring_function(void) {\n", prefix);
-  const char* filter = acr_monitor_get_filter_name(monitor);
   switch (acr_monitor_get_function(monitor)) {
     case acr_monitor_function_min:
-      acr_openscop_set_tiled_to_do_min_max(
-          monitor, filter, grid_size, false, prefix, new_scop);
-      break;
     case acr_monitor_function_max:
-      acr_openscop_set_tiled_to_do_min_max(
-          monitor, filter, grid_size, true, prefix, new_scop);
       break;
     case acr_monitor_function_avg:
       fprintf(out, "size_t temp_avg, num_value;\n");
-      acr_openscop_set_tiled_to_do_avg(
-          monitor, filter, grid_size, prefix, new_scop);
       break;
     case acr_monitor_function_unknown:
       break;
@@ -712,7 +747,6 @@ void acr_generate_code(const char* filename) {
           osl_scop_free(scop);
           continue;
         }
-        acr_osl_free_dimension_upper_lower_bounds_all(bounds_all);
 
         char *buffer;
         size_t size_buffer;
@@ -728,7 +762,7 @@ void acr_generate_code(const char* filename) {
             current_file, temp_buffer, position_in_input,
             acr_position_of_init_in_node(node), all_options);
 
-        acr_print_scop_in_file(temp_buffer, scop_prefix, scop);
+        acr_print_scop_in_file(new_file, scop_prefix, scop);
 
         if (!acr_print_node_initialization(current_file, temp_buffer, node,
             kernel_start, kernel_end)) {
@@ -739,11 +773,15 @@ void acr_generate_code(const char* filename) {
           continue;
         }
 
-        if (!acr_print_scanning_function(temp_buffer, node, scop)) {
+
+        dimensions_upper_lower_bounds *bound_used;
+        if (!acr_print_scanning_function(temp_buffer, node, scop, bounds_all,
+              &bound_used)) {
           fclose(temp_buffer);
           free(buffer);
           position_in_input = scop_start_position;
           osl_scop_free(scop);
+          acr_osl_free_dimension_upper_lower_bounds_all(bounds_all);
           continue;
         }
         if(!acr_print_acr_alternative_and_strategy_init(temp_buffer, node, scop)) {
@@ -751,10 +789,11 @@ void acr_generate_code(const char* filename) {
           free(buffer);
           position_in_input = scop_start_position;
           osl_scop_free(scop);
+          acr_osl_free_dimension_upper_lower_bounds_all(bounds_all);
           continue;
         }
         acr_print_acr_runtime_init(temp_buffer, node,
-            scop->context->nb_parameters);
+            scop->context->nb_parameters, bound_used, scop);
 
         fseek(current_file, position_in_input, SEEK_SET);
         position_in_input = acr_copy_from_file_avoiding_pragmas(
@@ -781,6 +820,7 @@ void acr_generate_code(const char* filename) {
         fclose(temp_buffer);
         fprintf(new_file, "%s", buffer);
         free(buffer);
+        acr_osl_free_dimension_upper_lower_bounds_all(bounds_all);
       }
     }
     fseek(current_file, 0l, SEEK_END);

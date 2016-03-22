@@ -41,9 +41,13 @@ void free_acr_runtime_data(struct acr_runtime_data* data) {
 void init_acr_runtime_data(
     struct acr_runtime_data* data,
     char *scop,
-    size_t scop_size) {
+    size_t scop_size,
+    unsigned long num_monitor_dims) {
   data->osl_relation = acr_read_scop_from_buffer(scop, scop_size);
   data->state = cloog_state_malloc();
   data->cloog_input = cloog_input_from_osl_scop(data->state,
       data->osl_relation);
+  data->num_dimensions = num_monitor_dims;
+  data->monitor_dimensions =
+    malloc(data->num_dimensions * sizeof(*data->monitor_dimensions));
 }

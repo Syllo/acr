@@ -586,31 +586,6 @@ static bool acr_osl_update_upper_bound_from_dimension(
       true);
 }
 
-osl_relation_p acr_openscop_domain_from_monitor(
-    const acr_option monitor,
-    size_t num_dimensions,
-    size_t num_parameters,
-    const osl_strings_p parameters) {
-  osl_relation_p new_relation = osl_relation_malloc(num_dimensions * 2,
-      num_dimensions + num_parameters + 2);
-  osl_relation_set_type(new_relation, OSL_TYPE_DOMAIN);
-  osl_relation_set_attributes(new_relation, num_dimensions, 0, 0, num_parameters);
-  acr_array_declaration* decl = acr_monitor_get_array_declaration(monitor);
-  acr_array_dimensions_list dim_list = acr_array_decl_get_dimensions_list(decl);
-  for (size_t i = 0; i < num_dimensions; ++i) {
-    acr_osl_update_lower_bound_from_dimension(
-        new_relation, i);
-    bool updated = acr_osl_update_upper_bound_from_dimension(
-        new_relation, i, dim_list[i], parameters);
-    if (!updated) {
-      fprintf(stderr, "[ACR] error: Malformed monitor:\n");
-      pprint_acr_option(stderr, monitor, 0);
-      return NULL;
-    }
-  }
-  return new_relation;
-}
-
 bool acr_osl_check_if_identifiers_are_not_parameters(const osl_scop_p scop,
     osl_strings_p identifiers) {
   size_t num_identifiers = osl_strings_size(identifiers);
@@ -749,6 +724,7 @@ static void acr_openscop_scan_init(
     unsigned long grid_size,
     const char* data_location_prefix,
     enum acr_monitor_processing_funtion process_fun,
+    const osl_strings_p identifiers,
     osl_statement_p statement) {
   osl_body_p body = osl_body_malloc();
   unsigned int num_iterators = statement->domain->nb_output_dims;
@@ -842,12 +818,13 @@ void acr_openscop_set_tiled_to_do_min_max(
     unsigned long grid_size,
     bool max,
     const char* data_location_prefix,
+    const osl_strings_p identifiers,
     osl_scop_p scop) {
   osl_statement_p init, inf_or_sup;
   init = scop->statement;
   inf_or_sup = osl_statement_clone(init);
   acr_openscop_scan_init(monitor, filter_function, grid_size,
-      data_location_prefix, acr_monitor_function_max, init);
+      data_location_prefix, acr_monitor_function_max, identifiers, init);
   acr_openscop_scan_min_max_op(monitor, filter_function, grid_size,
       data_location_prefix, max, inf_or_sup);
   scop->statement->next = inf_or_sup;
@@ -857,6 +834,7 @@ static void acr_openscop_scan_avg_add(
     const acr_option monitor,
     const char* filter_function,
     unsigned long grid_size,
+    const osl_strings_p identifiers,
     osl_statement_p statement) {
   osl_body_p body = osl_body_malloc();
   unsigned int num_iterators = statement->domain->nb_output_dims;
@@ -937,6 +915,7 @@ static void acr_openscop_scan_avg_div(
     const acr_option monitor,
     unsigned long grid_size,
     const char* data_location_prefix,
+    const osl_strings_p identifiers,
     osl_statement_p statement) {
   osl_body_p body = osl_body_malloc();
   unsigned int num_iterators = statement->domain->nb_output_dims;
@@ -1003,60 +982,172 @@ void acr_openscop_set_tiled_to_do_avg(
     const char* filter_function,
     unsigned long grid_size,
     const char* data_location_prefix,
+    const osl_strings_p identifiers,
     osl_scop_p scop) {
   osl_statement_p init, add, div;
   init = scop->statement;
   add = osl_statement_clone(init);
   div = osl_statement_clone(init);
   acr_openscop_scan_init(monitor, filter_function, grid_size,
-      data_location_prefix, acr_monitor_function_avg, init);
+      data_location_prefix, acr_monitor_function_avg, identifiers, init);
   acr_openscop_scan_avg_add(monitor, filter_function, grid_size,
-      add);
+      identifiers, add);
   acr_openscop_scan_avg_div(monitor, grid_size,
-      data_location_prefix, div);
+      data_location_prefix, identifiers, div);
   init->next = add;
   add->next = div;
 }
 
-osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
+void acr_openscop_get_identifiers_with_dependencies(
+    const osl_strings_p id,
     const osl_scop_p scop,
-    unsigned long grid_size) {
-
-  // PLACEHOLDER
-  return NULL;
-
-  osl_strings_p parameters = acr_openscop_get_monitor_parameters(monitor);
-
-  size_t num_param = osl_strings_size(parameters);
-  size_t num_dimensions = acr_monitor_num_dimensions(monitor);
-
-  osl_relation_p domain =
-    acr_openscop_domain_from_monitor(monitor, num_dimensions, num_param,
-        parameters);
-  if (!domain) {
-    osl_strings_free(parameters);
-    return NULL;
+    const dimensions_upper_lower_bounds_all_statements *dims,
+    dimensions_upper_lower_bounds **bound_used,
+    osl_strings_p *all_iterators,
+    osl_statement_p *statement_containing_them) {
+  const size_t num_id = osl_strings_size(id);
+  char *const*ids = id->string;
+  osl_statement_p current_statement = scop->statement;
+  bool found_all = false;
+  unsigned long current_statement_num = 0;
+  osl_body_p body;
+  size_t num_iterators;
+  while (!found_all && current_statement) {
+    body = osl_generic_lookup(current_statement->extension, OSL_URI_BODY);
+    num_iterators = osl_strings_size(body->iterators);
+    for (size_t i = 0; num_iterators >= num_id && i < num_id; ++i) {
+      const size_t position = osl_strings_find(body->iterators, ids[i]);
+      if (position >= num_iterators)
+        break;
+      if (i == num_id-1) {
+        found_all = true;
+      }
+    }
+    if (!found_all) {
+      current_statement = current_statement->next;
+      ++current_statement_num;
+    }
   }
+  *statement_containing_them = current_statement;
+  bool *dims_left = malloc(num_iterators*sizeof(*dims_left));
+  for (size_t i = 0; i < num_iterators; ++i) {
+    dims_left[i] = false;
+  }
+  for (size_t i = 0; i < num_id; ++i) {
+    const size_t position = osl_strings_find(body->iterators, ids[i]);
+    dims_left[position] = true;
+    for (unsigned long j = 0; j < position; ++j) {
+      if(acr_osl_dim_has_constraints_with_dim(j, position,
+            dims->statements_bounds[current_statement_num])) {
+        dims_left[j] = true;
+      }
+    }
+  }
+  *bound_used = dims->statements_bounds[current_statement_num];
+  *all_iterators = osl_strings_malloc();
+  for (size_t i = 0; i < num_iterators; ++i) {
+    if (dims_left[i]) {
+      osl_strings_add(*all_iterators, body->iterators->string[i]);
+    }
+  }
+  free(dims_left);
+}
+
+osl_relation_p acr_openscop_reduce_domain_to_id(
+    const osl_relation_p initial_domain,
+    const osl_strings_p initial_iterators,
+    const osl_strings_p remaining_iterators) {
+  osl_relation_p new_domain = osl_relation_clone(initial_domain);
+  size_t num_initial_it = osl_strings_size(initial_iterators);
+  size_t num_remaining_it = osl_strings_size(remaining_iterators);
+  unsigned long deleted = 0;
+  for (size_t i = 0; i < num_initial_it; ++i) {
+    if (osl_strings_find(remaining_iterators, initial_iterators->string[i]) >=
+        num_remaining_it) {
+      unsigned long column_num = 1+i-deleted;
+      for (int i = 0; i < new_domain->nb_rows; ++i) {
+        if (!osl_int_zero(new_domain->precision, new_domain->m[i][column_num])){
+          osl_relation_remove_row(new_domain, i);
+          i--;
+        }
+      }
+      osl_relation_remove_column(new_domain, column_num);
+      new_domain->nb_output_dims -= 1;
+      deleted += 1;
+    }
+  }
+  return new_domain;
+}
+
+osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
+    const char *prefix,
+    const osl_scop_p scop,
+    unsigned long grid_size,
+    const dimensions_upper_lower_bounds_all_statements *dims,
+    dimensions_upper_lower_bounds **bound_used) {
+
+  osl_strings_p identifiers = acr_openscop_get_monitor_identifiers(monitor);
+
+  osl_strings_p all_identifiers;
+  osl_statement_p statement;
+  acr_openscop_get_identifiers_with_dependencies(
+      identifiers,
+      scop,
+      dims,
+      bound_used,
+      &all_identifiers,
+      &statement);
+
+  osl_body_p body = osl_generic_lookup(statement->extension, OSL_URI_BODY);
+  osl_relation_p new_domain =
+    acr_openscop_reduce_domain_to_id(
+        statement->domain,
+        body->iterators,
+        all_identifiers);
+
+  size_t num_tiling_dim = osl_strings_size(identifiers);
   osl_relation_p scattering =
-    acr_openscop_new_scattering_relation(num_dimensions, num_param);
-  acr_osl_apply_tiling(num_dimensions, scattering, grid_size);
+    acr_openscop_new_scattering_relation(
+        num_tiling_dim, new_domain->nb_parameters);
+  acr_osl_apply_tiling(num_tiling_dim, scattering, grid_size);
 
   osl_statement_p new_statement = osl_statement_malloc();
-  new_statement->domain = domain;
+  new_statement->domain = new_domain;
   new_statement->scattering = scattering;
+  new_statement->next = NULL;
 
   osl_scop_p new_scop = osl_scop_malloc();
   new_scop->version = scop->version;
   new_scop->language = acr_strdup(scop->language);
   new_scop->registry = osl_interface_get_default_registry();
-  osl_generic_p generic_string =
-    osl_generic_shell(parameters, osl_strings_interface());
-  osl_generic_add(&new_scop->parameters, generic_string);
+  new_scop->context = osl_relation_clone(scop->context);
+  new_scop->parameters = osl_generic_clone(scop->parameters);
   new_scop->statement = new_statement;
 
-  new_scop->context = osl_relation_malloc(0,num_param+2);
-  osl_relation_set_type(new_scop->context, OSL_TYPE_CONTEXT);
-  osl_relation_set_attributes(new_scop->context, 0, 0, 0, num_param);
+  const char* filter = acr_monitor_get_filter_name(monitor);
+  switch (acr_monitor_get_function(monitor)) {
+    case acr_monitor_function_min:
+      acr_openscop_set_tiled_to_do_min_max(
+          monitor, filter, grid_size, false, prefix, identifiers, new_scop);
+      break;
+    case acr_monitor_function_max:
+      acr_openscop_set_tiled_to_do_min_max(
+          monitor, filter, grid_size, true, prefix, identifiers, new_scop);
+      break;
+    case acr_monitor_function_avg:
+      acr_openscop_set_tiled_to_do_avg(
+          monitor, filter, grid_size, prefix, identifiers, new_scop);
+      break;
+    case acr_monitor_function_unknown:
+      break;
+  }
+
+  osl_scop_print(stderr, new_scop);
+
+  osl_strings_free(identifiers);
+  osl_strings_free(all_identifiers);
+  // PLACEHOLDER
+  return new_scop;
 
   osl_strings_p scattering_names = osl_strings_generate("c",
       new_scop->statement->scattering->nb_output_dims);
@@ -1073,15 +1164,15 @@ struct acr_get_min_max {
 };
 
 #ifdef ACR_DEBUG
-/*static void pprint_isl_set(isl_set *set, const char* print) {*/
-  /*fprintf(stderr, "PPRINT SET %s\n", print);*/
-  /*isl_ctx *ctx = isl_set_get_ctx(set);*/
-  /*isl_printer *splinter = isl_printer_to_file(ctx, stderr);*/
-  /*isl_printer_print_set(splinter, set);*/
-  /*isl_printer_flush(splinter);*/
-  /*isl_printer_free(splinter);*/
-  /*fprintf(stderr, "\nEND PPRINT SET %s\n", print);*/
-/*}*/
+static void pprint_isl_set(isl_set *set, const char* print) {
+  fprintf(stderr, "PPRINT SET %s\n", print);
+  isl_ctx *ctx = isl_set_get_ctx(set);
+  isl_printer *splinter = isl_printer_to_file(ctx, stderr);
+  isl_printer_print_set(splinter, set);
+  isl_printer_flush(splinter);
+  isl_printer_free(splinter);
+  fprintf(stderr, "\nEND PPRINT SET %s\n", print);
+}
 
 /*static void pprint_isl_constraint(isl_constraint *co, const char* print) {*/
   /*fprintf(stderr, "PPRINT CONSTRAINT %s\n", print);*/
@@ -1223,6 +1314,10 @@ dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
       }
     }
   }
+  bounds->bound_lexmin = isl_set_copy(domain);
+  bounds->bound_lexmin = isl_set_lexmin(bounds->bound_lexmin);
+  bounds->bound_lexmax = isl_set_copy(domain);
+  bounds->bound_lexmax = isl_set_lexmax(bounds->bound_lexmax);
 
   for (unsigned long dim = 0; dim < bounds->num_dimensions; ++dim) {
     isl_set *project_domain = isl_set_copy(domain);
@@ -1241,8 +1336,10 @@ dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
     /*project_domainlexmin = isl_set_lexmin(project_domainlexmin);*/
     /*pprint_isl_set(project_domainlexmin, "AFTER LEXMIN");*/
     /*isl_set *project_domainlexmax = isl_set_copy(domain);*/
+    /*isl_set_print_internal(project_domainlexmin, stderr, 0);*/
     /*project_domainlexmax = isl_set_lexmax(project_domainlexmax);*/
     /*pprint_isl_set(project_domainlexmax, "AFTER LEXMAX");*/
+    /*isl_set_print_internal(project_domainlexmax, stderr, 0);*/
     /*isl_set_free(project_domainlexmax);*/
     /*isl_set_free(project_domainlexmin);*/
 #endif
@@ -1255,7 +1352,6 @@ dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
   isl_set_foreach_basic_set(domain,
       _acr_get_dimensions_dep_set, (void*) bounds);
   isl_set_free(domain);
-  isl_ctx_free(ctx);
   return bounds;
 }
 
@@ -1293,6 +1389,8 @@ void acr_osl_free_dimension_upper_lower_bounds(
   free(bounds->upper_bound);
   free(bounds->lower_bound);
   free(bounds->has_constraint_with_previous_dim);
+  isl_set_free(bounds->bound_lexmax);
+  isl_set_free(bounds->bound_lexmin);
   free(bounds);
 }
 

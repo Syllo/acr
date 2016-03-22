@@ -442,18 +442,14 @@ static inline void acr_strategy_get_float_val(
     const acr_option option,
     float values[2]){
   values[0] = option->options.strategy.boundaries[0].value_float;
-  if(option->options.strategy.strategy_type == acr_strategy_range) {
-    values[1] = option->options.strategy.boundaries[1].value_float;
-  }
+  values[1] = option->options.strategy.boundaries[1].value_float;
 }
 
 static inline void acr_strategy_get_int_val(
     const acr_option option,
     long int values[2]){
   values[0] = option->options.strategy.boundaries[0].value_int;
-  if(option->options.strategy.strategy_type == acr_strategy_range) {
-    values[1] = option->options.strategy.boundaries[1].value_int;
-  }
+  values[1] = option->options.strategy.boundaries[1].value_int;
 }
 
 acr_option_list acr_new_option_list(unsigned long int size);

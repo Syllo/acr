@@ -22,6 +22,7 @@
 #include "acr/pragma_struct.h"
 
 #include <osl/scop.h>
+#include <isl/set.h>
 
 enum acr_dimension_type {
   acr_dimension_type_bound_to_alternative,
@@ -34,6 +35,8 @@ typedef struct dimensions_upper_lower_bounds {
   unsigned long num_parameters;
   bool **lower_bound;
   bool **upper_bound;
+  isl_set *bound_lexmin;
+  isl_set *bound_lexmax;
   enum acr_dimension_type *dimensions_type;
   bool **has_constraint_with_previous_dim;
 } dimensions_upper_lower_bounds;
@@ -49,8 +52,11 @@ void acr_print_scop_to_buffer(osl_scop_p scop, char** buffer,
 osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer);
 
 osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
+    const char *prefix,
     const osl_scop_p scop,
-    unsigned long grid_size);
+    unsigned long grid_size,
+    const dimensions_upper_lower_bounds_all_statements *dims,
+    dimensions_upper_lower_bounds **bound_used);
 
 osl_strings_p acr_openscop_get_monitor_parameters(const acr_option monitor);
 
@@ -64,6 +70,7 @@ void acr_openscop_set_tiled_to_do_min_max(
     unsigned long grid_size,
     bool max,
     const char* data_location_prefix,
+    const osl_strings_p identifiers,
     osl_scop_p scop);
 
 void acr_openscop_set_tiled_to_do_avg(
@@ -71,6 +78,7 @@ void acr_openscop_set_tiled_to_do_avg(
     const char* filter_function,
     unsigned long grid_size,
     const char* data_location_prefix,
+    const osl_strings_p identifiers,
     osl_scop_p scop);
 
 dimensions_upper_lower_bounds_all_statements* acr_osl_get_upper_lower_bound_all(
