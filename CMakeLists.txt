@@ -118,7 +118,7 @@ set(CMAKE_C_FLAGS_RELEASE "${COMMON_C_FLAGS} -O3")
 set(CMAKE_C_FLAGS_DEBUG "${COMMON_C_FLAGS} -O0 -g")
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-  add_definitions(-DACR_DEBUG)
+  add_definitions()#-DACR_DEBUG)
 endif()
 
 # Use full RPATH on build tree

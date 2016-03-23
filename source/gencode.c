@@ -646,6 +646,10 @@ bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
   }
   acr_option grid =
     acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
+  if (!grid) {
+    fprintf(stderr, "[ACR] error: The current node has no grid info\n");
+    return false;
+  }
   unsigned long grid_size = acr_grid_get_grid_size(grid);
   if (monitor == NULL) {
     fprintf(stderr, "No data to monitor\n");
@@ -659,7 +663,7 @@ bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     return false;
   }
 
-  fprintf(out, "void %s_monitoring_function(void) {\n", prefix);
+  fprintf(out, "void %s_monitoring_function(char *monitor_result) {\n", prefix);
   switch (acr_monitor_get_function(monitor)) {
     case acr_monitor_function_min:
     case acr_monitor_function_max:

@@ -70,7 +70,7 @@ void acr_openscop_set_tiled_to_do_min_max(
     unsigned long grid_size,
     bool max,
     const char* data_location_prefix,
-    const osl_strings_p identifiers,
+    const dimensions_upper_lower_bounds *bound_used,
     osl_scop_p scop);
 
 void acr_openscop_set_tiled_to_do_avg(
@@ -78,7 +78,7 @@ void acr_openscop_set_tiled_to_do_avg(
     const char* filter_function,
     unsigned long grid_size,
     const char* data_location_prefix,
-    const osl_strings_p identifiers,
+    const dimensions_upper_lower_bounds *bound_used,
     osl_scop_p scop);
 
 dimensions_upper_lower_bounds_all_statements* acr_osl_get_upper_lower_bound_all(

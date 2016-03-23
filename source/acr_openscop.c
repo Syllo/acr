@@ -200,12 +200,70 @@ bool acr_osl_check_if_identifiers_are_not_parameters(const osl_scop_p scop,
   return true;
 }
 
+bool get_position_and_dim_num_monitor(
+    const dimensions_upper_lower_bounds *bound_used,
+    unsigned long monitor_dim,
+    unsigned long *num,
+    unsigned long *pos) {
+  unsigned long where = 0;
+  unsigned long current_dim = 0;
+  unsigned long num_dim = 0;
+  bool found = false;
+  bool *already_accounted =
+    malloc(bound_used->num_dimensions * sizeof(*already_accounted));
+  for (unsigned long i = 0; !found && i < bound_used->num_dimensions; ++i) {
+    if (bound_used->dimensions_type[i] == acr_dimension_type_bound_to_monitor) {
+      if (current_dim == monitor_dim) {
+        found = true;
+        where = i;
+      } else {
+        ++current_dim;
+        ++num_dim;
+        already_accounted[i] = true;
+        for (unsigned long j = 0; j < i; ++j) {
+          if (!already_accounted[j] &&
+              bound_used->has_constraint_with_previous_dim[i][j]) {
+            already_accounted[j] = true;
+            ++num_dim;
+          }
+        }
+      }
+    }
+  }
+  *num = num_dim;
+  *pos = where;
+  free(already_accounted);
+  return found;
+}
+
+static bool acr_print_array_access_monitor_dim_n(FILE* out,
+    const char *prefix,
+    const dimensions_upper_lower_bounds *bound_used,
+    unsigned long dim){
+  unsigned long position, id;
+  bool found = get_position_and_dim_num_monitor(bound_used,
+      dim,
+      &id, &position);
+  if (found) {
+    unsigned long next_monitor_dim = dim+1;
+    fprintf(out, "i%lu", id+1);
+    for (unsigned long i = position+1; i < bound_used->num_dimensions; ++i) {
+      if (bound_used->dimensions_type[i] == acr_dimension_type_bound_to_monitor){
+        fprintf(out, "*%s_runtime_data.monitor_dim_max[%luul]",
+            prefix, next_monitor_dim);
+      }
+    }
+  }
+  return found;
+}
+
 static void acr_openscop_scan_min_max_op(
     const acr_option monitor,
     const char* filter_function,
     unsigned long grid_size,
     const char* data_location_prefix,
     bool max,
+    const dimensions_upper_lower_bounds *bound_used,
     osl_statement_p statement) {
   osl_body_p body = osl_body_malloc();
   unsigned int num_iterators = statement->domain->nb_output_dims;
@@ -321,7 +379,7 @@ static void acr_openscop_scan_init(
     unsigned long grid_size,
     const char* data_location_prefix,
     enum acr_monitor_processing_funtion process_fun,
-    const osl_strings_p identifiers,
+    const dimensions_upper_lower_bounds *bound_used,
     osl_statement_p statement) {
   osl_body_p body = osl_body_malloc();
   unsigned int num_iterators = statement->domain->nb_output_dims;
@@ -415,15 +473,15 @@ void acr_openscop_set_tiled_to_do_min_max(
     unsigned long grid_size,
     bool max,
     const char* data_location_prefix,
-    const osl_strings_p identifiers,
+    const dimensions_upper_lower_bounds *bound_used,
     osl_scop_p scop) {
   osl_statement_p init, inf_or_sup;
   init = scop->statement;
   inf_or_sup = osl_statement_clone(init);
   acr_openscop_scan_init(monitor, filter_function, grid_size,
-      data_location_prefix, acr_monitor_function_max, identifiers, init);
+      data_location_prefix, acr_monitor_function_max, bound_used, init);
   acr_openscop_scan_min_max_op(monitor, filter_function, grid_size,
-      data_location_prefix, max, inf_or_sup);
+      data_location_prefix, max, bound_used, inf_or_sup);
   scop->statement->next = inf_or_sup;
 }
 
@@ -431,7 +489,6 @@ static void acr_openscop_scan_avg_add(
     const acr_option monitor,
     const char* filter_function,
     unsigned long grid_size,
-    const osl_strings_p identifiers,
     osl_statement_p statement) {
   osl_body_p body = osl_body_malloc();
   unsigned int num_iterators = statement->domain->nb_output_dims;
@@ -512,7 +569,7 @@ static void acr_openscop_scan_avg_div(
     const acr_option monitor,
     unsigned long grid_size,
     const char* data_location_prefix,
-    const osl_strings_p identifiers,
+    const dimensions_upper_lower_bounds *bound_used,
     osl_statement_p statement) {
   osl_body_p body = osl_body_malloc();
   unsigned int num_iterators = statement->domain->nb_output_dims;
@@ -524,14 +581,15 @@ static void acr_openscop_scan_avg_div(
   acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
   unsigned long num_dimensions = acr_array_decl_get_num_dimensions(decl);
 #ifndef ACR_DEBUG
-  fprintf(tempbuffer, "%s_monitor_result", data_location_prefix);
+  fprintf(tempbuffer, "monitor_result", data_location_prefix);
+  fprintf(tempbuffer, "[");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
-    fprintf(tempbuffer, "[c%lu]", (i+1)*2);
+    if (i > 0)
+      fprintf(tempbuffer, " + ");
+    acr_print_array_access_monitor_dim_n(tempbuffer, data_location_prefix,
+        bound_used, i);
   }
-  unsigned long num_elements_grid = grid_size;
-  for(unsigned int i = 1; i < num_dimensions; ++i) {
-    num_elements_grid *= grid_size;
-  }
+  fprintf(tempbuffer, "]");
   fprintf(tempbuffer, " = temp_avg / num_value;");
 #else
   (void) data_location_prefix;
@@ -571,6 +629,7 @@ static void acr_openscop_scan_avg_div(
   osl_int_increment(scattering->precision,
       &scattering->m[row_pos][scattering->nb_columns-1],
       scattering->m[row_pos][scattering->nb_columns-1]);
+
   osl_int_clear(scattering->precision, &temp);
 }
 
@@ -579,31 +638,33 @@ void acr_openscop_set_tiled_to_do_avg(
     const char* filter_function,
     unsigned long grid_size,
     const char* data_location_prefix,
-    const osl_strings_p identifiers,
+    const dimensions_upper_lower_bounds *bound_used,
     osl_scop_p scop) {
   osl_statement_p init, add, div;
   init = scop->statement;
   add = osl_statement_clone(init);
   div = osl_statement_clone(init);
   acr_openscop_scan_init(monitor, filter_function, grid_size,
-      data_location_prefix, acr_monitor_function_avg, identifiers, init);
+      data_location_prefix, acr_monitor_function_avg, bound_used, init);
   acr_openscop_scan_avg_add(monitor, filter_function, grid_size,
-      identifiers, add);
+      add);
   acr_openscop_scan_avg_div(monitor, grid_size,
-      data_location_prefix, identifiers, div);
+      data_location_prefix, bound_used, div);
   init->next = add;
   add->next = div;
 }
 
 void acr_openscop_get_identifiers_with_dependencies(
-    const osl_strings_p id,
+    const acr_option monitor,
     const osl_scop_p scop,
     const dimensions_upper_lower_bounds_all_statements *dims,
     dimensions_upper_lower_bounds **bound_used,
     osl_strings_p *all_iterators,
     osl_statement_p *statement_containing_them) {
-  const size_t num_id = osl_strings_size(id);
-  char *const*ids = id->string;
+
+  osl_strings_p identifiers = acr_openscop_get_monitor_identifiers(monitor);
+  const size_t num_id = osl_strings_size(identifiers);
+  char *const*ids = identifiers->string;
   osl_statement_p current_statement = scop->statement;
   bool found_all = false;
   unsigned long current_statement_num = 0;
@@ -654,6 +715,7 @@ void acr_openscop_get_identifiers_with_dependencies(
     }
   }
   free(dims_left);
+  osl_strings_free(identifiers);
 }
 
 osl_relation_p acr_openscop_reduce_domain_to_id(
@@ -682,6 +744,68 @@ osl_relation_p acr_openscop_reduce_domain_to_id(
   return new_domain;
 }
 
+void acr_openscop_add_related_dims_in_scattering(
+    osl_scop_p scop,
+    dimensions_upper_lower_bounds *bounds) {
+  osl_statement_p current_statement = scop->statement;
+  bool *already_added = malloc(bounds->num_dimensions * sizeof(*already_added));
+  while (current_statement) {
+    osl_relation_p scattering = current_statement->scattering;
+
+    for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
+      already_added[i] = false;
+      if (bounds->dimensions_type[i] == acr_dimension_type_bound_to_monitor) {
+        if (acr_osl_dim_has_constraints_with_previous_dims(i, bounds)) {
+          bool remaining = i > 0;
+          for (unsigned long j = i-1; remaining; --j) {
+            if (!already_added[j] &&
+                bounds->has_constraint_with_previous_dim[i][j]) {
+              unsigned long where_to_add_in_dim = scattering->nb_columns - 1 -
+                scattering->nb_parameters - scattering->nb_input_dims;
+              unsigned long where_to_add_out_dim = 2;
+              for (unsigned long k = 0; k <j; ++k) {
+                if (already_added[k] || bounds->dimensions_type[k] ==
+                    acr_dimension_type_bound_to_monitor) {
+                  where_to_add_in_dim += 1;
+                  where_to_add_out_dim += 2;
+                }
+              }
+              osl_relation_insert_blank_column(scattering,
+                  where_to_add_out_dim);
+              osl_relation_insert_blank_column(scattering,
+                  where_to_add_out_dim);
+              where_to_add_in_dim += 2;
+              osl_relation_insert_blank_column(scattering,
+                  where_to_add_in_dim);
+              osl_relation_insert_blank_row(scattering, -1);
+              osl_int_increment(scattering->precision,
+                  &scattering->m[scattering->nb_rows-1][where_to_add_in_dim],
+                  scattering->m[scattering->nb_rows-1][where_to_add_in_dim]);
+              where_to_add_in_dim += 1;
+              osl_int_decrement(scattering->precision,
+                  &scattering->m[scattering->nb_rows-1][where_to_add_out_dim],
+                  scattering->m[scattering->nb_rows-1][where_to_add_out_dim]);
+              osl_relation_insert_blank_row(scattering, -1);
+              where_to_add_out_dim += 1;
+              osl_int_decrement(scattering->precision,
+                  &scattering->m[scattering->nb_rows-1][where_to_add_out_dim],
+                  scattering->m[scattering->nb_rows-1][where_to_add_out_dim]);
+              scattering->nb_input_dims += 1;
+              scattering->nb_output_dims += 2;
+              already_added[j] = true;
+            }
+
+            if (j == 0)
+              remaining = false;
+          }
+        }
+      }
+    }
+    current_statement = current_statement->next;
+  }
+  free(already_added);
+}
+
 osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
     const char *prefix,
     const osl_scop_p scop,
@@ -689,12 +813,10 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
     const dimensions_upper_lower_bounds_all_statements *dims,
     dimensions_upper_lower_bounds **bound_used) {
 
-  osl_strings_p identifiers = acr_openscop_get_monitor_identifiers(monitor);
-
   osl_strings_p all_identifiers;
   osl_statement_p statement;
   acr_openscop_get_identifiers_with_dependencies(
-      identifiers,
+      monitor,
       scop,
       dims,
       bound_used,
@@ -708,7 +830,9 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
         body->iterators,
         all_identifiers);
 
-  size_t num_tiling_dim = osl_strings_size(identifiers);
+  acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
+  unsigned long num_tiling_dim = acr_array_decl_get_num_dimensions(decl);
+
   osl_relation_p scattering =
     acr_openscop_new_scattering_relation(
         num_tiling_dim, new_domain->nb_parameters);
@@ -731,23 +855,24 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
   switch (acr_monitor_get_function(monitor)) {
     case acr_monitor_function_min:
       acr_openscop_set_tiled_to_do_min_max(
-          monitor, filter, grid_size, false, prefix, identifiers, new_scop);
+          monitor, filter, grid_size, false, prefix, *bound_used, new_scop);
       break;
     case acr_monitor_function_max:
       acr_openscop_set_tiled_to_do_min_max(
-          monitor, filter, grid_size, true, prefix, identifiers, new_scop);
+          monitor, filter, grid_size, true, prefix, *bound_used, new_scop);
       break;
     case acr_monitor_function_avg:
       acr_openscop_set_tiled_to_do_avg(
-          monitor, filter, grid_size, prefix, identifiers, new_scop);
+          monitor, filter, grid_size, prefix, *bound_used, new_scop);
       break;
     case acr_monitor_function_unknown:
       break;
   }
 
+  acr_openscop_add_related_dims_in_scattering(new_scop, *bound_used);
+
   osl_scop_print(stderr, new_scop);
 
-  osl_strings_free(identifiers);
   osl_strings_free(all_identifiers);
   // PLACEHOLDER
   return new_scop;
