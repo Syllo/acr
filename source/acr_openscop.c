@@ -1389,8 +1389,10 @@ void acr_osl_free_dimension_upper_lower_bounds(
   free(bounds->upper_bound);
   free(bounds->lower_bound);
   free(bounds->has_constraint_with_previous_dim);
+  isl_ctx *ctx = isl_set_get_ctx(bounds->bound_lexmin);
   isl_set_free(bounds->bound_lexmax);
   isl_set_free(bounds->bound_lexmin);
+  isl_ctx_free(ctx);
   free(bounds);
 }
 

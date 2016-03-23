@@ -398,24 +398,21 @@ void acr_print_isl_lex_min_max_bound(FILE *out,
     isl_set *set,
     unsigned long dim_to_print,
     const osl_strings_p parameters) {
-  const char max_char[] = "max";
-  const char min_char[] = "min";
+  const char max_char[] = "__acr__max__";
+  const char min_char[] = "__acr__min__";
   const char *aggregator = upper_bound ? max_char : min_char;
   unsigned long num_dim = isl_set_n_dim(set);
   unsigned long num_param = isl_set_n_param(set);
   isl_set *only_dim_wanted = isl_set_copy(set);
-  fprintf(stderr, "AVANT\n");
-  isl_set_print_internal(only_dim_wanted, stderr, 0);
   if (dim_to_print+1 < num_dim)
     only_dim_wanted = isl_set_project_out(only_dim_wanted, isl_dim_set,
         dim_to_print+1, num_dim - dim_to_print - 1);
   if (dim_to_print != 0)
     only_dim_wanted = isl_set_project_out(only_dim_wanted, isl_dim_set,
         0ul, dim_to_print);
-  /*only_dim_wanted = isl_set_coalesce(only_dim_wanted);*/
-  fprintf(stderr, "APRES\n");
-  isl_set_print_internal(only_dim_wanted, stderr, 0);
+  only_dim_wanted = isl_set_coalesce(only_dim_wanted);
   isl_basic_set_list *bset_list = isl_set_get_basic_set_list(only_dim_wanted);
+  isl_set_free(only_dim_wanted);
   int num_basic_set = isl_basic_set_list_n_basic_set(bset_list);
   int remaining_basic_set = num_basic_set;
   isl_printer *printer = isl_printer_to_file(isl_set_get_ctx(set), out);
@@ -438,7 +435,7 @@ void acr_print_isl_lex_min_max_bound(FILE *out,
         isl_val_free(dim_val);
         for (unsigned long k = 0; k < num_param; ++k) {
           if (isl_constraint_involves_dims(co, isl_dim_param, k, 1)) {
-            fprintf(out, " + %s*", parameters->string[j]);
+            fprintf(out, " + %s*", parameters->string[k]);
             dim_val =
               isl_constraint_get_coefficient_val(co, isl_dim_param, k);
             dim_val = isl_val_neg(dim_val);
@@ -448,11 +445,15 @@ void acr_print_isl_lex_min_max_bound(FILE *out,
           }
         }
       }
+      isl_constraint_free(co);
     }
+    isl_basic_set_free(bset);
+    isl_constraint_list_free(clist);
     if (remaining_basic_set > 1) {
       fprintf(out, ", ");
     }
   }
+  isl_basic_set_list_free(bset_list);
   remaining_basic_set = num_basic_set;
   for (int i = 0; i < num_basic_set; ++i, --remaining_basic_set) {
     if (remaining_basic_set > 1) {
@@ -472,20 +473,27 @@ static void acr_print_monitor_max_dims(FILE *out,
       num_monitor_dims++;
   }
   osl_strings_p parameters = osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
-  fprintf(out, "#define min(a,b) (((a)>(b))?(b):(a))\n");
-  fprintf(out, "#define max(a,b) (((a)>(b))?(a):(b))\n");
+
+  fprintf(out,
+      "  %s_runtime_data.monitor_dim_max =\n"
+      "    malloc(%luul * sizeof(*%s_runtime_data.monitor_dim_max));\n"
+      "#ifdef __acr__max__\n"
+      "#undef __acr__max__\n"
+      "#endif\n"
+      "#define __acr__max__(a,b) (((a)>(b))?(a):(b))\n",
+      prefix, num_monitor_dims, prefix);
 
   unsigned long current_dim = 0;
   for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
     if (bounds->dimensions_type[i] == acr_dimension_type_bound_to_monitor) {
-      fprintf(stderr, "Printing dim %lu\n", current_dim);
-      fprintf(out, "%s_runtime_data.monitor_dimensions[%lu] = ",
+      fprintf(out, "  %s_runtime_data.monitor_dim_max[%lu] = ",
           prefix, current_dim++);
       acr_print_isl_lex_min_max_bound(out,
           true, bounds->bound_lexmax, i, parameters);
       fprintf(out, ";\n");
     }
   }
+  fprintf(out, "#undef __acr__max__\n");
 }
 
 void acr_print_acr_runtime_init(FILE* out,
@@ -515,29 +523,32 @@ void acr_print_acr_runtime_init(FILE* out,
   fprintf(out, "static struct acr_runtime_data %s_runtime_data =\n"
       "    { .num_alternatives = %luul, "
       ".alternatives = %s_alternatives, "
-      ".num_parameters = %luul, ",
-      prefix, num_alternatives, prefix, num_parameters);
-  fprintf(out, ", .grid_size = %luul };\n", acr_grid_get_grid_size(grid));
+      ".num_parameters = %luul, "
+      ".num_monitor_dims = %luul, "
+      ".grid_size = %luul };\n",
+      prefix, num_alternatives, prefix,
+      num_parameters, num_monitor_dims, acr_grid_get_grid_size(grid));
 
   fprintf(out, "static void %s_acr_runtime_init", prefix);
   acr_print_parameters(out, init);
-  fprintf(out, " {\n"
+  fprintf(out, " {\n");
+
+  acr_print_monitor_max_dims(out, prefix, bounds, scop);
+
+  fprintf(out,
       "  init_acr_runtime_data(\n"
       "      &%s_runtime_data,\n"
       "      %s_acr_scop,\n"
-      "      %s_acr_scop_size,\n"
-      "      %luul);\n",
-      prefix, prefix, prefix, num_monitor_dims);
+      "      %s_acr_scop_size);\n",
+      prefix, prefix, prefix);
+
   fprintf(out,
       "  acr_cloog_init_alternative_constraint_from_cloog_union_domain(\n"
       "      &%s_runtime_data);\n", prefix);
 
-  acr_print_monitor_max_dims(out, prefix, bounds, scop);
-
   // Call function and change pointer to initial function
-  fprintf(out, "  %s = %s_acr_initial;\n",
+  fprintf(out, "  %s = %s_acr_initial;\n  ",
       prefix, prefix);
-  fprintf(out, "  ");
   acr_print_init_function_call(out, init);
   fprintf(out, "}\n\n");
 }

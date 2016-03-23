@@ -30,8 +30,8 @@ struct acr_runtime_data {
   unsigned long num_alternatives;
   struct runtime_alternative *alternatives;
   unsigned long num_parameters;
-  unsigned long num_dimensions;
-  size_t *monitor_dimensions;
+  unsigned long num_monitor_dims;
+  size_t *monitor_dim_max;
   size_t monitor_total_size;
   unsigned long grid_size;
 };
@@ -39,8 +39,7 @@ struct acr_runtime_data {
 void init_acr_runtime_data(
     struct acr_runtime_data* data,
     char *scop,
-    size_t scop_size,
-    unsigned long num_monitor_dims);
+    size_t scop_size);
 
 void free_acr_runtime_data(struct acr_runtime_data* data);
 
