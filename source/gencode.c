@@ -656,7 +656,7 @@ bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     return false;
   }
   const char *prefix = acr_get_scop_prefix(node);
-  osl_scop_p new_scop = acr_openscop_gen_monitor_loop(monitor, prefix, scop,
+  osl_scop_p new_scop = acr_openscop_gen_monitor_loop(monitor, scop,
       grid_size, dims, bound_used);
   if (new_scop == NULL) {
     fprintf(stderr, "It is not possible to find monitor data boundaries\n");
