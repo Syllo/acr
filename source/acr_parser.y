@@ -145,9 +145,9 @@ struct parser_option_list* option_list;
 %type <parameter_decl> parameter_declaration
 %type <parameter_decl_list> parameter_declaration_list
 %type <array_declaration> acr_monitor_data_monitored
-%type <array_dimensions> add_expression mul_expression leaf_expression
 %type <monitor_processing_function> acr_monitor_processing_function
 %type <dimension_list> array_dimensions
+
 
 %destructor { acr_free_option($$); $$ = NULL;} <option>
 %destructor { free($$); $$ = NULL;} <identifier>
@@ -159,7 +159,6 @@ struct parser_option_list* option_list;
 %destructor { free_param_declarations($$); $$ = NULL;} <parameter_decl>
 %destructor { free_param_decl_list($$); $$ = NULL;} <parameter_decl_list>
 %destructor { acr_free_acr_array_declaration(&$$); } <array_declaration>
-%destructor { acr_free_array_dimension($$); $$ = NULL;} <array_dimensions>
 %destructor { free_array_dim_list($$); $$ = NULL;} <dimension_list>
 
 %start acr_start
@@ -520,28 +519,24 @@ acr_monitor_data_monitored
   ;
 
 array_dimensions
-  : array_dimensions '[' add_expression ']'
+  : array_dimensions '[' IDENTIFIER ']'
     {
-      if ($1 == NULL || $3 == NULL) {
-        if ($1 != NULL)
-          free_array_dim_list($1);
-        if ($3 != NULL)
-          acr_free_array_dimension($3);
+      if ($1 == NULL) {
         $$ = NULL;
+        free($3);
       } else {
         $$ = $1;
         while($1->next) {
         $1 = $1->next;
         }
-        $1->next = new_array_dim_list($3);
+        $1->next = new_array_dim_list(acr_new_array_dimensions($3));
+        free($3);
       }
     }
-  | '[' add_expression ']'
+  | '[' IDENTIFIER ']'
     {
-      if ($2 == NULL)
-        $$ = NULL;
-      else
-        $$ = new_array_dim_list($2);
+      $$ = new_array_dim_list(acr_new_array_dimensions($2));
+      free($2);
     }
   | array_dimensions '[' error ']'
     {
@@ -562,57 +557,6 @@ array_dimensions
     }
   ;
 
-add_expression
-  : mul_expression
-    {
-      $$ = $1;
-    }
-  | add_expression '+' mul_expression
-    {
-      if ($3 == NULL)
-        $$ = $1;
-      else
-        $$ = acr_new_array_dimensions_leaf_node(acr_array_dim_plus,
-          $1, $3);
-    }
-  | add_expression '-' mul_expression
-    {
-      $$ = acr_new_array_dimensions_leaf_node(acr_array_dim_minus,
-        $1, $3);
-    }
-  ;
-
-mul_expression
-  : leaf_expression
-    {
-      $$ = $1;
-    }
-  | mul_expression '*' leaf_expression
-    {
-      $$ = acr_new_array_dimensions_leaf_node(acr_array_dim_mul,
-        $1, $3);
-    }
-  | mul_expression '/' leaf_expression
-    {
-      $$ = NULL;
-      acr_free_array_dimension($1);
-      acr_free_array_dimension($3);
-      fprintf(stderr, "[ACR] error: non affine expression\n");
-      YYERROR;
-    }
-  ;
-
-leaf_expression
-  : I_CONSTANT
-    {
-      $$ = acr_new_array_dimensions_leaf_integer($1.value.integer_val.integer);
-    }
-  | IDENTIFIER
-    {
-      $$ = acr_new_array_dimensions_leaf_parameter($1);
-      free($1);
-    }
-  ;
 
 acr_monitor_filter
   : IDENTIFIER
@@ -743,32 +687,6 @@ acr_strategy_options
       free($7);
     }
   ;
- /*
-constant
-  : minus I_CONSTANT
-    {
-      if ($1) {
-        $2.value.integer_val.integer *= -1l;
-      }
-      $$ = $2;
-    }
-  | minus F_CONSTANT
-    {
-      if ($1) {
-        $2.value.floating_point *= -1.f;
-      }
-      $$ = $2;
-    }
-  | I_CONSTANT
-    {
-      $$ = $1;
-    }
-  | F_CONSTANT
-    {
-      $$ = $1;
-    }
-  ;
- */
 
 minus
   : '-'

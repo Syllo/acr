@@ -67,34 +67,8 @@ typedef struct acr_init {
   acr_parameter_declaration_list parameters_list;
 } acr_init;
 
-enum acr_array_dimensions_type {
-  acr_array_dim_leaf,
-  acr_array_dim_plus,
-  acr_array_dim_minus,
-  acr_array_dim_mul,
-  acr_array_dim_div,
-};
-
-enum acr_expr_leaf_type {
-  acr_expr_leaf_int,
-  acr_expr_leaf_param,
-};
-
 typedef struct acr_array_dimension {
-  enum acr_array_dimensions_type type;
-  union {
-    struct {
-      enum acr_expr_leaf_type type;
-      struct {
-        long integer;
-        char* parameter;
-      } value;
-    } leaf;
-    struct {
-      struct acr_array_dimension* right;
-      struct acr_array_dimension* left;
-    } node;
-  } val;
+  char *identifier;
 } *acr_array_dimension, **acr_array_dimensions_list;
 
 typedef struct acr_array_declaration {
@@ -492,28 +466,11 @@ acr_array_dimensions_list acr_new_array_dimensions_list(unsigned long int size);
 static inline void acr_free_array_dimension(acr_array_dimension dim) {
   if (!dim)
     return;
-  if (dim->type != acr_array_dim_leaf) {
-    acr_free_array_dimension(dim->val.node.left);
-    acr_free_array_dimension(dim->val.node.right);
-  } else {
-    switch (dim->val.leaf.type) {
-      case acr_expr_leaf_int:
-        break;
-      case acr_expr_leaf_param:
-        free(dim->val.leaf.value.parameter);
-    }
-  }
+  free(dim->identifier);
   free(dim);
 }
 
-acr_array_dimension acr_new_array_dimensions_leaf_integer(long val);
-
-acr_array_dimension acr_new_array_dimensions_leaf_parameter(const char* param);
-
-acr_array_dimension acr_new_array_dimensions_leaf_node(
-    enum acr_array_dimensions_type type,
-    acr_array_dimension left,
-    acr_array_dimension right);
+acr_array_dimension acr_new_array_dimensions(const char* identifier);
 
 static inline void acr_free_array_dimensions_list(
     unsigned long list_size,
@@ -527,6 +484,10 @@ static inline void acr_free_array_dimensions_list(
 }
 
 acr_array_dimension acr_copy_array_dimensions(acr_array_dimension dim);
+
+static inline char* acr_array_dimension_get_identifier(acr_array_dimension dim){
+  return dim->identifier;
+}
 
 acr_compute_node_list acr_new_compute_node_list(unsigned long list_size);
 

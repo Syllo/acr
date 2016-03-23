@@ -305,28 +305,19 @@ static void acr_print_get_alternetive_from_val(
       prefix, UCHAR_MAX);
   long max_current;
   long min_current;
-  long previous_max = 0l;
+  bool not_first_alternative = false;
   for (unsigned long i = 0; i < strategy_list_size; ++i) {
       acr_option current = acr_option_list_get_option(i, strategy_list);
       max_current = acr_strategy_get_max(current);
       min_current = acr_strategy_get_min(current);
-      for (long j = previous_max; j < min_current; ++j) {
-        if (j != 0)
-          fprintf(out, ", ");
-        fprintf(out, "NULL");
-      }
       for (long j = min_current; j <= max_current; ++j) {
-        if (j != 0)
+        if (not_first_alternative)
           fprintf(out, ", ");
+        else
+          not_first_alternative = true;
         fprintf(out, "&%s_alternatives[%lu]", prefix,
             strategy_to_alternative_index[i]);
       }
-      previous_max = max_current + 1;
-  }
-  for (long i = max_current+1; i < UCHAR_MAX; ++i) {
-    if (i != 0)
-      fprintf(out, ", ");
-    fprintf(out, "NULL");
   }
   fprintf(out, "};\n");
   fprintf(out, "struct runtime_alternative* %s_get_alternative_from_val(\n"
@@ -649,6 +640,10 @@ bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
   osl_generic_remove(&scop->extension, OSL_URI_ARRAYS);
   acr_option monitor =
     acr_compute_node_get_option_of_type(acr_type_monitor, node, 1);
+  if (!monitor) {
+    fprintf(stderr, "[ACR] error: The current node has no data to monitor\n");
+    return false;
+  }
   acr_option grid =
     acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
   unsigned long grid_size = acr_grid_get_grid_size(grid);

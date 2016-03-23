@@ -156,26 +156,14 @@ static osl_relation_p acr_openscop_new_scattering_relation(
   return scattering;
 }
 
-static void _acr_openscop_add_missing_identifiers(unsigned long* size_string,
+static inline void _acr_openscop_add_missing_identifiers(
+    unsigned long* size_string,
     osl_strings_p identifiers,
     const acr_array_dimension dimension) {
-  if (dimension->type != acr_array_dim_leaf) {
-    _acr_openscop_add_missing_identifiers(size_string, identifiers,
-        dimension->val.node.left);
-    _acr_openscop_add_missing_identifiers(size_string, identifiers,
-        dimension->val.node.right);
-  } else {
-    switch (dimension->val.leaf.type) {
-      case acr_expr_leaf_int:
-        break;
-      case acr_expr_leaf_param:
-        if (osl_strings_find(identifiers, dimension->val.leaf.value.parameter)
-            == *size_string) {
-          osl_strings_add(identifiers, dimension->val.leaf.value.parameter);
-          *size_string += 1;
-        }
-        break;
-    }
+  if (osl_strings_find(identifiers, dimension->identifier)
+      == *size_string) {
+    osl_strings_add(identifiers, dimension->identifier);
+    *size_string += 1;
   }
 }
 
@@ -193,397 +181,6 @@ osl_strings_p acr_openscop_get_monitor_identifiers(const acr_option monitor) {
 
 unsigned long acr_monitor_num_dimensions(const acr_option monitor) {
   return monitor->options.monitor.data_monitored.num_dimensions;
-}
-
-static void acr_osl_update_lower_bound_from_dimension(
-    osl_relation_p relation,
-    unsigned long which_dim) {
-  osl_int_increment(relation->precision,
-      &relation->m[which_dim*2][0],
-      relation->m[which_dim*2][0]);
-  osl_int_increment(relation->precision,
-      &relation->m[which_dim*2][which_dim + 1],
-      relation->m[which_dim*2][which_dim + 1]);
-}
-
-static bool acr_array_dim_get_identifier(const acr_array_dimension dim,
-    char** identifier) {
-  char* left_id, *right_id;
-  bool left_retval, right_retval;
-  switch (dim->type) {
-    case acr_array_dim_leaf:
-      switch (dim->val.leaf.type) {
-        case acr_expr_leaf_int:
-          *identifier = NULL;
-          return false;
-          break;
-        case acr_expr_leaf_param:
-          *identifier = dim->val.leaf.value.parameter;
-          return true;
-          break;
-      }
-      break;
-    case acr_array_dim_mul:
-    case acr_array_dim_div:
-    case acr_array_dim_plus:
-    case acr_array_dim_minus:
-      left_retval =
-        acr_array_dim_get_identifier(dim->val.node.left, &left_id);
-      right_retval =
-        acr_array_dim_get_identifier(dim->val.node.right, &right_id);
-      if(right_retval && left_retval) {
-        *identifier = NULL;
-        return true;
-      }
-      if (left_retval && left_id == NULL) {
-        *identifier = NULL;
-        return true;
-      } else {
-        if (right_retval && right_id == NULL) {
-          *identifier = NULL;
-          return true;
-        } else {
-          if (right_retval) {
-            *identifier = right_id;
-            return true;
-          } else {
-            *identifier = left_id;
-            return true;
-          }
-        }
-      }
-      *identifier = NULL;
-      return false;
-      break;
-  }
-  *identifier = NULL;
-  return false;
-}
-
-
-static bool acr_osl_update_dim(
-    osl_relation_p relation,
-    unsigned long which_dim,
-    const acr_array_dimension dim,
-    const osl_strings_p parameters,
-    bool plus);
-
-static bool acr_osl_update_leaf(
-    osl_relation_p relation,
-    unsigned long which_dim,
-    const acr_array_dimension dim,
-    const osl_strings_p parameters,
-    bool plus,
-    const char* parameter) {
-
-  size_t parameter_position;
-  int column_position;
-  int row_position = which_dim * 2 + 1;
-  osl_int_p temp_val = osl_int_malloc(relation->precision);
-
-  switch(dim->val.leaf.type) {
-    case acr_expr_leaf_int:
-      osl_int_set_si(relation->precision,
-          temp_val,
-          dim->val.leaf.value.integer);
-      if (!plus) {
-        osl_int_oppose(relation->precision,
-            temp_val,
-            *temp_val);
-      }
-      if (parameter) {
-        parameter_position = osl_strings_find(parameters, parameter);
-        column_position = 1 + relation->nb_output_dims + parameter_position;
-        if (osl_int_zero(relation->precision,
-              relation->m[row_position][column_position])) {
-          osl_int_increment(relation->precision,
-              &relation->m[row_position][column_position],
-              relation->m[row_position][column_position]);
-        }
-        osl_int_mul(relation->precision,
-            &relation->m[row_position][column_position],
-            relation->m[row_position][column_position],
-            *temp_val);
-      } else {
-        column_position = relation->nb_columns - 1;
-        osl_int_add(relation->precision,
-            &relation->m[row_position][column_position],
-            relation->m[row_position][column_position],
-            *temp_val);
-      }
-      break;
-    case acr_expr_leaf_param:
-      if (!parameter) {
-        parameter_position =
-          osl_strings_find(parameters, dim->val.leaf.value.parameter);
-        column_position = 1 + relation->nb_output_dims + parameter_position;
-        if (plus) {
-          osl_int_increment(relation->precision,
-              &relation->m[row_position][column_position],
-              relation->m[row_position][column_position]);
-        } else {
-          osl_int_decrement(relation->precision,
-              &relation->m[row_position][column_position],
-              relation->m[row_position][column_position]);
-        }
-      }
-      break;
-  }
-  osl_int_free(relation->precision, temp_val);
-  return true;
-}
-
-static bool acr_osl_update_mul(
-    osl_relation_p relation,
-    unsigned long which_dim,
-    const acr_array_dimension dim,
-    const osl_strings_p parameters,
-    bool plus,
-    char* found_id) {
-  char* param;
-  if (found_id) {
-    param = found_id;
-  } else {
-    bool found_param = acr_array_dim_get_identifier(dim, &param);
-    if (found_param && param == NULL) {
-      fprintf(stderr, "[ACR] error: Non affine expression: ");
-      print_acr_array_dimensions(stderr, dim, false);
-      fprintf(stderr, "\n");
-      return false;
-    }
-  }
-
-  bool left_up, right_up;
-  acr_array_dimension left_hand_side, right_hand_side;
-  left_hand_side = dim->val.node.left;
-  right_hand_side = dim->val.node.right;
-
-  switch (left_hand_side->type) {
-    case acr_array_dim_plus:
-    case acr_array_dim_minus:
-    case acr_array_dim_div:
-      return false;
-      break;
-    case acr_array_dim_mul:
-      left_up = acr_osl_update_mul(relation,
-            which_dim,
-            left_hand_side,
-            parameters,
-            plus,
-            param);
-      break;
-    case acr_array_dim_leaf:
-      left_up = acr_osl_update_leaf(relation,
-            which_dim,
-            left_hand_side,
-            parameters,
-            plus,
-            param);
-      break;
-    default:
-      left_up = false;
-      break;
-  }
-
-  switch (right_hand_side->type) {
-    case acr_array_dim_plus:
-    case acr_array_dim_minus:
-    case acr_array_dim_div:
-      return false;
-      break;
-    case acr_array_dim_mul:
-      right_up = acr_osl_update_mul(relation,
-            which_dim,
-            right_hand_side,
-            parameters,
-            plus,
-            param);
-      break;
-    case acr_array_dim_leaf:
-      right_up = acr_osl_update_leaf(relation,
-          which_dim,
-          right_hand_side,
-          parameters,
-          plus,
-          param);
-      break;
-    default:
-      right_up = false;
-      break;
-  }
-  return right_up && left_up;
-}
-
-static bool acr_osl_update_plus_minus(
-    osl_relation_p relation,
-    unsigned long which_dim,
-    const acr_array_dimension dim,
-    const osl_strings_p parameters,
-    bool plus) {
-  bool left_up, right_up;
-  acr_array_dimension left_hand_side, right_hand_side;
-  left_hand_side = dim->val.node.left;
-  right_hand_side = dim->val.node.right;
-
-  switch (left_hand_side->type) {
-    case acr_array_dim_plus:
-    case acr_array_dim_minus:
-      left_up = acr_osl_update_plus_minus(relation,
-          which_dim,
-          left_hand_side,
-          parameters,
-          plus);
-      break;
-    case acr_array_dim_leaf:
-      left_up = acr_osl_update_leaf(relation,
-          which_dim,
-          left_hand_side,
-          parameters,
-          plus,
-          NULL);
-      break;
-    case acr_array_dim_mul:
-      left_up = acr_osl_update_mul(relation,
-          which_dim,
-          left_hand_side,
-          parameters,
-          plus,
-          NULL);
-      break;
-    case acr_array_dim_div:
-      left_up = false;
-      break;
-    default:
-      left_up = false;
-      break;
-  }
-
-  switch (right_hand_side->type) {
-    case acr_array_dim_plus:
-    case acr_array_dim_minus:
-      if (dim->type == acr_array_dim_minus) {
-        right_up = acr_osl_update_plus_minus(relation,
-            which_dim,
-            right_hand_side,
-            parameters,
-            false);
-      } else {
-        right_up = acr_osl_update_plus_minus(relation,
-            which_dim,
-            right_hand_side,
-            parameters,
-            true);
-      }
-      break;
-    case acr_array_dim_leaf:
-      if (dim->type == acr_array_dim_minus) {
-        right_up = acr_osl_update_leaf(relation,
-            which_dim,
-            right_hand_side,
-            parameters,
-            false,
-            NULL);
-      } else {
-        right_up = acr_osl_update_leaf(relation,
-            which_dim,
-            right_hand_side,
-            parameters,
-            true,
-            NULL);
-      }
-      break;
-    case acr_array_dim_mul:
-      if (dim->type == acr_array_dim_minus) {
-        right_up = acr_osl_update_mul(relation,
-            which_dim,
-            right_hand_side,
-            parameters,
-            false,
-            NULL);
-      } else {
-        right_up = acr_osl_update_mul(relation,
-            which_dim,
-            right_hand_side,
-            parameters,
-            true,
-            NULL);
-      }
-      break;
-    case acr_array_dim_div:
-      right_up = false;
-      break;
-    default:
-      right_up = false;
-      break;
-  }
-  return left_up && right_up;
-}
-
-static bool acr_osl_update_dim(
-    osl_relation_p relation,
-    unsigned long which_dim,
-    const acr_array_dimension dim,
-    const osl_strings_p parameters,
-    bool plus) {
-  switch (dim->type) {
-    case acr_array_dim_leaf:
-      return acr_osl_update_leaf(relation,
-          which_dim,
-          dim,
-          parameters,
-          plus,
-          NULL);
-      break;
-    case acr_array_dim_plus:
-      return acr_osl_update_plus_minus(relation,
-          which_dim,
-          dim,
-          parameters,
-          plus);
-      break;
-    case acr_array_dim_minus:
-      return acr_osl_update_plus_minus(relation,
-          which_dim,
-          dim,
-          parameters,
-          plus);
-      break;
-    case acr_array_dim_mul:
-      return acr_osl_update_mul(relation,
-          which_dim,
-          dim,
-          parameters,
-          plus,
-          NULL);
-      break;
-    case acr_array_dim_div:
-      return false;
-      break;
-  }
-  return false;
-}
-
-
-static bool acr_osl_update_upper_bound_from_dimension(
-    osl_relation_p relation,
-    unsigned long which_dim,
-    const acr_array_dimension dim,
-    const osl_strings_p parameters) {
-  osl_int_increment(relation->precision,
-      &relation->m[which_dim*2+1][0],
-      relation->m[which_dim*2+1][0]);
-  osl_int_decrement(relation->precision,
-      &relation->m[which_dim*2+1][1+which_dim],
-      relation->m[which_dim*2+1][1+which_dim]);
-  osl_int_decrement(relation->precision,
-      &relation->m[which_dim*2+1][relation->nb_columns - 1],
-      relation->m[which_dim*2+1][relation->nb_columns - 1]);
-  return acr_osl_update_dim(
-      relation,
-      which_dim,
-      dim,
-      parameters,
-      true);
 }
 
 bool acr_osl_check_if_identifiers_are_not_parameters(const osl_scop_p scop,
@@ -1010,8 +607,8 @@ void acr_openscop_get_identifiers_with_dependencies(
   osl_statement_p current_statement = scop->statement;
   bool found_all = false;
   unsigned long current_statement_num = 0;
-  osl_body_p body;
-  size_t num_iterators;
+  osl_body_p body = NULL;
+  size_t num_iterators = 0;
   while (!found_all && current_statement) {
     body = osl_generic_lookup(current_statement->extension, OSL_URI_BODY);
     num_iterators = osl_strings_size(body->iterators);
@@ -1028,6 +625,13 @@ void acr_openscop_get_identifiers_with_dependencies(
       ++current_statement_num;
     }
   }
+  if (!found_all) {
+    *all_iterators = NULL;
+    *statement_containing_them = NULL;
+    *bound_used = NULL;
+    return;
+  }
+  *bound_used = dims->statements_bounds[current_statement_num];
   *statement_containing_them = current_statement;
   bool *dims_left = malloc(num_iterators*sizeof(*dims_left));
   for (size_t i = 0; i < num_iterators; ++i) {
@@ -1043,7 +647,6 @@ void acr_openscop_get_identifiers_with_dependencies(
       }
     }
   }
-  *bound_used = dims->statements_bounds[current_statement_num];
   *all_iterators = osl_strings_malloc();
   for (size_t i = 0; i < num_iterators; ++i) {
     if (dims_left[i]) {
@@ -1164,15 +767,15 @@ struct acr_get_min_max {
 };
 
 #ifdef ACR_DEBUG
-static void pprint_isl_set(isl_set *set, const char* print) {
-  fprintf(stderr, "PPRINT SET %s\n", print);
-  isl_ctx *ctx = isl_set_get_ctx(set);
-  isl_printer *splinter = isl_printer_to_file(ctx, stderr);
-  isl_printer_print_set(splinter, set);
-  isl_printer_flush(splinter);
-  isl_printer_free(splinter);
-  fprintf(stderr, "\nEND PPRINT SET %s\n", print);
-}
+/*static void pprint_isl_set(isl_set *set, const char* print) {*/
+  /*fprintf(stderr, "PPRINT SET %s\n", print);*/
+  /*isl_ctx *ctx = isl_set_get_ctx(set);*/
+  /*isl_printer *splinter = isl_printer_to_file(ctx, stderr);*/
+  /*isl_printer_print_set(splinter, set);*/
+  /*isl_printer_flush(splinter);*/
+  /*isl_printer_free(splinter);*/
+  /*fprintf(stderr, "\nEND PPRINT SET %s\n", print);*/
+/*}*/
 
 /*static void pprint_isl_constraint(isl_constraint *co, const char* print) {*/
   /*fprintf(stderr, "PPRINT CONSTRAINT %s\n", print);*/
@@ -1191,17 +794,6 @@ static isl_stat _acr_get_min_max_in_constraint(isl_constraint *co, void* user) {
   unsigned long dimension = wrapper->current_dimension;
   if (isl_constraint_involves_dims(co, isl_dim_set, 0, 1)) {
     isl_bool lower_bound = isl_constraint_is_lower_bound(co, isl_dim_set, 0);
-#ifdef ACR_DEBUG
-    /*if (lower_bound == isl_bool_true) {*/
-      /*pprint_isl_constraint(co, "LOWER");*/
-    /*} else {*/
-        /*if (lower_bound == isl_bool_false) {*/
-          /*pprint_isl_constraint(co, "UPPPER");*/
-        /*} else {*/
-          /*fprintf(stderr, "ERROR\n");*/
-        /*}*/
-    /*}*/
-#endif
     for (unsigned long i = 0; i < bounds->num_parameters; ++i) {
       isl_val *dim_val =
         isl_constraint_get_coefficient_val(co, isl_dim_param, i);
@@ -1321,28 +913,12 @@ dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
 
   for (unsigned long dim = 0; dim < bounds->num_dimensions; ++dim) {
     isl_set *project_domain = isl_set_copy(domain);
-#ifdef ACR_DEBUG
-    /*pprint_isl_set(project_domain, "BEFOR PROJECT");*/
-#endif
     if (dim+1 < bounds->num_dimensions)
       project_domain = isl_set_project_out(project_domain, isl_dim_set,
           dim+1, bounds->num_dimensions - dim - 1);
     if (dim != 0)
       project_domain = isl_set_project_out(project_domain, isl_dim_set,
           0ul, dim);
-#ifdef ACR_DEBUG
-    /*pprint_isl_set(project_domain, "AFTER PROJECT");*/
-    /*isl_set *project_domainlexmin = isl_set_copy(domain);*/
-    /*project_domainlexmin = isl_set_lexmin(project_domainlexmin);*/
-    /*pprint_isl_set(project_domainlexmin, "AFTER LEXMIN");*/
-    /*isl_set *project_domainlexmax = isl_set_copy(domain);*/
-    /*isl_set_print_internal(project_domainlexmin, stderr, 0);*/
-    /*project_domainlexmax = isl_set_lexmax(project_domainlexmax);*/
-    /*pprint_isl_set(project_domainlexmax, "AFTER LEXMAX");*/
-    /*isl_set_print_internal(project_domainlexmax, stderr, 0);*/
-    /*isl_set_free(project_domainlexmax);*/
-    /*isl_set_free(project_domainlexmin);*/
-#endif
     struct acr_get_min_max wrapper =
         { .current_dimension = dim, .bounds = bounds};
     isl_set_foreach_basic_set(project_domain,
@@ -1485,9 +1061,6 @@ static bool _acr_osl_test_and_set_dims_type(
         }
       }
       bounds->dimensions_type[i] = acr_dimension_type_bound_to_monitor;
-#ifdef ACR_DEBUG
-      fprintf(stderr, "Dim %s is bound to monitor\n", iterators[i]);
-#endif
     } else { // not monitoring
       bool has_alt_param = false;
       for (unsigned long j = 0; !has_alt_param && j < num_alt_param; ++j) {
@@ -1497,9 +1070,6 @@ static bool _acr_osl_test_and_set_dims_type(
             bounds->lower_bound[i][param_pos] == true) {
           bounds->dimensions_type[i] = acr_dimension_type_bound_to_alternative;
           has_alt_param = true;
-#ifdef ACR_DEBUG
-          fprintf(stderr, "Dim %s is bound to alternative\n", iterators[i]);
-#endif
         }
       }
       if (!has_alt_param) {
@@ -1511,10 +1081,6 @@ static bool _acr_osl_test_and_set_dims_type(
                 case acr_dimension_type_bound_to_alternative:
                   bounds->dimensions_type[i] = bounds->dimensions_type[j];
                   has_constraint = true;
-#ifdef ACR_DEBUG
-                  fprintf(stderr, "Dim %s is bound to alternative\n",
-                      iterators[i]);
-#endif
                   break;
                 case acr_dimension_type_bound_to_monitor:
                 case acr_dimension_type_free_dim:
@@ -1524,15 +1090,9 @@ static bool _acr_osl_test_and_set_dims_type(
           }
           if (!has_constraint) {
             bounds->dimensions_type[i] = acr_dimension_type_free_dim;
-#ifdef ACR_DEBUG
-            fprintf(stderr, "Dim %s is free\n", iterators[i]);
-#endif
           }
         } else {
           bounds->dimensions_type[i] = acr_dimension_type_free_dim;
-#ifdef ACR_DEBUG
-          fprintf(stderr, "Dim %s is free\n", iterators[i]);
-#endif
         }
       }
     }
