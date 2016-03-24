@@ -200,70 +200,39 @@ bool acr_osl_check_if_identifiers_are_not_parameters(const osl_scop_p scop,
   return true;
 }
 
-bool get_position_and_dim_num_monitor(
-    const dimensions_upper_lower_bounds *bound_used,
-    unsigned long monitor_dim,
-    unsigned long *num,
-    unsigned long *pos) {
-  unsigned long where = 0;
-  unsigned long current_dim = 0;
-  unsigned long num_dim = 0;
-  bool found = false;
-  bool *already_accounted =
-    malloc(bound_used->num_dimensions * sizeof(*already_accounted));
-  for (unsigned long i = 0; !found && i < bound_used->num_dimensions; ++i) {
-    if (bound_used->dimensions_type[i] == acr_dimension_type_bound_to_monitor) {
-      if (current_dim == monitor_dim) {
-        found = true;
-        where = i;
-      } else {
-        ++current_dim;
-        ++num_dim;
-        already_accounted[i] = true;
-        for (unsigned long j = 0; j < i; ++j) {
-          if (!already_accounted[j] &&
-              bound_used->has_constraint_with_previous_dim[i][j]) {
-            already_accounted[j] = true;
-            ++num_dim;
-          }
-        }
-      }
-    }
+static void acr_print_array_access_monitor_dim_n(
+    FILE *out,
+    unsigned long num_dimensions,
+    const unsigned long *monitor_dim,
+    unsigned long dimmension) {
+  fprintf(out, "(c%lu", monitor_dim[dimmension]*2);
+  for (unsigned long i = dimmension+1; i < num_dimensions; ++i) {
+    fprintf(out, " * a_runtime_data.monitor_dim_max[%lu]", i);
   }
-  *num = num_dim;
-  *pos = where;
-  free(already_accounted);
-  return found;
+  fprintf(out, ")");
 }
 
-static bool acr_print_array_access_monitor_dim_n(FILE* out,
-    const char *prefix,
-    const dimensions_upper_lower_bounds *bound_used,
-    unsigned long dim){
-  unsigned long position, id;
-  bool found = get_position_and_dim_num_monitor(bound_used,
-      dim,
-      &id, &position);
-  if (found) {
-    unsigned long next_monitor_dim = dim+1;
-    fprintf(out, "i%lu", id+1);
-    for (unsigned long i = position+1; i < bound_used->num_dimensions; ++i) {
-      if (bound_used->dimensions_type[i] == acr_dimension_type_bound_to_monitor){
-        fprintf(out, "*%s_runtime_data.monitor_dim_max[%luul]",
-            prefix, next_monitor_dim);
-      }
-    }
+static inline void print_monitor_result_access(
+    FILE* out,
+    unsigned long num_dimensions,
+    const unsigned long *monitor_dim) {
+  fprintf(out, "monitor_result");
+  fprintf(out, "[");
+  for(unsigned long i = 0; i < num_dimensions; ++i) {
+    if (i > 0)
+      fprintf(out, " + ");
+    acr_print_array_access_monitor_dim_n(out, num_dimensions,
+        monitor_dim, i);
   }
-  return found;
+  fprintf(out, "]");
 }
 
 static void acr_openscop_scan_min_max_op(
     const acr_option monitor,
     const char* filter_function,
     unsigned long grid_size,
-    const char* data_location_prefix,
     bool max,
-    const dimensions_upper_lower_bounds *bound_used,
+    const unsigned long *monitor_dim,
     osl_statement_p statement) {
   osl_body_p body = osl_body_malloc();
   unsigned int num_iterators = statement->domain->nb_output_dims;
@@ -275,15 +244,11 @@ static void acr_openscop_scan_min_max_op(
   acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
   unsigned long num_dimensions = acr_array_decl_get_num_dimensions(decl);
 #ifndef ACR_DEBUG
-  fprintf(tempbuffer, "%s_monitor_result", data_location_prefix);
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
-    fprintf(tempbuffer, "[c%lu]", (i+1)*2);
-  }
+  print_monitor_result_access(tempbuffer,
+      num_dimensions, monitor_dim);
   fprintf(tempbuffer, " = ");
-  fprintf(tempbuffer, "%s_monitor_result", data_location_prefix);
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
-    fprintf(tempbuffer, "[c%lu]", (i+1)*2);
-  }
+  print_monitor_result_access(tempbuffer,
+      num_dimensions, monitor_dim);
   if (max) {
     fprintf(tempbuffer, " < ");
   }
@@ -294,10 +259,8 @@ static void acr_openscop_scan_min_max_op(
     fprintf(tempbuffer, "%s(", filter_function);
   }
   fprintf(tempbuffer, "%s", acr_array_decl_get_array_name(decl));
-  char **current_string = iterators->string;
-  while (*current_string) {
-    fprintf(tempbuffer, "[%s]", *current_string);
-    current_string++;
+  for (unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "[i%lu]", monitor_dim[i]);
   }
   if (filter_function) {
     fprintf(tempbuffer, ")");
@@ -307,23 +270,18 @@ static void acr_openscop_scan_min_max_op(
     fprintf(tempbuffer, "%s(", filter_function);
   }
   fprintf(tempbuffer, "%s", acr_array_decl_get_array_name(decl));
-  current_string = iterators->string;
-  while (*current_string) {
-    fprintf(tempbuffer, "[%s]", *current_string);
-    current_string++;
+  for (unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "[i%lu]", monitor_dim[i]);
   }
   if (filter_function) {
     fprintf(tempbuffer, ")");
   }
   fprintf(tempbuffer, " : ");
-  fprintf(tempbuffer, "%s_monitor_result", data_location_prefix);
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
-    fprintf(tempbuffer, "[c%lu]", (i+1)*2);
-  }
+  print_monitor_result_access(tempbuffer,
+      num_dimensions, monitor_dim);
   fprintf(tempbuffer, ";");
 #else
   (void) filter_function;
-  (void) data_location_prefix;
   (void) max;
   fprintf(tempbuffer, "fprintf(stderr, \"compare ");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
@@ -335,12 +293,10 @@ static void acr_openscop_scan_min_max_op(
   }
   fprintf(tempbuffer, "\\n\"");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
-    fprintf(tempbuffer, ", c%lu", (i+1)*2);
+    fprintf(tempbuffer, ", c%lu", monitor_dim[i]*2);
   }
-  char **current_string = iterators->string;
-  while (*current_string) {
-    fprintf(tempbuffer, ", %s", *current_string);
-    current_string++;
+  for (unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, ", i%lu", monitor_dim[i]);
   }
   fprintf(tempbuffer, ");");
 #endif
@@ -377,9 +333,8 @@ static void acr_openscop_scan_init(
     const acr_option monitor,
     const char* filter_function,
     unsigned long grid_size,
-    const char* data_location_prefix,
     enum acr_monitor_processing_funtion process_fun,
-    const dimensions_upper_lower_bounds *bound_used,
+    const unsigned long *monitor_dim,
     osl_statement_p statement) {
   osl_body_p body = osl_body_malloc();
   unsigned int num_iterators = statement->domain->nb_output_dims;
@@ -394,10 +349,8 @@ static void acr_openscop_scan_init(
   switch (process_fun) {
     case acr_monitor_function_min:
     case acr_monitor_function_max:
-      fprintf(tempbuffer, "%s_monitor_result", data_location_prefix);
-      for(unsigned long i = 0; i < num_dimensions; ++i) {
-        fprintf(tempbuffer, "[c%lu]", (i+1)*2);
-      }
+      print_monitor_result_access(tempbuffer,
+          num_dimensions, monitor_dim);
       break;
     case acr_monitor_function_avg:
       fprintf(tempbuffer, "temp_avg");;
@@ -410,10 +363,8 @@ static void acr_openscop_scan_init(
     fprintf(tempbuffer, "%s(", filter_function);
   }
   fprintf(tempbuffer, "%s", acr_array_decl_get_array_name(decl));
-  char **current_string = iterators->string;
-  while (*current_string) {
-    fprintf(tempbuffer, "[%s]", *current_string);
-    current_string++;
+  for (unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "[i%lu]", monitor_dim[i]);
   }
   if (filter_function) {
     fprintf(tempbuffer, ")");
@@ -421,7 +372,6 @@ static void acr_openscop_scan_init(
   fprintf(tempbuffer, ";");
 #else
   (void) filter_function;
-  (void) data_location_prefix;
   fprintf(tempbuffer, "fprintf(stderr, \"Scan init ");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "%%d ");
@@ -432,12 +382,10 @@ static void acr_openscop_scan_init(
   }
   fprintf(tempbuffer, "\\n\"");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
-    fprintf(tempbuffer, ", c%lu", (i+1)*2);
+    fprintf(tempbuffer, ", c%lu", monitor_dim[i]*2);
   }
-  char **current_string = iterators->string;
-  while (*current_string) {
-    fprintf(tempbuffer, ", %s", *current_string);
-    current_string++;
+  for (unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, ", i%lu", monitor_dim[i]);
   }
   fprintf(tempbuffer, ");");
 #endif
@@ -472,16 +420,16 @@ void acr_openscop_set_tiled_to_do_min_max(
     const char* filter_function,
     unsigned long grid_size,
     bool max,
-    const char* data_location_prefix,
-    const dimensions_upper_lower_bounds *bound_used,
+    const unsigned long *monitor_dim,
     osl_scop_p scop) {
   osl_statement_p init, inf_or_sup;
   init = scop->statement;
   inf_or_sup = osl_statement_clone(init);
   acr_openscop_scan_init(monitor, filter_function, grid_size,
-      data_location_prefix, acr_monitor_function_max, bound_used, init);
+      acr_monitor_function_max,
+      monitor_dim, init);
   acr_openscop_scan_min_max_op(monitor, filter_function, grid_size,
-      data_location_prefix, max, bound_used, inf_or_sup);
+      max, monitor_dim, inf_or_sup);
   scop->statement->next = inf_or_sup;
 }
 
@@ -489,6 +437,7 @@ static void acr_openscop_scan_avg_add(
     const acr_option monitor,
     const char* filter_function,
     unsigned long grid_size,
+    const unsigned long *monitor_dim,
     osl_statement_p statement) {
   osl_body_p body = osl_body_malloc();
   unsigned int num_iterators = statement->domain->nb_output_dims;
@@ -505,10 +454,8 @@ static void acr_openscop_scan_avg_add(
     fprintf(tempbuffer, "%s(", filter_function);
   }
   fprintf(tempbuffer, "%s", acr_array_decl_get_array_name(decl));
-  char **current_string = iterators->string;
-  while (*current_string) {
-    fprintf(tempbuffer, "[%s]", *current_string);
-    current_string++;
+  for (unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, "[i%lu]", monitor_dim[i]);
   }
   if (filter_function) {
     fprintf(tempbuffer, ")");
@@ -516,22 +463,13 @@ static void acr_openscop_scan_avg_add(
   fprintf(tempbuffer, ";");
 #else
   (void) filter_function;
-  fprintf(tempbuffer, "fprintf(stderr, \"Avg add ");
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
-    fprintf(tempbuffer, "%%d ");
-  }
-  fprintf(tempbuffer, "= ");
+  fprintf(tempbuffer, "fprintf(stderr, \"Avg add tempval += ");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "%%d ");
   }
   fprintf(tempbuffer, "\\n\"");
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
-    fprintf(tempbuffer, ", c%lu", (i+1)*2);
-  }
-  char **current_string = iterators->string;
-  while (*current_string) {
-    fprintf(tempbuffer, ", %s", *current_string);
-    current_string++;
+  for (unsigned long i = 0; i < num_dimensions; ++i) {
+    fprintf(tempbuffer, ", i%lu", monitor_dim[i]);
   }
   fprintf(tempbuffer, ");");
 #endif
@@ -568,8 +506,7 @@ static void acr_openscop_scan_avg_add(
 static void acr_openscop_scan_avg_div(
     const acr_option monitor,
     unsigned long grid_size,
-    const char* data_location_prefix,
-    const dimensions_upper_lower_bounds *bound_used,
+    const unsigned long *monitor_dim,
     osl_statement_p statement) {
   osl_body_p body = osl_body_malloc();
   unsigned int num_iterators = statement->domain->nb_output_dims;
@@ -581,25 +518,17 @@ static void acr_openscop_scan_avg_div(
   acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
   unsigned long num_dimensions = acr_array_decl_get_num_dimensions(decl);
 #ifndef ACR_DEBUG
-  fprintf(tempbuffer, "monitor_result", data_location_prefix);
-  fprintf(tempbuffer, "[");
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
-    if (i > 0)
-      fprintf(tempbuffer, " + ");
-    acr_print_array_access_monitor_dim_n(tempbuffer, data_location_prefix,
-        bound_used, i);
-  }
-  fprintf(tempbuffer, "]");
+  print_monitor_result_access(tempbuffer,
+      num_dimensions, monitor_dim);
   fprintf(tempbuffer, " = temp_avg / num_value;");
 #else
-  (void) data_location_prefix;
   fprintf(tempbuffer, "fprintf(stderr, \"Avg div ");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "%%d ");
   }
   fprintf(tempbuffer, "by %%zu\\n\"");
   for(unsigned long i = 0; i < num_dimensions; ++i) {
-    fprintf(tempbuffer, ", c%lu", (i+1)*2);
+    fprintf(tempbuffer, ", c%lu", monitor_dim[i]*2);
   }
   fprintf(tempbuffer, ", num_value);");
 #endif
@@ -637,19 +566,19 @@ void acr_openscop_set_tiled_to_do_avg(
     const acr_option monitor,
     const char* filter_function,
     unsigned long grid_size,
-    const char* data_location_prefix,
-    const dimensions_upper_lower_bounds *bound_used,
+    const unsigned long *monitor_dim,
     osl_scop_p scop) {
   osl_statement_p init, add, div;
   init = scop->statement;
   add = osl_statement_clone(init);
   div = osl_statement_clone(init);
   acr_openscop_scan_init(monitor, filter_function, grid_size,
-      data_location_prefix, acr_monitor_function_avg, bound_used, init);
+      acr_monitor_function_avg,
+      monitor_dim, init);
   acr_openscop_scan_avg_add(monitor, filter_function, grid_size,
-      add);
+      monitor_dim, add);
   acr_openscop_scan_avg_div(monitor, grid_size,
-      data_location_prefix, bound_used, div);
+      monitor_dim, div);
   init->next = add;
   add->next = div;
 }
@@ -807,8 +736,46 @@ void acr_openscop_add_related_dims_in_scattering(
   free(already_added);
 }
 
+void monitor_openscop_generate_monitor_dim(
+    const dimensions_upper_lower_bounds *dims,
+    unsigned long num_dims,
+    unsigned long **monitor_dim) {
+  bool *used_to_compute =
+    malloc(dims->num_dimensions * sizeof(*used_to_compute));
+  for (unsigned long i = 0; i < dims->num_dimensions; ++i) {
+    used_to_compute[i] = false;
+    if (dims->dimensions_type[i] == acr_dimension_type_bound_to_monitor) {
+      used_to_compute[i] = true;
+      for (unsigned long j = 0; j < i; ++j) {
+        if (!used_to_compute[j] &&
+            dims->has_constraint_with_previous_dim[i][j]) {
+          used_to_compute[j] = true;
+        }
+      }
+    }
+  }
+  unsigned long *mondim = malloc(num_dims * sizeof(*mondim));
+  for (unsigned long i = 0; i < num_dims; ++i) {
+    mondim[i] = 0;
+    unsigned long current_dim = 0;
+    for (unsigned long j = 0; j < dims->num_dimensions; ++j) {
+      if (used_to_compute[j]) {
+        mondim[i] += 1;
+        if (dims->dimensions_type[j] == acr_dimension_type_bound_to_monitor) {
+          if (current_dim == i) {
+            break;
+          } else {
+            current_dim += 1;
+          }
+        }
+      }
+    }
+  }
+  free(used_to_compute);
+  *monitor_dim = mondim;
+}
+
 osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
-    const char *prefix,
     const osl_scop_p scop,
     unsigned long grid_size,
     const dimensions_upper_lower_bounds_all_statements *dims,
@@ -852,23 +819,28 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
   new_scop->parameters = osl_generic_clone(scop->parameters);
   new_scop->statement = new_statement;
 
+  unsigned long *monitor_dim;
+    monitor_openscop_generate_monitor_dim(*bound_used, num_tiling_dim,
+        &monitor_dim);
+
   const char* filter = acr_monitor_get_filter_name(monitor);
   switch (acr_monitor_get_function(monitor)) {
     case acr_monitor_function_min:
       acr_openscop_set_tiled_to_do_min_max(
-          monitor, filter, grid_size, false, prefix, *bound_used, new_scop);
+          monitor, filter, grid_size, false, monitor_dim, new_scop);
       break;
     case acr_monitor_function_max:
       acr_openscop_set_tiled_to_do_min_max(
-          monitor, filter, grid_size, true, prefix, *bound_used, new_scop);
+          monitor, filter, grid_size, true, monitor_dim, new_scop);
       break;
     case acr_monitor_function_avg:
       acr_openscop_set_tiled_to_do_avg(
-          monitor, filter, grid_size, prefix, *bound_used, new_scop);
+          monitor, filter, grid_size, monitor_dim, new_scop);
       break;
     case acr_monitor_function_unknown:
       break;
   }
+  free(monitor_dim);
 
   acr_openscop_add_related_dims_in_scattering(new_scop, *bound_used);
 
