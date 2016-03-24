@@ -65,7 +65,9 @@ isl_map* isl_map_from_cloog_scattering(CloogScattering *scat);
 void acr_cloog_generate_alternative_code_from_input(
     FILE* output,
     struct acr_runtime_data *data_info,
-    const unsigned char *data) {
+    const unsigned char *data,
+    struct runtime_alternative*
+        (*get_alternative_from_val)(unsigned char data)) {
 
   CloogNamedDomainList *domain_list = data_info->cloog_input->ud->domain;
   CloogDomain *context = data_info->cloog_input->context;
@@ -81,9 +83,11 @@ void acr_cloog_generate_alternative_code_from_input(
       isl_set_copy(isl_set_from_cloog_domain(domain_list->domain));
     isl_ctx *ctx = isl_set_get_ctx(statement_set_copy);
     unsigned long num_dim = isl_set_n_dim(statement_set_copy);
-    /*isl_set **alternatives_domains = acr_isl_set_from_monitor(ctx,*/
-        /*data, data_info->num_alternatives, num_param,*/
-        /*num_dim, data_info->monitor_dimensions, )*/
+    isl_set **alternatives_domains = acr_isl_set_from_monitor(ctx,
+        data, data_info->num_alternatives, data_info->num_parameters,
+        data_info->num_monitor_dims, data_info->monitor_dim_max,
+        data_info->monitor_total_size, data_info->grid_size,
+        get_alternative_from_val);
 
     for (unsigned long i = 0; i < data_info->num_alternatives; ++i) {
       switch (data_info->alternatives[i].type) {

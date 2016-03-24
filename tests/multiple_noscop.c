@@ -67,7 +67,7 @@ int kernel2() {
 }
 
 void lin_solve_computation(int k, int i, int j) {
-  temporary_array[i][j] += k;
+  //temporary_array[i][j] += k;
 }
 
 void lin_solve_computation2(float alpha, int i, int j, int k) {
@@ -86,10 +86,11 @@ int main() {
       temporary_array[i][j] = 3;
     }
   }
-  a_monitoring_function();
+  a();
+  unsigned char* temparray = calloc(a_runtime_data.monitor_total_size ,sizeof(*temparray));
+  a_monitoring_function(temparray);
 
   float pedro = 3.14f;
-  a();
   CloogNamedDomainList *domain = a_runtime_data.cloog_input->ud->domain;
   while(domain) {
     cloog_domain_print_structure(stderr, domain->domain, 0, "A");
@@ -103,5 +104,6 @@ int main() {
     domain = domain->next;
   }
   free_acr_runtime_data(&b_runtime_data);
+  free(temparray);
   return 0;
 }

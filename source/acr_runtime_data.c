@@ -46,7 +46,7 @@ void init_acr_runtime_data(
   data->state = cloog_state_malloc();
   data->cloog_input = cloog_input_from_osl_scop(data->state,
       data->osl_relation);
-  data->monitor_total_size = 0;
+  data->monitor_total_size = 1;
   for (unsigned long i = 0; i < data->num_monitor_dims; ++i) {
     data->monitor_total_size *= data->monitor_dim_max[i];
   }

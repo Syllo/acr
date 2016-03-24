@@ -34,6 +34,9 @@ struct acr_runtime_data {
   size_t *monitor_dim_max;
   size_t monitor_total_size;
   unsigned long grid_size;
+  unsigned long num_statements;
+  unsigned long *dimensions_per_statements;
+  enum acr_dimension_type **statement_dimension_types;
 };
 
 void init_acr_runtime_data(

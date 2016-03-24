@@ -312,15 +312,15 @@ static void acr_print_get_alternetive_from_val(
       min_current = acr_strategy_get_min(current);
       for (long j = min_current; j <= max_current; ++j) {
         if (not_first_alternative)
-          fprintf(out, ", ");
+          fprintf(out, ",\n");
         else
           not_first_alternative = true;
-        fprintf(out, "&%s_alternatives[%lu]", prefix,
+        fprintf(out, "    [%lu] = &%s_alternatives[%lu]", j, prefix,
             strategy_to_alternative_index[i]);
       }
   }
-  fprintf(out, "};\n");
-  fprintf(out, "struct runtime_alternative* %s_get_alternative_from_val(\n"
+  fprintf(out, "\n};\n");
+  fprintf(out, "static inline struct runtime_alternative* %s_get_alternative_from_val(\n"
       "    acr_monitored_data data) {\n"
       "  return %s_alternative_fun[data];\n"
       "}\n", prefix, prefix);
@@ -456,7 +456,8 @@ void acr_print_isl_lex_min_max_bound(FILE *out,
 
 static void acr_print_monitor_max_dims(FILE *out,
     const char *prefix,
-    dimensions_upper_lower_bounds *bounds,
+    const dimensions_upper_lower_bounds *bounds,
+    unsigned long tiling_size,
     const osl_scop_p scop) {
   unsigned long num_monitor_dims = 0;
   for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
@@ -471,26 +472,32 @@ static void acr_print_monitor_max_dims(FILE *out,
       "#ifdef __acr__max__\n"
       "#undef __acr__max__\n"
       "#endif\n"
-      "#define __acr__max__(a,b) (((a)>(b))?(a):(b))\n",
+      "#define __acr__max__(a,b) (((a)>(b))?(a):(b))\n"
+      "#ifdef __acr__min__\n"
+      "#undef __acr__min__\n"
+      "#endif\n"
+      "#define __acr__min__(a,b) (((a)<(b))?(a):(b))\n",
       prefix, num_monitor_dims, prefix);
 
   unsigned long current_dim = 0;
   for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
     if (bounds->dimensions_type[i] == acr_dimension_type_bound_to_monitor) {
-      fprintf(out, "  %s_runtime_data.monitor_dim_max[%lu] = ",
+      fprintf(out, "  %s_runtime_data.monitor_dim_max[%lu] = (",
           prefix, current_dim++);
       acr_print_isl_lex_min_max_bound(out,
-          true, bounds->bound_lexmax, i, parameters);
-      fprintf(out, ";\n");
+          false, bounds->bound_lexmax, i, parameters);
+      fprintf(out, ") / %luul + 1;\n", tiling_size);
     }
   }
   fprintf(out, "#undef __acr__max__\n");
+  fprintf(out, "#undef __acr__min__\n");
 }
 
 void acr_print_acr_runtime_init(FILE* out,
     const acr_compute_node node,
     unsigned long num_parameters,
-    dimensions_upper_lower_bounds *bounds,
+    const dimensions_upper_lower_bounds_all_statements *dims,
+    const dimensions_upper_lower_bounds *bounds,
     const osl_scop_p scop) {
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   const char* prefix = acr_init_get_function_name(init);
@@ -511,20 +518,64 @@ void acr_print_acr_runtime_init(FILE* out,
   }
 
   acr_option grid = acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
-  fprintf(out, "static struct acr_runtime_data %s_runtime_data =\n"
-      "    { .num_alternatives = %luul, "
-      ".alternatives = %s_alternatives, "
-      ".num_parameters = %luul, "
-      ".num_monitor_dims = %luul, "
-      ".grid_size = %luul };\n",
+  fprintf(out, "static struct acr_runtime_data %s_runtime_data = {\n"
+      "  .num_alternatives = %luul,\n"
+      "  .alternatives = %s_alternatives,\n"
+      "  .num_parameters = %luul,\n"
+      "  .num_monitor_dims = %luul,\n"
+      "  .grid_size = %luul,\n"
+      "  .num_statements = %luul,\n"
+      "  .dimensions_per_statements = (unsigned long [%luul]) {\n",
       prefix, num_alternatives, prefix,
-      num_parameters, num_monitor_dims, acr_grid_get_grid_size(grid));
+      num_parameters, num_monitor_dims, acr_grid_get_grid_size(grid),
+      dims->num_statements, dims->num_statements);
+  for (unsigned long i = 0; i < dims->num_statements; ++i) {
+    const dimensions_upper_lower_bounds *current_bound =
+      dims->statements_bounds[i];
+    if (i > 0)
+      fprintf(out, ",\n");
+    fprintf(out, "    [%lu] = %luul",
+        i, current_bound->num_dimensions);
+  }
+  fprintf(out, "\n  },\n");
 
+  fprintf(out,
+      "  .statement_dimension_types = (enum acr_dimension_type* [%luul]) {\n",
+      dims->num_statements);
+  for (unsigned long i = 0; i < dims->num_statements; ++i) {
+    const dimensions_upper_lower_bounds *current_bound =
+      dims->statements_bounds[i];
+    if (i > 0)
+      fprintf(out, ",\n");
+    fprintf(out, "    [%lu] = (enum acr_dimension_type[%luul]) {",
+        i, current_bound->num_dimensions);
+    for (unsigned long j = 0; j < current_bound->num_dimensions; ++j) {
+      if (j > 0)
+        fprintf(out, ", ");
+      switch (current_bound->dimensions_type[j]) {
+        case acr_dimension_type_bound_to_alternative:
+          fprintf(out, "acr_dimension_type_bound_to_alternative");
+          break;
+        case acr_dimension_type_bound_to_monitor:
+          fprintf(out, "acr_dimension_type_bound_to_monitor");
+          break;
+        case acr_dimension_type_free_dim:
+          fprintf(out, "acr_dimension_type_free_dim");
+          break;
+        default:
+          break;
+      }
+    }
+    fprintf(out, "}");
+  }
+  fprintf(out, "\n  }\n};\n");
   fprintf(out, "static void %s_acr_runtime_init", prefix);
   acr_print_parameters(out, init);
   fprintf(out, " {\n");
 
-  acr_print_monitor_max_dims(out, prefix, bounds, scop);
+  unsigned long tiling_size =
+    acr_grid_get_grid_size(acr_compute_node_get_option_of_type(acr_type_grid, node, 1));
+  acr_print_monitor_max_dims(out, prefix, bounds, tiling_size, scop);
 
   fprintf(out,
       "  init_acr_runtime_data(\n"
@@ -662,8 +713,11 @@ bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     fprintf(stderr, "It is not possible to find monitor data boundaries\n");
     return false;
   }
+  acr_print_acr_runtime_init(out, node,
+      scop->context->nb_parameters, dims, *bound_used, scop);
 
-  fprintf(out, "void %s_monitoring_function(void) {\n", prefix);
+
+  fprintf(out, "void %s_monitoring_function(unsigned char* monitor_result) {\n", prefix);
   switch (acr_monitor_get_function(monitor)) {
     case acr_monitor_function_min:
     case acr_monitor_function_max:
@@ -804,6 +858,15 @@ void acr_generate_code(const char* filename) {
           continue;
         }
 
+        if(!acr_print_acr_alternative_and_strategy_init(temp_buffer, node, scop)) {
+          fclose(temp_buffer);
+          free(buffer);
+          position_in_input = scop_start_position;
+          osl_scop_free(scop);
+          acr_osl_free_dimension_upper_lower_bounds_all(bounds_all);
+          continue;
+        }
+
         dimensions_upper_lower_bounds *bound_used;
         if (!acr_print_scanning_function(temp_buffer, node, scop, bounds_all,
               &bound_used)) {
@@ -814,17 +877,6 @@ void acr_generate_code(const char* filename) {
           acr_osl_free_dimension_upper_lower_bounds_all(bounds_all);
           continue;
         }
-        if(!acr_print_acr_alternative_and_strategy_init(temp_buffer, node, scop)) {
-          fclose(temp_buffer);
-          free(buffer);
-          position_in_input = scop_start_position;
-          osl_scop_free(scop);
-          acr_osl_free_dimension_upper_lower_bounds_all(bounds_all);
-          continue;
-        }
-        acr_print_acr_runtime_init(temp_buffer, node,
-            scop->context->nb_parameters, bound_used, scop);
-
         fseek(current_file, position_in_input, SEEK_SET);
         position_in_input = acr_copy_from_file_avoiding_pragmas(
             current_file,
