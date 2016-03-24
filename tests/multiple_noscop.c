@@ -1,6 +1,6 @@
 #define N 15
 #define MAX1 10
-#define MAX2 10
+#define MAX2 15
 #define MAX3 10
 
 int temporary_array[MAX1][MAX2];
@@ -30,10 +30,9 @@ int kernel1() {
 #pragma acr strategy direct(55, low)
 #pragma acr strategy direct(254, medium)
     for (int k=0; k < N; ++k)
-      for (int i=0; i < MAX1; ++i)
-        for (int p=0; p < MAX1; ++p)
-          for (int j=p; j < MAX2; ++j)
-            lin_solve_computation(k,i,j);
+        for (int i=0; i < MAX1; ++i)
+            for (int j=i; j < MAX2; ++j)
+              lin_solve_computation(k,i,j);
   }
 #pragma acr destroy
 }
@@ -103,7 +102,6 @@ int main() {
     cloog_domain_print_structure(stderr, domain->domain, 0, "B");
     domain = domain->next;
   }
-  b_monitoring_function();
   free_acr_runtime_data(&b_runtime_data);
   return 0;
 }

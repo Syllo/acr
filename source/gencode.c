@@ -663,7 +663,7 @@ bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     return false;
   }
 
-  fprintf(out, "void %s_monitoring_function(char *monitor_result) {\n", prefix);
+  fprintf(out, "void %s_monitoring_function(void) {\n", prefix);
   switch (acr_monitor_get_function(monitor)) {
     case acr_monitor_function_min:
     case acr_monitor_function_max:
@@ -803,7 +803,6 @@ void acr_generate_code(const char* filename) {
           osl_scop_free(scop);
           continue;
         }
-
 
         dimensions_upper_lower_bounds *bound_used;
         if (!acr_print_scanning_function(temp_buffer, node, scop, bounds_all,

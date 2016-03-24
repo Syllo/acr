@@ -755,6 +755,7 @@ void acr_openscop_add_related_dims_in_scattering(
     for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
       already_added[i] = false;
       if (bounds->dimensions_type[i] == acr_dimension_type_bound_to_monitor) {
+        already_added[i] = true;
         if (acr_osl_dim_has_constraints_with_previous_dims(i, bounds)) {
           bool remaining = i > 0;
           for (unsigned long j = i-1; remaining; --j) {
