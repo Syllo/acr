@@ -48,12 +48,8 @@ void acr_cloog_init_alternative_constraint_from_cloog_union_domain(
         unsigned long num_param = isl_set_n_param(isl_temp_set);
         isl_ctx *ctx = isl_set_get_ctx(isl_temp_set);
         alt->value.alt.parameter.parameter_constraints[j] =
-          isl_set_from_alternative_parameter_construct(ctx,
+          acr_isl_set_from_alternative_parameter_construct(ctx,
               num_param, num_dim, alt);
-        isl_set_print_internal(
-            alt->value.alt.parameter.parameter_constraints[j],
-            stderr,
-            0);
         named_domain = named_domain->next;
       }
     }
@@ -75,6 +71,14 @@ void acr_cloog_generate_alternative_code_from_input(
   unsigned long num_param = isl_set_n_param(isl_context);
   CloogUnionDomain *new_udomain = cloog_union_domain_alloc(num_param);
 
+  if (osl_generic_has_URI(data_info->osl_relation->parameters, OSL_URI_STRINGS)) {
+    for (size_t i = 0; i < osl_strings_size(data_info->osl_relation->parameters->data); i++) {
+      new_udomain = cloog_union_domain_set_name(new_udomain, CLOOG_PARAM, i,
+        ((osl_strings_p)(data_info->osl_relation->parameters->data))->string[i]);
+    }
+  }
+
+  unsigned long statement_num = 0;
   while(domain_list) {
     isl_map *original_scattering =
       isl_map_from_cloog_scattering(domain_list->scattering);
@@ -82,22 +86,58 @@ void acr_cloog_generate_alternative_code_from_input(
     isl_set *statement_set_copy =
       isl_set_copy(isl_set_from_cloog_domain(domain_list->domain));
     isl_ctx *ctx = isl_set_get_ctx(statement_set_copy);
-    unsigned long num_dim = isl_set_n_dim(statement_set_copy);
-    isl_set **alternatives_domains = acr_isl_set_from_monitor(ctx,
+    isl_set **alternative_domains = acr_isl_set_from_monitor(ctx,
         data, data_info->num_alternatives, data_info->num_parameters,
         data_info->num_monitor_dims, data_info->monitor_dim_max,
         data_info->monitor_total_size, data_info->grid_size,
         get_alternative_from_val);
+    acr_isl_set_add_missing_dim_in_statement(data_info, statement_num,
+        alternative_domains);
 
+    isl_set *alternative_set = NULL;
     for (unsigned long i = 0; i < data_info->num_alternatives; ++i) {
       switch (data_info->alternatives[i].type) {
         case acr_runtime_alternative_parameter:
+          alternative_domains[i] = isl_set_intersect_params(alternative_domains[i],
+              isl_set_copy(
+                *data_info->alternatives[i].value.alt.parameter.parameter_constraints));
+          if (alternative_set)
+            alternative_set = isl_set_union(alternative_set,
+                isl_set_intersect(alternative_domains[i],
+                  isl_set_copy(statement_set_copy)));
+          else
+            alternative_set = isl_set_intersect(alternative_domains[i],
+                isl_set_copy(statement_set_copy));
+          alternative_set = isl_set_eliminate(
+              alternative_set, isl_dim_param,
+              data_info->alternatives[i].value.alt.parameter.parameter_position,
+              1);
           break;
         case acr_runtime_alternative_function:
+          isl_set_free(alternative_domains[i]);
           break;
       }
     }
 
+    CloogDomain *cloog_domain = cloog_domain_from_isl_set(alternative_set);
+    CloogScattering *cloog_scatt = cloog_scattering_from_isl_map(statement_map_copy);
+    new_udomain = cloog_union_domain_add_domain(new_udomain, NULL,
+        cloog_domain, cloog_scatt, NULL);
+
     domain_list = domain_list->next;
+    statement_num += 1;
   }
+
+  CloogOptions *cloog_option = cloog_options_malloc(data_info->state);
+  cloog_option->quiet = 1;
+  cloog_option->openscop = 1;
+  cloog_option->scop = data_info->osl_relation;
+  cloog_option->otl = 1;
+  cloog_option->language = 0;
+  CloogProgram *cloog_program = cloog_program_alloc(context,
+      new_udomain, cloog_option);
+  cloog_program = cloog_program_generate(cloog_program, cloog_option);
+
+  cloog_program_pprint(output, cloog_program, cloog_option);
+
 }

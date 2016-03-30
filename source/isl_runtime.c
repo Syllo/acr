@@ -50,7 +50,6 @@ isl_set** acr_isl_set_from_monitor(
   for(size_t i = 0; i < dimensions_total_size; ++i) {
     struct runtime_alternative *alternative = get_alternative_from_val(data[i]);
     assert(alternative != NULL);
-    fprintf(stderr, "Data : %d, alternativd %lu\n", data[i], alternative->alternative_number);
 
     isl_set *tempset = isl_set_universe(isl_space_copy(space));
     for (size_t j = 0; j < num_dimensions; ++j) {
@@ -74,29 +73,17 @@ isl_set** acr_isl_set_from_monitor(
       tempset = isl_set_add_constraint(tempset, c_lower);
       tempset = isl_set_add_constraint(tempset, c_upper);
     }
-    isl_set_print_internal(tempset, stderr, 0);
     sets[alternative->alternative_number] =
       isl_set_union(sets[alternative->alternative_number], tempset);
 
     for (size_t j = 0; j < num_dimensions; ++j) {
       current_dimension[j] += 1;
-      if(current_dimension[j] == dimensions[j]) {
+      if(current_dimension[j] == dimensions[j] + 1) {
         current_dimension[j] = 0;
       } else {
         break;
       }
     }
-  }
-
-  for (unsigned long i = 0; i < num_alternatives; ++i) {
-    fprintf(stderr, "Alternative nb %lu\n", i);
-    isl_set_print_internal(sets[i], stderr, 0);
-    isl_printer *print = isl_printer_to_str(ctx);
-    print = isl_printer_print_set(print, sets[i]);
-    char* str = isl_printer_get_str(print);
-    fprintf(stderr, "%s\n", str);
-    free(str);
-    isl_printer_free(print);
   }
 
   isl_space_free(space);
@@ -106,7 +93,28 @@ isl_set** acr_isl_set_from_monitor(
   return sets;
 }
 
-isl_set* isl_set_from_alternative_parameter_construct(
+void acr_isl_set_add_missing_dim_in_statement(
+    struct acr_runtime_data *data,
+    unsigned long statement_num,
+    isl_set **sets) {
+  const unsigned long num_dims = data->dimensions_per_statements[statement_num];
+  for (unsigned long i = 0; i < num_dims; ++i) {
+    switch (data->statement_dimension_types[statement_num][i]) {
+      case acr_dimension_type_bound_to_alternative:
+      case acr_dimension_type_free_dim:
+        for (unsigned long j = 0; j < data->num_alternatives; ++j) {
+          sets[j] = isl_set_insert_dims(sets[j], isl_dim_set, i, 1);
+        }
+        break;
+      case acr_dimension_type_bound_to_monitor:
+        break;
+      default:
+        break;
+    }
+  }
+}
+
+isl_set* acr_isl_set_from_alternative_parameter_construct(
     isl_ctx *ctx,
     unsigned long num_parameters,
     unsigned long num_dimensions,

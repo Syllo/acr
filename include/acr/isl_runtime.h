@@ -23,6 +23,7 @@
 #include <isl/set.h>
 
 #include "acr/runtime_alternatives.h"
+#include "acr/acr_runtime_data.h"
 
 isl_set** acr_isl_set_from_monitor(
     isl_ctx *ctx,
@@ -36,10 +37,15 @@ isl_set** acr_isl_set_from_monitor(
     struct runtime_alternative*
         (*get_alternative_from_val)(unsigned char data));
 
-isl_set* isl_set_from_alternative_parameter_construct(
+isl_set* acr_isl_set_from_alternative_parameter_construct(
     isl_ctx *ctx,
     unsigned long num_parameters,
     unsigned long num_dimensions,
     struct runtime_alternative* alternative);
+
+void acr_isl_set_add_missing_dim_in_statement(
+    struct acr_runtime_data *data,
+    unsigned long statement_num,
+    isl_set **sets);
 
 #endif // __ACR_ISL_RUNTIME_H

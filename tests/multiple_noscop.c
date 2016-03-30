@@ -18,11 +18,11 @@ int kernel1() {
 
   while (1) {
 #pragma acr grid(4)
-#pragma acr monitor(int temporary_array[i][j], avg, solve_to_char)
+#pragma acr monitor(int temporary_array[i][j], max, solve_to_char)
 #pragma acr alternative \
-    low(parameter, N = 1)
-#pragma acr alternative medium(parameter, N = 2)
-#pragma acr alternative high(parameter, N = 3)
+    low(parameter, N = 5)
+#pragma acr alternative medium(parameter, N = 10)
+#pragma acr alternative high(parameter, N = 15)
 #pragma acr \
     strategy direct(1, low)
 #pragma acr strategy direct(2, medium)
@@ -31,7 +31,7 @@ int kernel1() {
 #pragma acr strategy direct(254, medium)
     for (int k=0; k < N; ++k)
         for (int i=0; i < MAX1; ++i)
-            for (int j=i; j < MAX2; ++j)
+            for (int j=0; j < MAX2; ++j)
               lin_solve_computation(k,i,j);
   }
 #pragma acr destroy
@@ -79,7 +79,7 @@ int main() {
     for (int j = 0; j < MAX2/2; ++j) {
       temporary_array[i][j] = 1;
     }
-    for (int j = MAX2/2; j < MAX2/2+MAX2/4; ++j) {
+    for (int j = MAX2/2; j < MAX2 /* /2+MAX2/4 */; ++j) {
       temporary_array[i][j] = 2;
     }
     for (int j = MAX2/2+MAX2/4; j < MAX2; ++j) {
@@ -89,6 +89,9 @@ int main() {
   a();
   unsigned char* temparray = calloc(a_runtime_data.monitor_total_size ,sizeof(*temparray));
   a_monitoring_function(temparray);
+
+  acr_cloog_generate_alternative_code_from_input(stderr,
+      &a_runtime_data, temparray, a_get_alternative_from_val);
 
   float pedro = 3.14f;
   CloogNamedDomainList *domain = a_runtime_data.cloog_input->ud->domain;
