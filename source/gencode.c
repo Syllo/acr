@@ -281,7 +281,7 @@ void acr_print_acr_alternatives(FILE *out,
         break;
       case acr_alternative_function:
         fprintf(out,
-            ".value = { .alt.function_to_swap = %s"
+            ".value = { .alt.function_to_swap = \"%s\""
             " , .name_to_swap = \"%s\" } ",
             acr_alternative_get_replacement_function(alternative),
             name);

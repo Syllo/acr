@@ -19,7 +19,6 @@
 #ifndef __ACR_ISL_RUNTIME_H
 #define __ACR_ISL_RUNTIME_H
 
-#include <assert.h>
 #include <isl/set.h>
 
 #include "acr/runtime_alternatives.h"
@@ -42,10 +41,5 @@ isl_set* acr_isl_set_from_alternative_parameter_construct(
     unsigned long num_parameters,
     unsigned long num_dimensions,
     struct runtime_alternative* alternative);
-
-void acr_isl_set_add_missing_dim_in_statement(
-    struct acr_runtime_data *data,
-    unsigned long statement_num,
-    isl_set **sets);
 
 #endif // __ACR_ISL_RUNTIME_H

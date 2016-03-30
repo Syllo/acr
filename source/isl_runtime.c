@@ -18,6 +18,8 @@
 
 #include "acr/isl_runtime.h"
 
+#include <assert.h>
+
 #include <isl/constraint.h>
 #include <isl/ctx.h>
 #include <isl/space.h>
@@ -91,27 +93,6 @@ isl_set** acr_isl_set_from_monitor(
   isl_val_free(tiling_size_val);
   free(current_dimension);
   return sets;
-}
-
-void acr_isl_set_add_missing_dim_in_statement(
-    struct acr_runtime_data *data,
-    unsigned long statement_num,
-    isl_set **sets) {
-  const unsigned long num_dims = data->dimensions_per_statements[statement_num];
-  for (unsigned long i = 0; i < num_dims; ++i) {
-    switch (data->statement_dimension_types[statement_num][i]) {
-      case acr_dimension_type_bound_to_alternative:
-      case acr_dimension_type_free_dim:
-        for (unsigned long j = 0; j < data->num_alternatives; ++j) {
-          sets[j] = isl_set_insert_dims(sets[j], isl_dim_set, i, 1);
-        }
-        break;
-      case acr_dimension_type_bound_to_monitor:
-        break;
-      default:
-        break;
-    }
-  }
 }
 
 isl_set* acr_isl_set_from_alternative_parameter_construct(

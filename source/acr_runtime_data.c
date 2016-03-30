@@ -17,6 +17,7 @@
  */
 
 #include "acr/acr_runtime_data.h"
+#include "acr/cloog_runtime.h"
 
 #include <isl/set.h>
 
@@ -30,7 +31,9 @@ void free_acr_runtime_data(struct acr_runtime_data* data) {
       free(alt->value.alt.parameter.parameter_constraints);
     }
   }
-  cloog_input_free(data->cloog_input);
+  cloog_union_domain_free(data->cloog_input->ud);
+  cloog_domain_free(data->cloog_input->context);
+  free(data->cloog_input);
   data->cloog_input = NULL;
   cloog_state_free(data->state);
   data->state = NULL;
@@ -46,6 +49,7 @@ void init_acr_runtime_data(
   data->state = cloog_state_malloc();
   data->cloog_input = cloog_input_from_osl_scop(data->state,
       data->osl_relation);
+  acr_cloog_init_scop_to_match_alternatives(data);
   data->monitor_total_size = 1;
   for (unsigned long i = 0; i < data->num_monitor_dims; ++i) {
     data->monitor_total_size *= data->monitor_dim_max[i];

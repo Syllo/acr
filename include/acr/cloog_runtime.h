@@ -33,4 +33,7 @@ void acr_cloog_generate_alternative_code_from_input(
 void acr_cloog_init_alternative_constraint_from_cloog_union_domain(
     struct acr_runtime_data *data);
 
+void acr_cloog_init_scop_to_match_alternatives(
+    struct acr_runtime_data *data);
+
 #endif // __ACR_CLOOG_RUNTIME_H
