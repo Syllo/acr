@@ -49,8 +49,6 @@ typedef struct dimensions_upper_lower_bounds_all_statements {
 void acr_print_scop_to_buffer(osl_scop_p scop, char** buffer,
     size_t* size_buffer);
 
-osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer);
-
 osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
     const osl_scop_p scop,
     unsigned long grid_size,

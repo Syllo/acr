@@ -11,6 +11,11 @@ void lin_solve_computation2(float alpha, int i, int j, int k);
 static inline unsigned char solve_to_char(int i) {
   return (unsigned char) i;
 }
+void do_nothing(int k, int i, int j) {
+  (void)i;
+  (void)j;
+  (void)k;
+}
 
 #pragma acr init(void a(void))
 
@@ -22,7 +27,7 @@ int kernel1() {
 #pragma acr alternative \
     low(parameter, N = 5)
 #pragma acr alternative medium(parameter, N = 10)
-#pragma acr alternative high(parameter, N = 15)
+#pragma acr alternative high(function, lin_solve_computation = do_nothing)
 #pragma acr \
     strategy direct(1, low)
 #pragma acr strategy direct(2, medium)

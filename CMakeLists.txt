@@ -145,21 +145,24 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/acr/acr.h"
   IMMEDIATE @ONLY)
 
-list(APPEND ACR_LIBRARY_C_FILES
-  source/acr_openscop.c
+list(APPEND ACR_RUNTIME_LIBRARY_C_FILES
   source/acr_runtime_data.c
   source/cloog_runtime.c
   source/isl_runtime.c
-  source/utils.c
-  source/pragma_struct.c
-  source/print.c)
+  source/osl_runtime.c)
 
-list(APPEND ACR_EXECUTABLE_C_FILES
-  source/acr.c
+list(APPEND ACR_LIBRARY_C_FILES
+  source/acr_openscop.c
   source/gencode.c
   source/parser_utils.c
+  source/pragma_struct.c
+  source/print.c
+  source/utils.c
   ${FLEX_acr_scanner_OUTPUTS}
   ${BISON_acr_parser_OUTPUTS})
+
+list(APPEND ACR_EXECUTABLE_C_FILES
+  source/acr.c)
 
 #///////////////////////////////////////////////////////////////////#
 #                             LIBRARIES                             #
@@ -185,24 +188,21 @@ target_compile_definitions(acr
   PRIVATE
     _POSIX_C_SOURCE=200809L)
 
-add_library(acr_static
-  STATIC
-  ${ACR_LIBRARY_C_FILES})
-set_target_properties(acr_static PROPERTIES OUTPUT_NAME acr)
-message(STATUS "Add acr library (static)"
-  " ${CMAKE_STATIC_LIBRARY_PREFIX}acr${CMAKE_STATIC_LIBRARY_SUFFIX}")
-target_link_libraries(acr_static
+add_library(acrrun
+  SHARED
+  ${ACR_RUNTIME_LIBRARY_C_FILES})
+message(STATUS "Add acr library (shared)"
+  " ${CMAKE_SHARED_LIBRARY_PREFIX}acrrun${CMAKE_SHARED_LIBRARY_SUFFIX}")
+target_link_libraries(acrrun
   PUBLIC
     cloog
     osl
-  PRIVATE
-    isl
-    clan)
-target_include_directories(acr_static
+    isl)
+target_include_directories(acrrun
   PUBLIC
-  include/
-  "${CMAKE_CURRENT_BINARY_DIR}/autogen/include")
-target_compile_definitions(acr_static
+    include/
+    "${CMAKE_CURRENT_BINARY_DIR}/autogen/include")
+target_compile_definitions(acr
   PRIVATE
     _POSIX_C_SOURCE=200809L)
 

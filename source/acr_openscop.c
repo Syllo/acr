@@ -34,13 +34,6 @@ void acr_print_scop_to_buffer(osl_scop_p scop, char** buffer,
   fclose(output_char);
 }
 
-osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer) {
-  FILE* fakefile = fmemopen(buffer, size_buffer, "r");
-  osl_scop_p scop = osl_scop_read(fakefile);
-  fclose(fakefile);
-  return scop;
-}
-
 static void osl_set_scattering_base(
     unsigned long num_iterators,
     osl_relation_p scattering) {
@@ -844,17 +837,14 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
 
   acr_openscop_add_related_dims_in_scattering(new_scop, *bound_used);
 
-  osl_scop_print(stderr, new_scop);
-
-  osl_strings_free(all_identifiers);
-  // PLACEHOLDER
-  return new_scop;
 
   osl_strings_p scattering_names = osl_strings_generate("c",
       new_scop->statement->scattering->nb_output_dims);
   osl_scatnames_p scatnames = osl_scatnames_malloc();
   scatnames->names = scattering_names;
   new_scop->extension = osl_generic_shell(scatnames, osl_scatnames_interface());
+
+  osl_strings_free(all_identifiers);
 
   return new_scop;
 }
@@ -863,28 +853,6 @@ struct acr_get_min_max {
   dimensions_upper_lower_bounds *bounds;
   unsigned long current_dimension;
 };
-
-#ifdef ACR_DEBUG
-/*static void pprint_isl_set(isl_set *set, const char* print) {*/
-  /*fprintf(stderr, "PPRINT SET %s\n", print);*/
-  /*isl_ctx *ctx = isl_set_get_ctx(set);*/
-  /*isl_printer *splinter = isl_printer_to_file(ctx, stderr);*/
-  /*isl_printer_print_set(splinter, set);*/
-  /*isl_printer_flush(splinter);*/
-  /*isl_printer_free(splinter);*/
-  /*fprintf(stderr, "\nEND PPRINT SET %s\n", print);*/
-/*}*/
-
-/*static void pprint_isl_constraint(isl_constraint *co, const char* print) {*/
-  /*fprintf(stderr, "PPRINT CONSTRAINT %s\n", print);*/
-  /*isl_ctx *ctx = isl_constraint_get_ctx(co);*/
-  /*isl_printer *splinter = isl_printer_to_file(ctx, stderr);*/
-  /*isl_printer_print_constraint(splinter, co);*/
-  /*isl_printer_flush(splinter);*/
-  /*isl_printer_free(splinter);*/
-  /*fprintf(stderr, "\nEND PPRINT CONSTRAINT %s\n", print);*/
-/*}*/
-#endif
 
 static isl_stat _acr_get_min_max_in_constraint(isl_constraint *co, void* user) {
   struct acr_get_min_max *wrapper = (struct acr_get_min_max*) user;

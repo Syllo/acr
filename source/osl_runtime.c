@@ -16,14 +16,14 @@
  *
  */
 
-#ifndef __ACR_RUNTIME_H
-#define __ACR_RUNTIME_H
+#include "acr/osl_runtime.h"
 
-#include <acr/acr_runtime_data.h>
-#include <acr/cloog_runtime.h>
-#include <acr/isl_runtime.h>
-#include <acr/osl_runtime.h>
+#include <stdio.h>
 
-typedef unsigned char acr_monitored_data;
+osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer) {
+  FILE* fakefile = fmemopen(buffer, size_buffer, "r");
+  osl_scop_p scop = osl_scop_read(fakefile);
+  fclose(fakefile);
+  return scop;
+}
 
-#endif // __ACR_RUNTIME_H

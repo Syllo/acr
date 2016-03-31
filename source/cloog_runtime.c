@@ -33,28 +33,23 @@
 
 static char* reprep(char* initial, const char* torep, const char* rep) {
   char* subpos;
-  fprintf(stderr, "RepRep %s , %s -> %s\n", initial, torep, rep);
   size_t sizerep = strlen(rep);
   size_t sizetorep = strlen(torep);
-        fprintf(stderr, "initial %zu sizetorep %zu sizerep %zu\n", strlen(initial), sizetorep, sizerep);
   do {
     subpos = strstr(initial, torep);
-    fprintf(stderr, "FOUND\n");
     if (subpos) {
       size_t size_initial = strlen(initial);
       size_t remaining_space = strlen(subpos) - sizetorep;
       if (sizerep > sizetorep) {
-        fprintf(stderr, "initial %zu sizetorep %zu sizerep %zu\n", size_initial, sizetorep, sizerep);
         initial = realloc(initial,
             (size_initial+1+sizerep-sizetorep) * sizeof(*initial));
         subpos = strstr(initial, torep);
       }
       memmove(subpos+sizerep, subpos+sizetorep, remaining_space+1);
+      memcpy(subpos, rep, sizerep);
       if (sizerep < sizetorep) {
-        fprintf(stderr, "initial %zu sizetorep %zu sizerep %zu\n", size_initial, sizetorep, sizerep);
         initial = realloc(initial,
             (size_initial+1-(sizetorep-sizerep)) * sizeof(*initial));
-        subpos = strstr(initial, torep);
       }
     }
   } while (subpos);
@@ -95,6 +90,9 @@ void acr_cloog_init_scop_to_match_alternatives(
         new_statement->domain = osl_relation_clone(statement->domain);
         osl_generic_add(&new_statement->extension,
             osl_generic_shell(swapped_fun, osl_body_interface()));
+        new_statement->next = statement->next;
+        statement->next = new_statement;
+        statement = new_statement;
       }
     }
     statement = statement->next;
@@ -155,9 +153,13 @@ void acr_cloog_generate_alternative_code_from_input(
           ((osl_strings_p)(osl_parameters->data))->string[i]);
     }
   }
-
   unsigned long statement_num = 0;
   while(domain_list) {
+    CloogDomain *cloog_domain;
+    CloogScattering *cloog_scatt;
+    new_udomain = cloog_union_domain_add_domain(new_udomain, NULL,
+        domain_list->domain, domain_list->scattering, NULL);
+    CloogNamedDomainList * pragma_parameter_domain = new_udomain->domain;
     isl_map *statement_map_copy = isl_map_copy(isl_map_from_cloog_scattering(
           domain_list->scattering));
     isl_set *statement_set_copy =
@@ -207,14 +209,18 @@ void acr_cloog_generate_alternative_code_from_input(
         case acr_runtime_alternative_function:
           alternative_domains[i] = isl_set_intersect(alternative_domains[i],
               isl_set_copy(statement_set_copy));
+          cloog_domain = cloog_domain_from_isl_set(alternative_domains[i]);
+          cloog_scatt = cloog_scattering_from_isl_map(isl_map_copy(statement_map_copy));
+          new_udomain = cloog_union_domain_add_domain(new_udomain, NULL,
+              cloog_domain, cloog_scatt, NULL);
           break;
       }
     }
 
-    CloogDomain *cloog_domain = cloog_domain_from_isl_set(alternative_set);
-    CloogScattering *cloog_scatt = cloog_scattering_from_isl_map(statement_map_copy);
-    new_udomain = cloog_union_domain_add_domain(new_udomain, NULL,
-        cloog_domain, cloog_scatt, NULL);
+    cloog_domain = cloog_domain_from_isl_set(alternative_set);
+    cloog_scatt = cloog_scattering_from_isl_map(statement_map_copy);
+    pragma_parameter_domain->scattering = cloog_scatt;
+    pragma_parameter_domain->domain = cloog_domain;
 
     domain_list = domain_list->next;
     statement_num += 1;
