@@ -1091,9 +1091,6 @@ static bool _acr_osl_test_and_set_dims_type(
   char **iterators = body->iterators->string;
   unsigned long num_iterators = osl_strings_size(body->iterators);
 
-  fprintf(stderr, "Real iterators\n");
-  osl_strings_print(stderr, body->iterators);
-
   char **alt_params = alternative_parameters->string;
   for (unsigned long i = 0; i < num_iterators; ++i) {
     if (osl_strings_find(monitor_parameters_name,iterators[i])<num_monitor_dim){
@@ -1203,17 +1200,10 @@ bool acr_osl_find_and_verify_free_dims_position(
       }
     }
   }
-  fprintf(stderr, "Iterators\n");
-  osl_strings_print(stderr, pragma_monitor_iterators);
-  fprintf(stderr, "Alternative Parameters\n");
-  osl_strings_print(stderr, pragma_alternative_parameters);
-
   osl_statement_p current_statement = scop->statement;
   bool valid = true;
   osl_strings_p context_parameters =
     osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
-  fprintf(stderr, "Context Parameters\n");
-  osl_strings_print(stderr, context_parameters);
   for (unsigned long i = 0; valid && i < bounds_all->num_statements; ++i) {
     valid = _acr_osl_test_and_set_dims_type(
         current_statement,
