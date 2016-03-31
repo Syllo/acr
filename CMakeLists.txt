@@ -112,10 +112,13 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/autogen)
 #                        COMPILATION OPTIONS                        #
 #///////////////////////////////////////////////////////////////////#
 
-set(COMMON_C_FLAGS "-Wall -Wextra -std=c99 -pedantic")
+set(CMAKE_C_STANDARD 11)
 
-set(CMAKE_C_FLAGS_RELEASE "${COMMON_C_FLAGS} -O3")
-set(CMAKE_C_FLAGS_DEBUG "${COMMON_C_FLAGS} -O0 -g")
+include(cmake/compiler_flags.cmake)
+
+set(CMAKE_C_FLAGS_RELEASE "-O3")
+set(CMAKE_C_FLAGS_DEBUG ${COMPILER_AVALIABLE_WARNINGS} "-O0" "-g")
+string(REPLACE ";" " " CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
   add_definitions()#-DACR_DEBUG)
