@@ -16,15 +16,6 @@
  *
  */
 
-#ifndef __ACR_RUNTIME_H
-#define __ACR_RUNTIME_H
+#include "acr/acr_runtime_build.h"
 
-#include <acr/acr_runtime_data.h>
-#include <acr/acr_runtime_build.h>
-#include <acr/cloog_runtime.h>
-#include <acr/isl_runtime.h>
-#include <acr/osl_runtime.h>
 
-typedef unsigned char acr_monitored_data;
-
-#endif // __ACR_RUNTIME_H

@@ -28,6 +28,10 @@ endif()
 # Check functions avaliability
 include(cmake/config-dep.cmake)
 
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+  include(cmake/compiler_flags.cmake)
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/")
 
 find_package(CLAN QUIET)
@@ -89,6 +93,8 @@ if (NOT TARGET cloog)
     CLOOG_INT_GMP)
 endif()
 
+find_package(TCC)
+
 find_package(BISON REQUIRED)
 find_package(FLEX REQUIRED)
 set(BISON_EXTRA_COMPILE_FLAGS "-L c")
@@ -113,8 +119,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/autogen)
 #///////////////////////////////////////////////////////////////////#
 
 set(CMAKE_C_STANDARD 11)
-
-include(cmake/compiler_flags.cmake)
 
 set(CMAKE_C_FLAGS_RELEASE "-O3")
 set(CMAKE_C_FLAGS_DEBUG ${COMPILER_AVALIABLE_WARNINGS} "-O0" "-g")
@@ -148,8 +152,17 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/acr/acr.h"
   IMMEDIATE @ONLY)
 
+if(TCC_FOUND)
+  set(TCC_PRESENT "#define TCC_PRESENT")
+endif()
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr_runtime_build.h.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/acr/acr_runtime_build.h"
+  IMMEDIATE @ONLY)
+
 list(APPEND ACR_RUNTIME_LIBRARY_C_FILES
   source/acr_runtime_data.c
+  source/acr_runtime_build.c
   source/cloog_runtime.c
   source/isl_runtime.c
   source/osl_runtime.c)

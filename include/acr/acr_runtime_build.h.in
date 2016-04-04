@@ -16,15 +16,16 @@
  *
  */
 
-#ifndef __ACR_RUNTIME_H
-#define __ACR_RUNTIME_H
+#ifndef __ACR_RUNTIME_BUILD_H
+#define __ACR_RUNTIME_BUILD_H
 
-#include <acr/acr_runtime_data.h>
-#include <acr/acr_runtime_build.h>
-#include <acr/cloog_runtime.h>
-#include <acr/isl_runtime.h>
-#include <acr/osl_runtime.h>
+@TCC_PRESENT@
+#ifdef TCC_PRESENT
 
-typedef unsigned char acr_monitored_data;
+#include <libtcc.h>
 
-#endif // __ACR_RUNTIME_H
+#endif
+
+const char acr_compiler_path[] = "@CMAKE_C_COMPILER@";
+
+#endif // __ACR_RUNTIME_BUILD_H
