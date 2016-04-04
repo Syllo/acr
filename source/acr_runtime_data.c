@@ -18,6 +18,7 @@
 
 #include "acr/acr_runtime_data.h"
 #include "acr/cloog_runtime.h"
+#include "acr/osl_runtime.h"
 
 #include <isl/set.h>
 

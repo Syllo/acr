@@ -36,11 +36,6 @@ if(compiler_has_warning_cast_align)
   list(APPEND COMPILER_AVALIABLE_WARNINGS
     "-Wcast-align")
 endif()
-#check_c_compiler_flag("-Wconversion" compiler_has_warning_conversion)
-#if(compiler_has_warning_conversion)
-  #list(APPEND COMPILER_AVALIABLE_WARNINGS
-    #"-Wconversion")
-#endif()
 check_c_compiler_flag("-Wbad-function-cast"
   compiler_has_warning_bad_function_cast)
 if(compiler_has_warning_bad_function_cast)
@@ -164,11 +159,6 @@ if(compiler_has_warning_normalized)
   list(APPEND COMPILER_AVALIABLE_WARNINGS
     "-Wnormalized")
 endif()
-check_c_compiler_flag("-Wpadded" compiler_has_warning_padded)
-if(compiler_has_warning_padded)
-  list(APPEND COMPILER_AVALIABLE_WARNINGS
-    "-Wpadded")
-endif()
 check_c_compiler_flag("-Wdisabled-optimization"
   compiler_has_warning_disabled_optimization)
 if(compiler_has_warning_disabled_optimization)
@@ -181,3 +171,13 @@ if(compiler_has_warning_hsa)
   list(APPEND COMPILER_AVALIABLE_WARNINGS
     "-Whsa")
 endif()
+#check_c_compiler_flag("-Wconversion" compiler_has_warning_conversion)
+#if(compiler_has_warning_conversion)
+  #list(APPEND COMPILER_AVALIABLE_WARNINGS
+    #"-Wconversion")
+#endif()
+#check_c_compiler_flag("-Wpadded" compiler_has_warning_padded)
+#if(compiler_has_warning_padded)
+  #list(APPEND COMPILER_AVALIABLE_WARNINGS
+    #"-Wpadded")
+#endif()

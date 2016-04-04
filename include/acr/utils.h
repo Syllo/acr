@@ -31,4 +31,12 @@
 
 char* acr_strdup(const char* to_duplicate);
 
+#define FLOAT_TRESHOLD 1e-5f
+#define float_equal(a,b) ((((a)-(b)) <= FLOAT_TRESHOLD) && \
+                          (((a)-(b)) >= (-FLOAT_TRESHOLD)))
+
+#define DOUBLE_TRESHOLD 1e-5
+#define double_equal(a,b) ((((a)-(b)) <= DOUBLE_TRESHOLD) && \
+                          (((a)-(b)) >= (-DOUBLE_TRESHOLD)))
+
 #endif // __ACR_UTILS_H

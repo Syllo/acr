@@ -31,13 +31,13 @@ enum acr_alternative_type {
 
 typedef struct acr_alternative {
   size_t pragma_position;
-  enum acr_alternative_type type;
-  char* alternative_name;
-  char* name_of_object_to_swap;
   union {
     long int replacement_value;
     char* replacement_function;
   } swapped_by;
+  char* name_of_object_to_swap;
+  char* alternative_name;
+  enum acr_alternative_type type;
 } acr_alternative;
 
 typedef struct acr_destroy {
@@ -88,9 +88,9 @@ enum acr_monitor_processing_funtion {
 
 typedef struct acr_monitor {
   size_t pragma_position;
+  char* filter_name;
   acr_array_declaration data_monitored;
   enum acr_monitor_processing_funtion processing_function;
-  char* filter_name;
 } acr_monitor;
 
 enum acr_strategy_type {
@@ -126,7 +126,6 @@ enum acr_type {
 };
 
 typedef struct acr_option {
-  enum acr_type type;
   union {
     acr_alternative alternative;
     acr_destroy destroy;
@@ -135,6 +134,7 @@ typedef struct acr_option {
     acr_monitor monitor;
     acr_strategy strategy;
   } options;
+  enum acr_type type;
 } *acr_option, **acr_option_list;
 
 typedef struct acr_compute_node {

@@ -102,4 +102,20 @@ bool acr_osl_dim_has_constraints_with_previous_dims(
     unsigned long dim1,
     const dimensions_upper_lower_bounds *bounds);
 
+osl_strings_p acr_openscop_get_monitor_identifiers(const acr_option monitor);
+
+bool acr_osl_check_if_identifiers_are_not_parameters(const osl_scop_p scop,
+    osl_strings_p identifiers);
+
+void acr_openscop_get_identifiers_with_dependencies(
+    const acr_option monitor,
+    const osl_scop_p scop,
+    const dimensions_upper_lower_bounds_all_statements *dims,
+    dimensions_upper_lower_bounds **bound_used,
+    osl_strings_p *all_iterators,
+    osl_statement_p *statement_containing_them);
+
+dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
+    const osl_statement_p statement);
+
 #endif // __ACR_OPENSCOP_H

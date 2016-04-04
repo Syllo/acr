@@ -172,10 +172,6 @@ osl_strings_p acr_openscop_get_monitor_identifiers(const acr_option monitor) {
   return identifiers;
 }
 
-unsigned long acr_monitor_num_dimensions(const acr_option monitor) {
-  return monitor->options.monitor.data_monitored.num_dimensions;
-}
-
 bool acr_osl_check_if_identifiers_are_not_parameters(const osl_scop_p scop,
     osl_strings_p identifiers) {
   size_t num_identifiers = osl_strings_size(identifiers);
@@ -640,7 +636,7 @@ void acr_openscop_get_identifiers_with_dependencies(
   osl_strings_free(identifiers);
 }
 
-osl_relation_p acr_openscop_reduce_domain_to_id(
+static osl_relation_p acr_openscop_reduce_domain_to_id(
     const osl_relation_p initial_domain,
     const osl_strings_p initial_iterators,
     const osl_strings_p remaining_iterators) {
@@ -652,10 +648,10 @@ osl_relation_p acr_openscop_reduce_domain_to_id(
     if (osl_strings_find(remaining_iterators, initial_iterators->string[i]) >=
         num_remaining_it) {
       unsigned long column_num = 1+i-deleted;
-      for (int i = 0; i < new_domain->nb_rows; ++i) {
-        if (!osl_int_zero(new_domain->precision, new_domain->m[i][column_num])){
-          osl_relation_remove_row(new_domain, i);
-          i--;
+      for (int j = 0; j < new_domain->nb_rows; ++j) {
+        if (!osl_int_zero(new_domain->precision, new_domain->m[j][column_num])){
+          osl_relation_remove_row(new_domain, j);
+          j--;
         }
       }
       osl_relation_remove_column(new_domain, column_num);
@@ -666,7 +662,7 @@ osl_relation_p acr_openscop_reduce_domain_to_id(
   return new_domain;
 }
 
-void acr_openscop_add_related_dims_in_scattering(
+static void acr_openscop_add_related_dims_in_scattering(
     osl_scop_p scop,
     dimensions_upper_lower_bounds *bounds) {
   osl_statement_p current_statement = scop->statement;
@@ -729,7 +725,7 @@ void acr_openscop_add_related_dims_in_scattering(
   free(already_added);
 }
 
-void monitor_openscop_generate_monitor_dim(
+static void monitor_openscop_generate_monitor_dim(
     const dimensions_upper_lower_bounds *dims,
     unsigned long num_dims,
     unsigned long **monitor_dim) {

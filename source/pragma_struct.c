@@ -186,7 +186,7 @@ acr_option acr_new_strategy_range_float(const char* strategy_name,
 
   option->type = acr_type_strategy;
   option->options.strategy.strategy_name = acr_strdup(strategy_name);
-  if (matching_value[0] == matching_value[1])
+  if (float_equal(matching_value[0], matching_value[1]))
     option->options.strategy.strategy_type = acr_strategy_direct;
   else
     option->options.strategy.strategy_type = acr_strategy_range;
@@ -389,18 +389,18 @@ static bool acr_strategy_first_included_in_second(const acr_option strategy1,
                   acr_strategy_integer) {
                 acr_strategy_get_int_val(strategy1, val_int1);
                 acr_strategy_get_float_val(strategy2, val_float2);
-                return ((float) val_int1[0]) == val_float2[0];
+                return float_equal(((float) val_int1[0]), val_float2[0]);
               } else {
                 if (acr_strategy_get_value_type(strategy2) ==
                     acr_strategy_integer) {
                   acr_strategy_get_float_val(strategy1, val_float1);
                   acr_strategy_get_int_val(strategy2, val_int2);
-                  return val_float1[0] == ((float) val_int2[0]);
+                  return float_equal(val_float1[0], ((float) val_int2[0]));
                 }
                 else {
                   acr_strategy_get_float_val(strategy1, val_float1);
                   acr_strategy_get_float_val(strategy2, val_float2);
-                  return val_float1[0] == val_float2[0];
+                  return float_equal(val_float1[0], val_float2[0]);
                 }
               }
             }

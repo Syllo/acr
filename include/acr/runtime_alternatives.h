@@ -27,7 +27,6 @@ enum acr_runtime_alternative_type {
 };
 
 struct runtime_alternative {
-  enum acr_runtime_alternative_type type;
   unsigned long alternative_number;
   struct {
     union {
@@ -45,6 +44,7 @@ struct runtime_alternative {
     } alt;
     char *name_to_swap;
   } value;
+  enum acr_runtime_alternative_type type;
 };
 
 #endif // __ACR_RUNTIME_ALTERNATIVES__H

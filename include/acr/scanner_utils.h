@@ -23,8 +23,8 @@
 #include "acr_parser.h"
 
 struct acr_pragma_options_utils {
-  const char* name;
-  const int token_id;
+  char* name;
+  int token_id;
 };
 
 static const struct acr_pragma_options_utils acr_pragma_options_name_list[] =

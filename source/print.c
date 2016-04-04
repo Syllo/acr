@@ -196,7 +196,7 @@ void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level) {
           break;
         case acr_strategy_floating_point:
           acr_strategy_get_float_val(strategy, strategy_val_floating_point);
-          fprintf(out, "%f\n", strategy_val_floating_point[0]);
+          fprintf(out, "%f\n", (double) strategy_val_floating_point[0]);
           break;
       }
       break;
@@ -212,8 +212,8 @@ void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level) {
               strategy_val_integer[1]);
       } else {
           acr_strategy_get_float_val(strategy, strategy_val_floating_point);
-          fprintf(out, "[%f , %f]\n", strategy_val_floating_point[0],
-              strategy_val_floating_point[1]);
+          fprintf(out, "[%f , %f]\n", (double) strategy_val_floating_point[0],
+              (double) strategy_val_floating_point[1]);
       }
       break;
     case acr_strategy_unknown:

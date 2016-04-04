@@ -245,7 +245,7 @@ static void acr_populate_strategy_and_alternative_list(
   }
 }
 
-void acr_print_acr_alternatives(FILE *out,
+static void acr_print_acr_alternatives(FILE *out,
       const char *prefix,
       unsigned long num_alternatives,
       const acr_option_list alternative_list,
@@ -326,7 +326,7 @@ static void acr_print_get_alternetive_from_val(
       "}\n", prefix, prefix);
 }
 
-bool acr_print_acr_alternative_and_strategy_init(FILE* out,
+static bool acr_print_acr_alternative_and_strategy_init(FILE* out,
     const acr_compute_node node,
     const osl_scop_p scop) {
   const char* prefix = acr_get_scop_prefix(node);
@@ -384,7 +384,7 @@ bool acr_print_acr_alternative_and_strategy_init(FILE* out,
   return true;
 }
 
-void acr_print_isl_lex_min_max_bound(FILE *out,
+static void acr_print_isl_lex_min_max_bound(FILE *out,
     bool upper_bound,
     isl_set *set,
     unsigned long dim_to_print,
@@ -493,7 +493,7 @@ static void acr_print_monitor_max_dims(FILE *out,
   fprintf(out, "#undef __acr__min__\n");
 }
 
-void acr_print_acr_runtime_init(FILE* out,
+static void acr_print_acr_runtime_init(FILE* out,
     const acr_compute_node node,
     unsigned long num_parameters,
     const dimensions_upper_lower_bounds_all_statements *dims,
@@ -656,7 +656,7 @@ static void acr_print_init_function_call(FILE* out, const acr_option init) {
   fprintf(out, ");\n");
 }
 
-void acr_print_scop_in_file(FILE* output,
+static void acr_print_scop_in_file(FILE* output,
     const char* scop_prefix, osl_scop_p scop) {
   char* buffer = NULL;
   osl_generic_remove(&scop->extension, OSL_URI_COORDINATES);
@@ -678,13 +678,13 @@ void acr_print_scop_in_file(FILE* output,
   free(buffer);
 }
 
-void acr_print_destroy(FILE* output, const acr_compute_node node) {
+static void acr_print_destroy(FILE* output, const acr_compute_node node) {
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   fprintf(output, "free_acr_runtime_data(&%s_runtime_data);\n",
       acr_init_get_function_name(init));
 }
 
-bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
+static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     osl_scop_p scop,
     const dimensions_upper_lower_bounds_all_statements *dims,
     dimensions_upper_lower_bounds **bound_used) {

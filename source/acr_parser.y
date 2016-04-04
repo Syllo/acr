@@ -56,6 +56,7 @@ void acrlex_destroy(void);
 void yyerror(const char *);  /* prints grammar violation message */
 static void error_print_last_pragma(void);
 static void handle_carriage_return(void);
+int start_acr_parsing(FILE* file, acr_compute_node* node_to_init);
 
 bool parsing_pragma_acr;
 extern size_t position_in_file;
@@ -77,7 +78,6 @@ struct parser_option_list* option_list;
 %union {
   char* identifier;
   struct {
-    enum {integer_value, floating_point_value} type;
     union {
       float floating_point;
       struct {
@@ -85,6 +85,7 @@ struct parser_option_list* option_list;
         unsigned long uinteger;
       } integer_val;
     } value;
+    enum {integer_value, floating_point_value} type;
   } constant_value;
   acr_option option;
   struct {
