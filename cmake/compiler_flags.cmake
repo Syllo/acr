@@ -112,3 +112,72 @@ if(compiler_has_warning_init_self)
   list(APPEND COMPILER_AVALIABLE_WARNINGS
     "-Winit-self")
 endif()
+check_c_compiler_flag("-Wstrict-aliasing"
+  compiler_has_warning_strict_aliasing)
+if(compiler_has_warning_strict_aliasing)
+  list(APPEND COMPILER_AVALIABLE_WARNINGS
+    "-Wstrict-aliasing")
+endif()
+check_c_compiler_flag("-Wsuggest-attribute=const"
+  compiler_has_warning_suggest_attribute_const)
+if(compiler_has_warning_suggest_attribute_const)
+  list(APPEND COMPILER_AVALIABLE_WARNINGS
+    "-Wsuggest-attribute=const")
+endif()
+check_c_compiler_flag("-Wtrampolines" compiler_has_warning_trampolines)
+if(compiler_has_warning_trampolines)
+  list(APPEND COMPILER_AVALIABLE_WARNINGS
+    "-Wtrampolines")
+endif()
+check_c_compiler_flag("-Wfloat-equal"
+  compiler_has_warning_float_equal)
+if(compiler_has_warning_float_equal)
+  list(APPEND COMPILER_AVALIABLE_WARNINGS
+    "-Wfloat-equal")
+endif()
+check_c_compiler_flag("-Wshadow" compiler_has_warning_shadow)
+if(compiler_has_warning_shadow)
+  list(APPEND COMPILER_AVALIABLE_WARNINGS
+    "-Wshadow")
+endif()
+check_c_compiler_flag("-Wunsafe-loop-optimizations"
+  compiler_has_warning_unsafe_loop_optimizations)
+if(compiler_has_warning_unsafe_loop_optimizations)
+  list(APPEND COMPILER_AVALIABLE_WARNINGS
+    "-Wunsafe-loop-optimizations")
+endif()
+check_c_compiler_flag("-Wfloat-conversion"
+  compiler_has_warning_float_conversion)
+if(compiler_has_warning_float_conversion)
+  list(APPEND COMPILER_AVALIABLE_WARNINGS
+    "-Wfloat-conversion")
+endif()
+check_c_compiler_flag("-Wlogical-op"
+  compiler_has_warning_logical_op)
+if(compiler_has_warning_logical_op)
+  list(APPEND COMPILER_AVALIABLE_WARNINGS
+    "-Wlogical-op")
+endif()
+check_c_compiler_flag("-Wnormalized"
+  compiler_has_warning_normalized)
+if(compiler_has_warning_normalized)
+  list(APPEND COMPILER_AVALIABLE_WARNINGS
+    "-Wnormalized")
+endif()
+check_c_compiler_flag("-Wpadded" compiler_has_warning_padded)
+if(compiler_has_warning_padded)
+  list(APPEND COMPILER_AVALIABLE_WARNINGS
+    "-Wpadded")
+endif()
+check_c_compiler_flag("-Wdisabled-optimization"
+  compiler_has_warning_disabled_optimization)
+if(compiler_has_warning_disabled_optimization)
+  list(APPEND COMPILER_AVALIABLE_WARNINGS
+    "-Wdisabled-optimization")
+endif()
+check_c_compiler_flag("-Whsa"
+  compiler_has_warning_hsa)
+if(compiler_has_warning_hsa)
+  list(APPEND COMPILER_AVALIABLE_WARNINGS
+    "-Whsa")
+endif()
