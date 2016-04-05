@@ -114,6 +114,9 @@ FLEX_TARGET(acr_scanner
 ADD_FLEX_BISON_DEPENDENCY(acr_scanner acr_parser)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/autogen)
 
+#set(CMAKE_THREAD_PREFER_PTHREAD_FLAG)
+#find_package(Threads)
+
 #///////////////////////////////////////////////////////////////////#
 #                        COMPILATION OPTIONS                        #
 #///////////////////////////////////////////////////////////////////#
@@ -161,8 +164,10 @@ configure_file(
   IMMEDIATE @ONLY)
 
 list(APPEND ACR_RUNTIME_LIBRARY_C_FILES
-  source/acr_runtime_data.c
   source/acr_runtime_build.c
+  source/acr_runtime_data.c
+  source/acr_runtime_threads.c
+  source/acr_runtime_verify.c
   source/cloog_runtime.c
   source/isl_runtime.c
   source/osl_runtime.c)

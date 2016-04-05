@@ -31,7 +31,7 @@ static const char help[] = "Usage acr [options] file\n\n"
   "   -h              display this help and exit\n";
 
 static const char version[] = "ACR version " ACR_VERSION "\n"
-  "This is the Adaptative Code Refinement software, with help of pragma acr\n"
+  "This is the Adaptative Code Refinement software, with help of pragma acr construct\n"
   "you can automaticaly generate adaptative code based on runtime analysis.\n"
   "License LGPLv3+: GNU LGPL version 3 or later <http://gnu.org/licenses/lgpl.html>.\n"
   "There is NO WARRANTY, to the extent permitted by law.\n";

@@ -886,6 +886,7 @@ void acr_generate_code(const char* filename) {
 
         fprintf(temp_buffer, "/* Do acr stuff here */\n");
         acr_print_node_init_function_call(temp_buffer, node);
+        fprintf(temp_buffer, "/* Do acr stuff here */\n");
         position_in_input = kernel_end;
         fseek(current_file, position_in_input, SEEK_SET);
         osl_scop_free(scop);

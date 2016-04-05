@@ -30,6 +30,9 @@ check_function_exists("unlink" HAVE_FUN_UNLINK)
 check_symbol_exists("mkstemp" "stdlib.h" HAVE_MKSTEMP)
 check_function_exists("mkstemp" HAVE_FUN_MKSTEMP)
 
+check_symbol_exists("waitpid" "sys/wait.h" HAVE_WAITPID)
+check_function_exists("waitpid" HAVE_FUN_WAITPID)
+
 if(NOT HAVE_FILENO OR NOT HAVE_FUN_FILENO)
   message(FATAL_ERROR "Function fileno() required")
 endif()
@@ -64,4 +67,8 @@ endif()
 
 if(NOT HAVE_MKSTEMP OR NOT HAVE_FUN_MKSTEMP)
   message(FATAL_ERROR "Function mkstemp() required")
+endif()
+
+if(NOT HAVE_WAITPID OR NOT HAVE_FUN_WAITPID)
+  message(FATAL_ERROR "Function waitpid() required")
 endif()

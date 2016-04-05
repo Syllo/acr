@@ -16,29 +16,16 @@
  *
  */
 
-#ifndef __ACR_RUNTIME_BUILD_H
-#define __ACR_RUNTIME_BUILD_H
+#include "acr/acr_runtime_verify.h"
 
-#include <stdlib.h>
-
-@TCC_PRESENT@
-#ifdef TCC_PRESENT
-
-#include <libtcc.h>
-
-TCCState* acr_compile_with_tcc(
-    const char *string_to_compile);
-
-#endif
-
-static const char acr_system_compiler_path[] = "@CMAKE_C_COMPILER@";
-
-char* acr_compile_with_system_compiler(
-    const char *string_to_compile,
-    char** options);
-
-void acr_append_necessary_compile_flags(
-    size_t *num_options,
-    char ***options);
-
-#endif // __ACR_RUNTIME_BUILD_H
+bool acr_verify_me(size_t size_buffers,
+    const unsigned char *current,
+    const unsigned char *more_precise) {
+  size_t i;
+  bool same = true;
+#pragma omp parallel for reduction(same : &&)
+  for(i = 0; i < size_buffers; i++) {
+    same = same && (current[i] >= more_precise[i]);
+  }
+  return same;
+}

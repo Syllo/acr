@@ -26,9 +26,6 @@ char* acr_strdup(const char* to_duplicate) {
     return NULL;
   size_t string_size = strlen(to_duplicate);
   char* copy = malloc(string_size+1 * sizeof(*copy));
-  for (size_t i = 0; i < string_size ; ++i) {
-    copy[i] = to_duplicate[i];
-  }
-  copy[string_size] = '\0';
+  memcpy(copy, to_duplicate, string_size+1);
   return copy;
 }
