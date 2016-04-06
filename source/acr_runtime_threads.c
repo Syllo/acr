@@ -18,26 +18,157 @@
 
 #include "acr/acr_runtime_threads.h"
 
-void* acr_runtime_monitoring_function(void* in_data) {
-  struct acr_runtime_threads_monitor_init *init_data =
-    (struct acr_runtime_threads_monitor_init*) in_data;
-  while (1) {
-    pthread_mutex_lock(init_data->waiting_when_finished);
-    *init_data->waiting = true;
-    while (init_data->waiting)
-      pthread_cond_wait(init_data->waiting_cond, init_data->waiting_when_finished);
-    pthread_mutex_unlock(init_data->waiting_when_finished);
+#include <dlfcn.h>
 
-    unsigned char* new_result =
-      malloc(init_data->rdata->monitor_total_size * sizeof(*new_result));
-    init_data->monitor_function(new_result);
-    struct acr_runtime_threads_compile_data d;
+#include "acr/acr_runtime_verify.h"
+#include "acr/cloog_runtime.h"
+
+void* acr_runtime_monitoring_function(void* in_data) {
+  struct acr_runtime_data *init_data =
+    (struct acr_runtime_data*) in_data;
+  struct acr_avaliable_functions functions = {
+    .total_functions = 2,
+    .function_in_use = 1,
+  };
+  functions.value = malloc(functions.total_functions * sizeof(*functions.value));
+  for (size_t i = 0; i < functions.total_functions; ++i) {
+    pthread_spin_init(&functions.value[i].lock, PTHREAD_PROCESS_PRIVATE);
+    functions.value[i].is_ready = false;
+    functions.value[i].type = acr_function_empty;
   }
+  unsigned char *new_result =
+    malloc(init_data->monitor_total_size * sizeof(*new_result));
+  init_data->monitoring_function(new_result);
+  functions.function_in_use = 0;
+
+  struct acr_runtime_threads_compile_data *cdata = malloc(sizeof(*cdata));
+  cdata->monitor_result = new_result;
+  cdata->rdata = init_data;
+  cdata->functions = &functions;
+  cdata->where_to_add = functions.function_in_use;
+  pthread_t compile_thread;
+  pthread_create(&compile_thread, NULL, acr_runtime_compile_thread,
+      (void*)cdata);
+  pthread_detach(compile_thread);
+
+  bool function_ready;
+  while (init_data->monitor_thread_continue) {
+    pthread_spin_lock(&functions.value[functions.function_in_use].lock);
+    function_ready = functions.value[functions.function_in_use].is_ready;
+    pthread_spin_unlock(&functions.value[functions.function_in_use].lock);
+
+    if (function_ready) {
+      new_result =
+        malloc(init_data->monitor_total_size * sizeof(*new_result));
+      init_data->monitoring_function(new_result);
+
+      bool still_ok = acr_verify_me(init_data->monitor_total_size,
+          new_result, functions.value[functions.function_in_use].monitor_result);
+      if (still_ok) {
+        pthread_spin_lock(&init_data->alternative_lock);
+          init_data->alternative_still_usable = init_data->usability_inital_value;
+          init_data->alternative_function =
+            functions.value[functions.function_in_use].function;
+        pthread_spin_unlock(&init_data->alternative_lock);
+        free(new_result);
+      } else {
+        // switch functions and command compilation
+        functions.function_in_use =
+          (functions.function_in_use + 1) % functions.total_functions;
+        functions.value[functions.function_in_use].is_ready = false;
+        switch (functions.value[functions.function_in_use].type) {
+          case acr_function_shared_object_lib:
+            dlclose(functions.value[functions.function_in_use].
+                compiler_specific.shared_obj_lib.dlhandle);
+            free(functions.value[functions.function_in_use].monitor_result);
+            break;
+          case acr_tcc_in_memory:
+            tcc_delete(functions.value[functions.function_in_use].
+                compiler_specific.tcc.state);
+            free(functions.value[functions.function_in_use].monitor_result);
+            break;
+          case acr_function_empty:
+            break;
+          default:
+            break;
+        }
+
+        // New compilation
+        cdata = malloc(sizeof(*cdata));
+        cdata->monitor_result = new_result;
+        cdata->rdata = init_data;
+        cdata->functions = &functions;
+        cdata->where_to_add = functions.function_in_use;
+        pthread_create(&compile_thread, NULL, acr_runtime_compile_thread,
+            (void*)cdata);
+        pthread_detach(compile_thread);
+      }
+    }
+  }
+
+  // Wait for compile thread to finish
+  do {
+    pthread_spin_lock(&functions.value[functions.function_in_use].lock);
+    function_ready = functions.value[functions.function_in_use].is_ready;
+    pthread_spin_unlock(&functions.value[functions.function_in_use].lock);
+  } while (!function_ready);
+  // Clean all
+  for (size_t i = 0; i < functions.total_functions; ++i) {
+    pthread_spin_destroy(&functions.value[i].lock);
+    functions.value[i].is_ready = false;
+    switch(functions.value[i].type) {
+      case acr_function_shared_object_lib:
+        dlclose(functions.value[functions.function_in_use].
+            compiler_specific.shared_obj_lib.dlhandle);
+        free(functions.value[functions.function_in_use].monitor_result);
+        break;
+      case acr_tcc_in_memory:
+        tcc_delete(functions.value[functions.function_in_use].
+            compiler_specific.tcc.state);
+        free(functions.value[functions.function_in_use].monitor_result);
+        break;
+      case acr_function_empty:
+        break;
+      default:
+        break;
+    }
+  }
+  free(functions.value);
+  free(in_data);
   pthread_exit(NULL);
 }
 
 void* acr_runtime_compile_thread(void* in_data) {
-  struct acr_runtime_threads_compile_data *input_data =
+  struct acr_runtime_threads_compile_data * input_data =
     (struct acr_runtime_threads_compile_data *) in_data;
+
+  char* generated_code;
+  size_t size_code;
+
+  FILE* new_code = open_memstream(&generated_code, &size_code);
+  fprintf(new_code, "#include \"acr_required_definitions.h\"\n"
+      "void acr_alternative_function%s {\n",
+      input_data->rdata->function_prototype);
+  acr_cloog_generate_alternative_code_from_input(new_code, input_data->rdata,
+      input_data->monitor_result);
+  fprintf(new_code, "}\n");
+  fclose(new_code);
+  fprintf(stderr, "CODE TO COMPILE :\n%s\n\n", generated_code);
+
+  input_data->functions->value[input_data->where_to_add].type =
+    acr_tcc_in_memory;
+  input_data->functions->value[input_data->where_to_add].compiler_specific.tcc.state =
+    acr_compile_with_tcc(generated_code);
+  input_data->functions->value[input_data->where_to_add].function =
+    tcc_get_symbol(input_data->functions->value[input_data->where_to_add].
+        compiler_specific.tcc.state, "acr_alternative_function");
+
+  exit(1);
+  input_data->functions->value->monitor_result = input_data->monitor_result;
+  pthread_spin_lock(&input_data->functions->value[input_data->where_to_add].lock);
+  input_data->functions->value[input_data->where_to_add].is_ready = true;
+  pthread_spin_unlock(&input_data->functions->value[input_data->where_to_add].lock);
+  free(in_data);
+
   pthread_exit(NULL);
 }

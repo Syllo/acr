@@ -19,9 +19,10 @@
 #ifndef __ACR_RUNTIME_DATA_H
 #define __ACR_RUNTIME_DATA_H
 
-#include <cloog/cloog.h>
 #include <acr/acr_openscop.h>
 #include <acr/runtime_alternatives.h>
+#include <cloog/cloog.h>
+#include <pthread.h>
 
 struct acr_runtime_data {
   CloogInput* cloog_input;
@@ -37,6 +38,16 @@ struct acr_runtime_data {
   unsigned long num_statements;
   unsigned long *dimensions_per_statements;
   enum acr_dimension_type **statement_dimension_types;
+  char* function_prototype;
+  struct runtime_alternative* (*alternative_from_val)(unsigned char);
+  void (*monitoring_function)(unsigned char*);
+
+  pthread_spinlock_t alternative_lock;
+  void *alternative_function;
+  unsigned int alternative_still_usable;
+  unsigned int usability_inital_value;
+  pthread_t monitor_thread;
+  bool monitor_thread_continue;
 };
 
 void init_acr_runtime_data(

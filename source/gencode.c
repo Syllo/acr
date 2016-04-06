@@ -518,6 +518,7 @@ static void acr_print_acr_runtime_init(FILE* out,
   }
 
   acr_option grid = acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
+  fprintf(out, "static void %s_monitoring_function(unsigned char*);\n", prefix);
   fprintf(out, "static struct acr_runtime_data %s_runtime_data = {\n"
       "  .num_alternatives = %luul,\n"
       "  .alternatives = %s_alternatives,\n"
@@ -538,7 +539,15 @@ static void acr_print_acr_runtime_init(FILE* out,
         i, current_bound->num_dimensions);
   }
   fprintf(out, "\n  },\n");
-
+  fprintf(out,
+      "  .alternative_from_val = %s_get_alternative_from_val,\n"
+      "  .monitoring_function = %s_monitoring_function,\n"
+      "  .alternative_still_usable = 0u,\n"
+      "  .monitor_thread_continue = true,\n"
+      "  .function_prototype = \"",
+      prefix, prefix);
+  acr_print_parameters(out, init);
+  fprintf(out, "\",\n");
   fprintf(out,
       "  .statement_dimension_types = (enum acr_dimension_type* [%luul]) {\n",
       dims->num_statements);
@@ -592,6 +601,9 @@ static void acr_print_acr_runtime_init(FILE* out,
   fprintf(out, "  %s = %s_acr_initial;\n  ",
       prefix, prefix);
   acr_print_init_function_call(out, init);
+  fprintf(out,
+      "  pthread_create(&%s_runtime_data.monitor_thread, NULL,\n"
+      "    acr_runtime_monitoring_function, &%s_runtime_data);\n", prefix, prefix);
   fprintf(out, "}\n\n");
 }
 
@@ -717,7 +729,9 @@ static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
       scop->context->nb_parameters, dims, *bound_used, scop);
 
 
-  fprintf(out, "void %s_monitoring_function(unsigned char* monitor_result) {\n", prefix);
+  fprintf(out,
+      "static void %s_monitoring_function(unsigned char* monitor_result) {\n",
+      prefix);
   switch (acr_monitor_get_function(monitor)) {
     case acr_monitor_function_min:
     case acr_monitor_function_max:
@@ -886,6 +900,9 @@ void acr_generate_code(const char* filename) {
 
         fprintf(temp_buffer, "/* Do acr stuff here */\n");
         acr_print_node_init_function_call(temp_buffer, node);
+        char* prefix = acr_get_scop_prefix(node);
+        /*fprintf(temp_buffer, "pthread_spin_lock(%s_runtime_data.alternative_lock)", prefix);*/
+        /*fprintf(temp_buffer, "pthread_spin_unlock(%s_runtime_data.alternative_lock)", prefix);*/
         fprintf(temp_buffer, "/* Do acr stuff here */\n");
         position_in_input = kernel_end;
         fseek(current_file, position_in_input, SEEK_SET);

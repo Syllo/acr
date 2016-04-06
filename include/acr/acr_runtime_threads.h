@@ -29,23 +29,34 @@
 enum acr_avaliable_function_type {
   acr_function_shared_object_lib,
   acr_tcc_in_memory,
+  acr_function_empty,
 };
 
 struct acr_avaliable_functions {
-  enum acr_avaliable_function_type type;
-  pthread_mutex_t lock;
   size_t total_functions;
-  size_t num_functions;
-  union {
-    struct {
-      void *dlhandle;
-      void *function;
-    } shared_obj_lib;
-    struct {
-      TCCState *state;
-      void *function;
-    } tcc;
+  size_t function_in_use;
+  struct {
+    pthread_spinlock_t lock;
+    bool is_ready;
+    enum acr_avaliable_function_type type;
+    unsigned char *monitor_result;
+    union {
+      struct {
+        void *dlhandle;
+      } shared_obj_lib;
+      struct {
+        TCCState *state;
+      } tcc;
+    } compiler_specific;
+    void *function;
   } *value;
+};
+
+struct acr_runtime_threads_compile_data {
+  unsigned char* monitor_result;
+  struct acr_runtime_data *rdata;
+  struct acr_avaliable_functions *functions;
+  size_t where_to_add;
 };
 
 struct acr_runtime_threads_data {
@@ -55,19 +66,6 @@ struct acr_runtime_threads_data {
   bool monitor_waiting;
 };
 
-struct acr_runtime_threads_monitor_init {
-  struct acr_runtime_data *rdata;
-  void (*monitor_function)(unsigned char* monitor_result);
-  pthread_cond_t *waiting_cond;
-  pthread_mutex_t *waiting_when_finished;
-  bool *waiting;
-  struct acr_avaliable_functions *functions;
-};
-
-struct acr_runtime_threads_compile_data {
-  unsigned char* monitor_result;
-  struct acr_runtime_data *rdata;
-};
 
 void* acr_runtime_monitoring_function(void* monitoring_function);
 

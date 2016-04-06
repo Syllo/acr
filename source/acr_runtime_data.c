@@ -21,6 +21,7 @@
 #include "acr/osl_runtime.h"
 
 #include <isl/set.h>
+#include <pthread.h>
 
 void free_acr_runtime_data(struct acr_runtime_data* data) {
   for (unsigned long i = 0; i < data->num_alternatives; ++i) {
@@ -40,6 +41,9 @@ void free_acr_runtime_data(struct acr_runtime_data* data) {
   data->state = NULL;
   osl_scop_free(data->osl_relation);
   data->osl_relation = NULL;
+  data->monitor_thread_continue = false;
+  pthread_join(data->monitor_thread, NULL);
+  pthread_spin_destroy(&data->alternative_lock);
 }
 
 void init_acr_runtime_data(
@@ -55,4 +59,6 @@ void init_acr_runtime_data(
   for (unsigned long i = 0; i < data->num_monitor_dims; ++i) {
     data->monitor_total_size *= data->monitor_dim_max[i];
   }
+  pthread_spin_init(&data->alternative_lock, PTHREAD_PROCESS_PRIVATE);
+  data->usability_inital_value = 3;
 }
