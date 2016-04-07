@@ -648,6 +648,21 @@ void acr_print_node_init_function_call(FILE* out,
     const acr_compute_node node) {
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   acr_print_init_function_call(out, init);
+  char* prefix = acr_get_scop_prefix(node);
+  /*fprintf(out,*/
+      /*"  pthread_spin_lock(&%s_runtime_data.alternative_lock);\n"*/
+      /*"  if(%s_runtime_data.alternative_still_usable) {\n"*/
+      /*"    %s = (void (*)",*/
+      /*prefix, prefix, prefix);*/
+  /*acr_print_parameters(out, init);*/
+  /*fprintf(out,*/
+      /*") %s_runtime_data.alternative_function;\n"*/
+      /*"    %s_runtime_data.alternative_still_usable -= 1;\n"*/
+      /*"  } else {\n"*/
+      /*"    %s = %s_acr_initial;\n"*/
+      /*"  }\n"*/
+      /*"  pthread_spin_unlock(&%s_runtime_data.alternative_lock);\n",*/
+      /*prefix, prefix, prefix, prefix, prefix);*/
 }
 
 static void acr_print_init_function_call(FILE* out, const acr_option init) {
@@ -692,7 +707,7 @@ static void acr_print_scop_in_file(FILE* output,
 
 static void acr_print_destroy(FILE* output, const acr_compute_node node) {
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
-  fprintf(output, "free_acr_runtime_data(&%s_runtime_data);\n",
+  fprintf(output, "  free_acr_runtime_data(&%s_runtime_data);\n",
       acr_init_get_function_name(init));
 }
 
@@ -898,12 +913,7 @@ void acr_generate_code(const char* filename) {
             position_in_input, kernel_start,
             all_options);
 
-        fprintf(temp_buffer, "/* Do acr stuff here */\n");
         acr_print_node_init_function_call(temp_buffer, node);
-        char* prefix = acr_get_scop_prefix(node);
-        /*fprintf(temp_buffer, "pthread_spin_lock(%s_runtime_data.alternative_lock)", prefix);*/
-        /*fprintf(temp_buffer, "pthread_spin_unlock(%s_runtime_data.alternative_lock)", prefix);*/
-        fprintf(temp_buffer, "/* Do acr stuff here */\n");
         position_in_input = kernel_end;
         fseek(current_file, position_in_input, SEEK_SET);
         osl_scop_free(scop);

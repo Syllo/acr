@@ -29,11 +29,11 @@ int kernel1() {
 #pragma acr alternative medium(parameter, N = 10)
 #pragma acr alternative high(function, lin_solve_computation = do_nothing)
 #pragma acr \
-    strategy direct(1, low)
+    strategy direct(1, high)
 #pragma acr strategy direct(2, medium)
-#pragma acr strategy direct(3, high)
+#pragma acr strategy direct(3, low)
 #pragma acr strategy direct(55, low)
-#pragma acr strategy direct(254, medium)
+#pragma acr strategy direct(254, low)
     for (int k=0; k < N; ++k)
         for (int i=0; i < MAX1; ++i)
             for (int j=0; j < MAX2; ++j)
@@ -91,27 +91,7 @@ int main() {
       temporary_array[i][j] = 3;
     }
   }
-  a();
-  unsigned char* temparray = calloc(a_runtime_data.monitor_total_size ,sizeof(*temparray));
-  a_monitoring_function(temparray);
+  kernel1();
 
-  acr_cloog_generate_alternative_code_from_input(stderr,
-      &a_runtime_data, temparray, a_get_alternative_from_val);
-
-  float pedro = 3.14f;
-  CloogNamedDomainList *domain = a_runtime_data.cloog_input->ud->domain;
-  while(domain) {
-    cloog_domain_print_structure(stderr, domain->domain, 0, "A");
-    domain = domain->next;
-  }
-  free_acr_runtime_data(&a_runtime_data);
-  b(pedro, &pedro);
-  domain = b_runtime_data.cloog_input->ud->domain;
-  while(domain) {
-    cloog_domain_print_structure(stderr, domain->domain, 0, "B");
-    domain = domain->next;
-  }
-  free_acr_runtime_data(&b_runtime_data);
-  free(temparray);
   return 0;
 }
