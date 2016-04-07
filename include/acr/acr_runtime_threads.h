@@ -28,7 +28,9 @@
 
 enum acr_avaliable_function_type {
   acr_function_shared_object_lib,
+#ifdef TCC_PRESENT
   acr_tcc_in_memory,
+#endif
   acr_function_empty,
 };
 
@@ -44,9 +46,11 @@ struct acr_avaliable_functions {
       struct {
         void *dlhandle;
       } shared_obj_lib;
+#ifdef TCC_PRESENT
       struct {
         TCCState *state;
       } tcc;
+#endif
     } compiler_specific;
     void *function;
   } *value;

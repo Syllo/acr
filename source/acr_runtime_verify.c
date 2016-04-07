@@ -23,7 +23,7 @@ bool acr_verify_me(size_t size_buffers,
     const unsigned char *more_precise) {
   size_t i;
   bool same = true;
-#pragma omp parallel for reduction(same : &&)
+#pragma omp parallel for reduction(&&:same)
   for(i = 0; i < size_buffers; i++) {
     same = same && (current[i] >= more_precise[i]);
   }

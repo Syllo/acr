@@ -82,11 +82,13 @@ void* acr_runtime_monitoring_function(void* in_data) {
                 compiler_specific.shared_obj_lib.dlhandle);
             free(functions.value[functions.function_in_use].monitor_result);
             break;
+#ifdef TCC_PRESENT
           case acr_tcc_in_memory:
             tcc_delete(functions.value[functions.function_in_use].
                 compiler_specific.tcc.state);
             free(functions.value[functions.function_in_use].monitor_result);
             break;
+#endif
           case acr_function_empty:
             break;
           default:
@@ -122,11 +124,13 @@ void* acr_runtime_monitoring_function(void* in_data) {
             compiler_specific.shared_obj_lib.dlhandle);
         free(functions.value[functions.function_in_use].monitor_result);
         break;
+#ifdef TCC_PRESENT
       case acr_tcc_in_memory:
         tcc_delete(functions.value[functions.function_in_use].
             compiler_specific.tcc.state);
         free(functions.value[functions.function_in_use].monitor_result);
         break;
+#endif
       case acr_function_empty:
         break;
       default:
@@ -155,13 +159,40 @@ void* acr_runtime_compile_thread(void* in_data) {
   fclose(new_code);
   fprintf(stderr, "CODE TO COMPILE :\n%s\n\n", generated_code);
 
+#ifdef TCC_PRESENT
   input_data->functions->value[input_data->where_to_add].type =
     acr_tcc_in_memory;
   input_data->functions->value[input_data->where_to_add].compiler_specific.tcc.state =
     acr_compile_with_tcc(generated_code);
-  input_data->functions->value[input_data->where_to_add].function =
+  void *function =
     tcc_get_symbol(input_data->functions->value[input_data->where_to_add].
         compiler_specific.tcc.state, "acr_alternative_function");
+  input_data->functions->value[input_data->where_to_add].function = function;
+#else
+  char** options = NULL;
+  size_t num_options = 0;
+  acr_append_necessary_compile_flags(&num_options, &options);
+  char* file = acr_compile_with_system_compiler(generated_code, options);
+  if(!file) {
+    fprintf(stderr, "Compiler error\n");
+    exit(EXIT_FAILURE);
+  }
+  void *dlhandle = dlopen(file, RTLD_NOW);
+  if(!dlhandle) {
+    fprintf(stderr, "dlopen error: %s\n", dlerror());
+    exit(EXIT_FAILURE);
+  }
+  input_data->functions->value[input_data->where_to_add].compiler_specific.shared_obj_lib.dlhandle = dlhandle;
+  void *function = dlsym(dlhandle, "acr_alternative_function");
+  if(!function) {
+    fprintf(stderr, "dlsym error: %s\n", dlerror());
+    exit(EXIT_FAILURE);
+  }
+  input_data->functions->value[input_data->where_to_add].function = function;
+  input_data->functions->value[input_data->where_to_add].type =
+    acr_function_shared_object_lib;
+#endif
+
 
   exit(1);
   input_data->functions->value->monitor_result = input_data->monitor_result;

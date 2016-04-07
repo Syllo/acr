@@ -101,6 +101,8 @@ char* acr_compile_with_system_compiler(
       perror("unlink");
       exit(EXIT_FAILURE);
     }
+    free(output_filename);
+    return NULL;
   }
   return output_filename;
 }
@@ -109,6 +111,7 @@ char* acr_compile_with_system_compiler(
 
 TCCState* acr_compile_with_tcc(
     const char *string_to_compile) {
+  int error_retval;
   TCCState *compile_state = tcc_new();
   tcc_add_include_path(compile_state, ".");
   tcc_set_output_type(compile_state, TCC_OUTPUT_MEMORY);
