@@ -29,7 +29,7 @@ endif()
 include(cmake/config-dep.cmake)
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
-  include(cmake/compiler_flags.cmake)
+  include(cmake/compiler-flags.cmake)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/")
@@ -93,7 +93,19 @@ if (NOT TARGET cloog)
     CLOOG_INT_GMP)
 endif()
 
-find_package(TCC)
+find_package(TCC QUIET)
+if(TCC_FOUND)
+  message(STATUS "Found TCC ${TCC_VERSION}")
+else()
+  message(WARNING "Tiny C Compiler not found, this may lower ACR performance")
+endif()
+
+find_package(OpenMP QUIET)
+if(OPENMP_FOUND)
+  message(STATUS "Found OpenMP")
+else()
+  message(WARNING "OpenMP not found, this may lower ACR performances")
+endif()
 
 find_package(BISON REQUIRED)
 find_package(FLEX REQUIRED)
@@ -123,9 +135,11 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/autogen)
 
 set(CMAKE_C_STANDARD 11)
 
-set(CMAKE_C_FLAGS_RELEASE "-O3")
-set(CMAKE_C_FLAGS_DEBUG ${COMPILER_AVALIABLE_WARNINGS} "-O0" "-g")
+set(CMAKE_C_FLAGS_RELEASE "-O3" "${OpenMP_C_FLAGS}")
+set(CMAKE_C_FLAGS_DEBUG ${COMPILER_AVALIABLE_WARNINGS} "-O0" "-g"
+  "${OpenMP_C_FLAGS}")
 string(REPLACE ";" " " CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+string(REPLACE ";" " " CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
   add_definitions()#-DACR_DEBUG)

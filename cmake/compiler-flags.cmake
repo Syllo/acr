@@ -1,3 +1,5 @@
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+
 include(CheckCCompilerFlag)
 
 check_c_compiler_flag("-Wall" compiler_has_warning_wall)
@@ -181,3 +183,5 @@ endif()
   #list(APPEND COMPILER_AVALIABLE_WARNINGS
     #"-Wpadded")
 #endif()
+
+endif(CMAKE_BUILD_TYPE MATCHES Debug)
