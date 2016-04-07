@@ -111,12 +111,17 @@ char* acr_compile_with_system_compiler(
 
 TCCState* acr_compile_with_tcc(
     const char *string_to_compile) {
-  int error_retval;
   TCCState *compile_state = tcc_new();
   tcc_add_include_path(compile_state, ".");
   tcc_set_output_type(compile_state, TCC_OUTPUT_MEMORY);
-  tcc_compile_string(compile_state, string_to_compile);
-  tcc_relocate(compile_state, TCC_RELOCATE_AUTO);
+  if(tcc_compile_string(compile_state, string_to_compile) == -1) {
+    fprintf(stderr, "Tcc compilation failed\n");
+    exit(EXIT_FAILURE);
+  }
+  if(tcc_relocate(compile_state, TCC_RELOCATE_AUTO) == -1) {
+    fprintf(stderr, "Tcc relocation failed\n");
+    exit(EXIT_FAILURE);
+  }
   return compile_state;
 }
 

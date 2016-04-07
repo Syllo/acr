@@ -53,7 +53,8 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
     const osl_scop_p scop,
     unsigned long grid_size,
     const dimensions_upper_lower_bounds_all_statements *dims,
-    dimensions_upper_lower_bounds **bound_used);
+    dimensions_upper_lower_bounds **bound_used,
+    const char *prefix);
 
 osl_strings_p acr_openscop_get_monitor_parameters(const acr_option monitor);
 
@@ -67,14 +68,16 @@ void acr_openscop_set_tiled_to_do_min_max(
     unsigned long grid_size,
     bool max,
     const unsigned long *monitor_dim,
-    osl_scop_p scop);
+    osl_scop_p scop,
+    const char *prefix);
 
 void acr_openscop_set_tiled_to_do_avg(
     const acr_option monitor,
     const char* filter_function,
     unsigned long grid_size,
     const unsigned long *monitor_dim,
-    osl_scop_p scop);
+    osl_scop_p scop,
+    const char *prefix);
 
 dimensions_upper_lower_bounds_all_statements* acr_osl_get_upper_lower_bound_all(
         const osl_statement_p statement_list);

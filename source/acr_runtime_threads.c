@@ -60,11 +60,14 @@ void* acr_runtime_monitoring_function(void* in_data) {
     if (function_ready) {
       new_result =
         malloc(init_data->monitor_total_size * sizeof(*new_result));
+      fprintf(stderr, "[Monitor] Start monitoring\n");
       init_data->monitoring_function(new_result);
+      fprintf(stderr, "[Monitor] End monitoring\n");
 
       bool still_ok = acr_verify_me(init_data->monitor_total_size,
           new_result, functions.value[functions.function_in_use].monitor_result);
       if (still_ok) {
+        fprintf(stderr, "[Monitor] Still OK\n");
         pthread_spin_lock(&init_data->alternative_lock);
           init_data->alternative_still_usable = init_data->usability_inital_value;
           init_data->alternative_function =
@@ -105,6 +108,9 @@ void* acr_runtime_monitoring_function(void* in_data) {
             (void*)cdata);
         pthread_detach(compile_thread);
       }
+    }
+    else {
+      fprintf(stderr, "[Monitor] Waiting compilation\n");
     }
   }
 
@@ -193,8 +199,6 @@ void* acr_runtime_compile_thread(void* in_data) {
     acr_function_shared_object_lib;
 #endif
 
-
-  exit(1);
   input_data->functions->value->monitor_result = input_data->monitor_result;
   pthread_spin_lock(&input_data->functions->value[input_data->where_to_add].lock);
   input_data->functions->value[input_data->where_to_add].is_ready = true;

@@ -100,7 +100,7 @@ else()
   message(WARNING "Tiny C Compiler not found, this may lower ACR performance")
 endif()
 
-find_package(OpenMP QUIET)
+#find_package(OpenMP QUIET)
 if(OPENMP_FOUND)
   message(STATUS "Found OpenMP")
 else()
