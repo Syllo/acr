@@ -124,15 +124,14 @@ void* acr_runtime_monitoring_function(void* in_data) {
     pthread_spin_destroy(&functions.value[i].lock);
     switch(functions.value[i].type) {
       case acr_function_shared_object_lib:
-        dlclose(functions.value[functions.function_in_use].
+        dlclose(functions.value[i].
             compiler_specific.shared_obj_lib.dlhandle);
-        free(functions.value[functions.function_in_use].monitor_result);
+        free(functions.value[i].monitor_result);
         break;
 #ifdef TCC_PRESENT
       case acr_tcc_in_memory:
-        tcc_delete(functions.value[functions.function_in_use].
-            compiler_specific.tcc.state);
-        free(functions.value[functions.function_in_use].monitor_result);
+        tcc_delete(functions.value[i].compiler_specific.tcc.state);
+        free(functions.value[i].monitor_result);
         break;
 #endif
       case acr_function_empty:
