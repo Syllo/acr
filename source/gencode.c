@@ -658,10 +658,10 @@ void acr_print_node_init_function_call(FILE* out,
   fprintf(out,
       ") %s_runtime_data.alternative_function;\n"
       "    %s_runtime_data.alternative_still_usable -= 1;\n"
-      "    fprintf(stderr, \"[Compute] Using new\\n\");\n"
+      /*"    fprintf(stderr, \"[Compute] Using new\\n\");\n"*/
       "  } else {\n"
       "    %s = %s_acr_initial;\n"
-      "    fprintf(stderr, \"[Compute] Using initial\\n\");\n"
+      /*"    fprintf(stderr, \"[Compute] Using initial\\n\");\n"*/
       "  }\n"
       "  pthread_spin_unlock(&%s_runtime_data.alternative_lock);\n",
       prefix, prefix, prefix, prefix, prefix);

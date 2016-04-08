@@ -841,7 +841,6 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
 
   acr_openscop_add_related_dims_in_scattering(new_scop, *bound_used);
 
-
   osl_strings_p scattering_names = osl_strings_generate("c",
       new_scop->statement->scattering->nb_output_dims);
   osl_scatnames_p scatnames = osl_scatnames_malloc();

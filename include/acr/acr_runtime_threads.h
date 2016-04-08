@@ -38,10 +38,8 @@ struct acr_avaliable_functions {
   size_t total_functions;
   size_t function_in_use;
   struct {
-    pthread_spinlock_t lock;
-    bool is_ready;
-    enum acr_avaliable_function_type type;
     unsigned char *monitor_result;
+    void *function;
     union {
       struct {
         void *dlhandle;
@@ -52,7 +50,11 @@ struct acr_avaliable_functions {
       } tcc;
 #endif
     } compiler_specific;
-    void *function;
+    pthread_t thread;
+    pthread_spinlock_t lock;
+    bool is_ready;
+    bool is_freed;
+    enum acr_avaliable_function_type type;
   } *value;
 };
 

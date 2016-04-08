@@ -24,6 +24,8 @@
 #include <pthread.h>
 
 void free_acr_runtime_data(struct acr_runtime_data* data) {
+  data->monitor_thread_continue = false;
+  pthread_join(data->monitor_thread, NULL);
   for (unsigned long i = 0; i < data->num_alternatives; ++i) {
     struct runtime_alternative *alt = &data->alternatives[i];
     if (alt->type == acr_runtime_alternative_parameter) {
@@ -41,8 +43,6 @@ void free_acr_runtime_data(struct acr_runtime_data* data) {
   data->state = NULL;
   osl_scop_free(data->osl_relation);
   data->osl_relation = NULL;
-  data->monitor_thread_continue = false;
-  pthread_join(data->monitor_thread, NULL);
   pthread_spin_destroy(&data->alternative_lock);
 }
 

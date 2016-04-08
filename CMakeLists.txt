@@ -136,10 +136,12 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/autogen)
 set(CMAKE_C_STANDARD 11)
 
 set(CMAKE_C_FLAGS_RELEASE "-O3" "${OpenMP_C_FLAGS}")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3" "${OpenMP_C_FLAGS}" "-g")
 set(CMAKE_C_FLAGS_DEBUG ${COMPILER_AVALIABLE_WARNINGS} "-O0" "-g"
   "${OpenMP_C_FLAGS}")
 string(REPLACE ";" " " CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
 string(REPLACE ";" " " CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+string(REPLACE ";" " " CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
   add_definitions()#-DACR_DEBUG)
@@ -282,11 +284,9 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/doc")
 #                               MISC                                #
 #///////////////////////////////////////////////////////////////////#
 
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-  set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
-  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/misc/ycm_extra_conf.py"
-    "${CMAKE_CURRENT_SOURCE_DIR}/.ycm_extra_conf.py" IMMEDIATE @ONLY)
-endif()
+set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/misc/ycm_extra_conf.py"
+  "${CMAKE_CURRENT_SOURCE_DIR}/.ycm_extra_conf.py" IMMEDIATE @ONLY)
 
 #///////////////////////////////////////////////////////////////////#
 #                           USER INFOS                              #
@@ -300,10 +300,14 @@ if (CMAKE_BUILD_TYPE MATCHES Release)
   message(STATUS "Build type is Release")
   message(STATUS "C compiler = ${CMAKE_C_COMPILER}")
   message(STATUS "C flags    = ${CMAKE_C_FLAGS_RELEASE}")
-else()
+elseif(CMAKE_BUILD_TYPE MATCHES Debug)
   message(STATUS "Build type is Debug (default see CMAKE_BUILD_TYPE)")
   message(STATUS "C compiler = ${CMAKE_C_COMPILER}")
   message(STATUS "C flags    = ${CMAKE_C_FLAGS_DEBUG}")
+elseif(CMAKE_BUILD_TYPE MATCHES RelWithDebInfo)
+  message(STATUS "Build type is Debug (default see CMAKE_BUILD_TYPE)")
+  message(STATUS "C compiler = ${CMAKE_C_COMPILER}")
+  message(STATUS "C flags    = ${CMAKE_C_FLAGS_RELWITHDEBINFO}")
 endif()
 
 message(STATUS "")

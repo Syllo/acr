@@ -115,7 +115,7 @@ TCCState* acr_compile_with_tcc(
   tcc_add_include_path(compile_state, ".");
   tcc_set_output_type(compile_state, TCC_OUTPUT_MEMORY);
   if(tcc_compile_string(compile_state, string_to_compile) == -1) {
-    fprintf(stderr, "Tcc compilation failed\n");
+    fprintf(stderr, "Tcc compilation failed\n%s\n", string_to_compile);
     exit(EXIT_FAILURE);
   }
   if(tcc_relocate(compile_state, TCC_RELOCATE_AUTO) == -1) {
