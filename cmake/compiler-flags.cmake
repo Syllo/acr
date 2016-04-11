@@ -1,6 +1,6 @@
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-
 include(CheckCCompilerFlag)
+
+if(CMAKE_BUILD_TYPE MATCHES Debug)
 
 check_c_compiler_flag("-Wall" compiler_has_warning_wall)
 if(compiler_has_warning_wall)
@@ -167,8 +167,7 @@ if(compiler_has_warning_disabled_optimization)
   list(APPEND COMPILER_AVALIABLE_WARNINGS
     "-Wdisabled-optimization")
 endif()
-check_c_compiler_flag("-Whsa"
-  compiler_has_warning_hsa)
+check_c_compiler_flag("-Whsa" compiler_has_warning_hsa)
 if(compiler_has_warning_hsa)
   list(APPEND COMPILER_AVALIABLE_WARNINGS
     "-Whsa")
@@ -185,3 +184,10 @@ endif()
 #endif()
 
 endif(CMAKE_BUILD_TYPE MATCHES Debug)
+
+set(CMAKE_REQUIRED_FLAGS "-fsanitize=address")
+check_c_compiler_flag("-fsanitize=address" compiler_has_address_sanitizer)
+unset(CMAKE_REQUIRED_FLAGS)
+if(compiler_has_address_sanitizer)
+  set(COMPILER_ADDRESS_SANITIZER_FLAG "-fsanitize=address")
+endif()

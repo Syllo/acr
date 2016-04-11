@@ -28,9 +28,7 @@ endif()
 # Check functions avaliability
 include(cmake/config-dep.cmake)
 
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-  include(cmake/compiler-flags.cmake)
-endif()
+include(cmake/compiler-flags.cmake)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/")
 
@@ -136,9 +134,11 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/autogen)
 set(CMAKE_C_STANDARD 11)
 
 set(CMAKE_C_FLAGS_RELEASE "-O3" "${OpenMP_C_FLAGS}")
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3" "${OpenMP_C_FLAGS}" "-g")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3" "${OpenMP_C_FLAGS}" "-g"
+  "${COMPILER_ADDRESS_SANITIZER_FLAG}") # disable address sanitizer for release
 set(CMAKE_C_FLAGS_DEBUG ${COMPILER_AVALIABLE_WARNINGS} "-O0" "-g"
-  "${OpenMP_C_FLAGS}")
+  "${OpenMP_C_FLAGS}" "${COMPILER_ADDRESS_SANITIZER_FLAG}")
+
 string(REPLACE ";" " " CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
 string(REPLACE ";" " " CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
 string(REPLACE ";" " " CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
