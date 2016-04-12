@@ -19,6 +19,7 @@
 #ifndef __ACR_PRINT_H
 #define __ACR_PRINT_H
 
+#include <stdint.h>
 #include <stdio.h>
 
 #include "acr/pragma_struct.h"
@@ -39,11 +40,11 @@ void pprint_acr_monitor(FILE* out, acr_option monitor, size_t indent_level);
 void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level);
 
 void pprint_acr_parameter_declaration_list(FILE* out,
-                                      unsigned long int num_declarations,
+                                      size_t num_declarations,
                                    acr_parameter_declaration* declaration_list);
 
 void pprint_acr_parameter_specifier_list(FILE* out,
-                                      unsigned long int num_specifiers,
+                                      size_t num_specifiers,
                                       acr_parameter_specifier* specifier_list);
 
 void pprint_acr_array_declaration(FILE* out,

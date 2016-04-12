@@ -28,12 +28,12 @@
 isl_set** acr_isl_set_from_monitor(
     isl_ctx *ctx,
     const unsigned char *data,
-    unsigned long num_alternatives,
-    unsigned long int num_param,
-    unsigned long num_dimensions,
+    size_t num_alternatives,
+    unsigned int num_param,
+    unsigned int num_dimensions,
     const size_t *dimensions,
     size_t dimensions_total_size,
-    unsigned long tiling_size,
+    size_t tiling_size,
     struct runtime_alternative*
         (*get_alternative_from_val)(unsigned char data)) {
 
@@ -44,7 +44,7 @@ isl_set** acr_isl_set_from_monitor(
   for (size_t i = 0; i < num_alternatives; ++i) {
     sets[i] = isl_set_empty(isl_space_copy(space));
   }
-  unsigned long *current_dimension =
+  size_t *current_dimension =
     calloc(num_dimensions, sizeof(*current_dimension));
   isl_local_space *local_space =
     isl_local_space_from_space(isl_space_copy(space));
@@ -54,8 +54,8 @@ isl_set** acr_isl_set_from_monitor(
     assert(alternative != NULL);
 
     isl_set *tempset = isl_set_universe(isl_space_copy(space));
-    for (size_t j = 0; j < num_dimensions; ++j) {
-      unsigned long dimensions_pos = current_dimension[num_dimensions - 1 - j];
+    for (unsigned int j = 0; j < num_dimensions; ++j) {
+      size_t dimensions_pos = current_dimension[num_dimensions - 1 - j];
       isl_constraint *c_lower = isl_constraint_alloc_inequality(
           isl_local_space_copy(local_space));
       isl_constraint *c_upper = isl_constraint_copy(c_lower);
@@ -65,13 +65,13 @@ isl_set** acr_isl_set_from_monitor(
       isl_val *upper_bound =
         isl_val_mul_ui(isl_val_copy(tiling_size_val), dimensions_pos);
       upper_bound = isl_val_add(upper_bound, isl_val_copy(tiling_size_val));
-      upper_bound = isl_val_sub_ui(upper_bound, 1ul);
+      upper_bound = isl_val_sub_ui(upper_bound, 1);
       c_lower =
         isl_constraint_set_constant_val(c_lower, lower_bound);
-      c_lower = isl_constraint_set_coefficient_si(c_lower, isl_dim_set, j, 1);
+      c_lower = isl_constraint_set_coefficient_si(c_lower, isl_dim_set, (int)j, 1);
       c_upper =
         isl_constraint_set_constant_val(c_upper, upper_bound);
-      c_upper = isl_constraint_set_coefficient_si(c_upper, isl_dim_set, j, -1);
+      c_upper = isl_constraint_set_coefficient_si(c_upper, isl_dim_set, (int)j, -1);
       tempset = isl_set_add_constraint(tempset, c_lower);
       tempset = isl_set_add_constraint(tempset, c_upper);
     }
@@ -97,8 +97,8 @@ isl_set** acr_isl_set_from_monitor(
 
 isl_set* acr_isl_set_from_alternative_parameter_construct(
     isl_ctx *ctx,
-    unsigned long num_parameters,
-    unsigned long num_dimensions,
+    unsigned int num_parameters,
+    unsigned int num_dimensions,
     struct runtime_alternative *alternative_list) {
 
   isl_val *constraint_value =
@@ -113,7 +113,7 @@ isl_set* acr_isl_set_from_alternative_parameter_construct(
     isl_constraint_set_constant_val(parameter_constraint, constraint_value);
   parameter_constraint =
     isl_constraint_set_coefficient_si(parameter_constraint, isl_dim_param,
-        alternative_list->value.alt.parameter.parameter_position,
+        (int)alternative_list->value.alt.parameter.parameter_position,
         -1);
   new_set = isl_set_add_constraint(new_set, parameter_constraint);
   return new_set;

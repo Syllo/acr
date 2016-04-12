@@ -16,6 +16,7 @@
  *
  */
 
+#include <inttypes.h>
 #include "acr/print.h"
 
 static inline void pprint_acr_indent(FILE* out, size_t num) {
@@ -32,9 +33,9 @@ void pprint_acr_compute_node(FILE* out, acr_compute_node node,
   }
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| Node\n");
-  unsigned long int size_list = acr_compute_node_get_option_list_size(node);
+  size_t size_list = acr_compute_node_get_option_list_size(node);
   acr_option_list list = acr_compute_node_get_option_list(node);
-  for (unsigned long int i = 0; i < size_list; ++i) {
+  for (size_t i = 0; i < size_list; ++i) {
     pprint_acr_option(out, acr_option_list_get_option(i, list),
         indent_level + 1);
   }
@@ -72,14 +73,14 @@ void pprint_acr_alternative(FILE* out, acr_option option, size_t indent_level) {
   fprintf(out, "|---| ALTERNATIVE: %s\n",
       acr_alternative_get_alternative_name(option));
   pprint_acr_indent(out, indent_level + 1);
-  fprintf(out, "|---| Position: %lu\n",
+  fprintf(out, "|---| Position: %zu\n",
       acr_alternative_get_pragma_position(option));
   switch (acr_alternative_get_type(option)) {
     case acr_alternative_parameter:
       pprint_acr_indent(out, indent_level + 1);
       fprintf(out, "|---| Parameter\n");
       pprint_acr_indent(out, indent_level + 2);
-      fprintf(out, "| %s -> %ld\n",
+      fprintf(out, "| %s -> %"PRIdMAX"\n",
           acr_alternative_get_object_to_swap_name(option),
           acr_alternative_get_replacement_parameter(option));
       break;
@@ -102,7 +103,7 @@ void pprint_acr_destroy(FILE* out, acr_option destroy, size_t indent_level) {
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| DESTROY\n");
   pprint_acr_indent(out, indent_level + 1);
-  fprintf(out, "|---| Position: %lu\n",
+  fprintf(out, "|---| Position: %zu\n",
       acr_destroy_get_pragma_position(destroy));
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|\n");
@@ -112,10 +113,10 @@ void pprint_acr_grid(FILE* out, acr_option grid, size_t indent_level) {
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| GRID\n");
   pprint_acr_indent(out, indent_level + 1);
-  fprintf(out, "|---| Position: %lu\n",
+  fprintf(out, "|---| Position: %zu\n",
       acr_grid_get_pragma_position(grid));
   pprint_acr_indent(out, indent_level + 1);
-  fprintf(out, "|---| Grid size: %lu\n", acr_grid_get_grid_size(grid));
+  fprintf(out, "|---| Grid size: %zu\n", acr_grid_get_grid_size(grid));
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|\n");
 }
@@ -124,7 +125,7 @@ void pprint_acr_init(FILE* out, acr_option init, size_t indent_level) {
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| INIT\n");
   pprint_acr_indent(out, indent_level + 1);
-  fprintf(out, "|---| Position: %lu\n", acr_init_get_pragma_position(init));
+  fprintf(out, "|---| Position: %zu\n", acr_init_get_pragma_position(init));
   pprint_acr_indent(out, indent_level + 1);
   fprintf(out, "|---| Function: void %s(",
       acr_init_get_function_name(init));
@@ -139,7 +140,7 @@ void pprint_acr_monitor(FILE* out, acr_option monitor, size_t indent_level) {
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| MONITOR\n");
   pprint_acr_indent(out, indent_level + 1);
-  fprintf(out, "|---| Position: %lu\n",
+  fprintf(out, "|---| Position: %zu\n",
       acr_monitor_get_pragma_position(monitor));
   pprint_acr_indent(out, indent_level + 1);
   fprintf(out, "|---| Data:\n");
@@ -175,12 +176,12 @@ void pprint_acr_monitor(FILE* out, acr_option monitor, size_t indent_level) {
 }
 
 void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level) {
-  long int strategy_val_integer[2];
+  intmax_t strategy_val_integer[2];
   float strategy_val_floating_point[2];
   pprint_acr_indent(out, indent_level);
   fprintf(out, "|---| STRATEGY\n");
   pprint_acr_indent(out, indent_level + 1);
-  fprintf(out, "|---| Position: %lu\n",
+  fprintf(out, "|---| Position: %zu\n",
       acr_strategy_get_pragma_position(strategy));
   switch (acr_strategy_get_strategy_type(strategy)) {
     case acr_strategy_direct:
@@ -192,7 +193,7 @@ void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level) {
       switch (acr_strategy_get_value_type(strategy)) {
         case acr_strategy_integer:
           acr_strategy_get_int_val(strategy, strategy_val_integer);
-          fprintf(out, "%ld\n", strategy_val_integer[0]);
+          fprintf(out, "%"PRIdMAX"\n", strategy_val_integer[0]);
           break;
         case acr_strategy_floating_point:
           acr_strategy_get_float_val(strategy, strategy_val_floating_point);
@@ -208,7 +209,7 @@ void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level) {
           acr_strategy_get_name(strategy));
       if (acr_strategy_get_value_type(strategy) == acr_strategy_integer) {
           acr_strategy_get_int_val(strategy, strategy_val_integer);
-          fprintf(out, "[%ld , %ld]\n", strategy_val_integer[0],
+          fprintf(out, "[%"PRIdMAX" , %"PRIdMAX"]\n", strategy_val_integer[0],
               strategy_val_integer[1]);
       } else {
           acr_strategy_get_float_val(strategy, strategy_val_floating_point);
@@ -224,10 +225,10 @@ void pprint_acr_strategy(FILE* out, acr_option strategy, size_t indent_level) {
 }
 
 void pprint_acr_parameter_declaration_list(FILE* out,
-                                      unsigned long int num_declarations,
+                                      size_t num_declarations,
                                   acr_parameter_declaration* declaration_list) {
   if (num_declarations > 0) {
-    for(unsigned long int i = 0; i < num_declarations - 1; ++i) {
+    for(size_t i = 0; i < num_declarations - 1; ++i) {
       pprint_acr_parameter_specifier_list(out,
           acr_parameter_declaration_get_num_specifiers(declaration_list, i),
           acr_parameter_declaration_get_specif_list(declaration_list, i));
@@ -246,13 +247,13 @@ void pprint_acr_parameter_declaration_list(FILE* out,
 }
 
 void pprint_acr_parameter_specifier_list(FILE* out,
-                                      unsigned long int num_specifiers,
+                                      size_t num_specifiers,
                                       acr_parameter_specifier* specifier_list) {
-  for(unsigned long int i = 0; i < num_specifiers; ++i) {
+  for(size_t i = 0; i < num_specifiers; ++i) {
     fprintf(out, "%s", acr_parameter_specifier_get_specifier(specifier_list, i));
-    unsigned long int pointer_depth =
+    size_t pointer_depth =
       acr_parameter_specifier_get_pointer_depth(specifier_list, i);
-    for(unsigned long int j = 0; j < pointer_depth; ++j) {
+    for(size_t j = 0; j < pointer_depth; ++j) {
       fprintf(out, "*");
     }
     fprintf(out, " ");
@@ -274,11 +275,11 @@ void pprint_acr_array_declaration(FILE* out,
       acr_array_decl_get_num_specifiers(declaration),
       acr_array_decl_get_specifiers_list(declaration));
   fprintf(out, " %s", acr_array_decl_get_array_name(declaration));
-  unsigned long int num_dimensions = acr_array_decl_get_num_dimensions(declaration);
+  size_t num_dimensions = acr_array_decl_get_num_dimensions(declaration);
   acr_array_dimensions_list dimensions =
     acr_array_decl_get_dimensions_list(declaration);
 
-  for (unsigned long int i = 0; i < num_dimensions; ++i) {
+  for (size_t i = 0; i < num_dimensions; ++i) {
     print_acr_array_dimensions(out, dimensions[i], true);
   }
 }
@@ -287,8 +288,8 @@ void pprint_acr_compute_node_list(FILE* out,
                                   acr_compute_node_list node_list,
                                   size_t indent_level) {
   pprint_acr_indent(out, indent_level);
-  for (unsigned long i = 0; i < acr_compute_node_list_get_size(node_list); ++i) {
-    fprintf(out, "|---| %lu\n", i);
+  for (size_t i = 0; i < acr_compute_node_list_get_size(node_list); ++i) {
+    fprintf(out, "|---| %zu\n", i);
     pprint_acr_compute_node(out,
         acr_compute_node_list_get_node(i, node_list),
         indent_level + 1);

@@ -18,6 +18,7 @@
 
 #include "acr/gencode.h"
 
+#include <inttypes.h>
 #include <limits.h>
 #include <string.h>
 
@@ -58,8 +59,8 @@ static size_t acr_copy_from_file_to_file(FILE* input, FILE* output,
 
 static size_t acr_position_of_init_in_node(acr_compute_node node) {
   acr_option_list list = acr_compute_node_get_option_list(node);
-  unsigned long list_size = acr_compute_node_get_option_list_size(node);
-  for (unsigned long i = 0; i < list_size; ++i) {
+  size_t list_size = acr_compute_node_get_option_list_size(node);
+  for (size_t i = 0; i < list_size; ++i) {
     acr_option current_option = acr_option_list_get_option(i, list);
     if (acr_option_get_type(current_option) == acr_type_init) {
       return acr_init_get_pragma_position(current_option);
@@ -120,9 +121,9 @@ static size_t acr_copy_from_file_avoiding_pragmas(FILE* input, FILE* output,
   if (start > stop)
     return 0;
   acr_option_list list = acr_compute_node_get_option_list(all_pragmas);
-  unsigned long list_size = acr_compute_node_get_option_list_size(all_pragmas);
+  size_t list_size = acr_compute_node_get_option_list_size(all_pragmas);
   size_t current_position = start;
-  for (unsigned long i = 0; current_position < stop && i < list_size; ++i) {
+  for (size_t i = 0; current_position < stop && i < list_size; ++i) {
     acr_option current_option = acr_option_list_get_option(i, list);
     size_t next_pragma_position = acr_option_get_pragma_position(current_option);
     if (current_position <= next_pragma_position && next_pragma_position < stop) {
@@ -141,22 +142,22 @@ static size_t acr_copy_from_file_avoiding_pragmas(FILE* input, FILE* output,
 
 static void acr_print_parameters(FILE* out, const acr_option init) {
   fprintf(out, "(");
-  unsigned long num_parameters = acr_init_get_num_parameters(init);
+  size_t num_parameters = acr_init_get_num_parameters(init);
   acr_parameter_declaration_list declaration_list =
     acr_init_get_parameter_list(init);
-  for (unsigned long i = 0; i < num_parameters; ++i) {
+  for (size_t i = 0; i < num_parameters; ++i) {
     if (i != 0)
       fprintf(out, ", ");
     acr_parameter_specifier_list specifier_list =
       acr_parameter_declaration_get_specif_list(declaration_list,i);
-    unsigned long num_specifiers =
+    size_t num_specifiers =
       acr_parameter_declaration_get_num_specifiers(declaration_list, i);
-    for (unsigned long j = 0; j < num_specifiers; ++j) {
+    for (size_t j = 0; j < num_specifiers; ++j) {
       fprintf(out, "%s",
           acr_parameter_specifier_get_specifier(specifier_list, j));
-      unsigned long pointer_depth =
+      size_t pointer_depth =
         acr_parameter_specifier_get_pointer_depth(specifier_list, j);
-      for (unsigned long k = 0; k < pointer_depth; ++k) {
+      for (size_t k = 0; k < pointer_depth; ++k) {
         fprintf(out, "*");
       }
       fprintf(out, " ");
@@ -169,14 +170,14 @@ static void acr_print_parameters(FILE* out, const acr_option init) {
 
 static void acr_print_init_function_call(FILE* out, const acr_option init);
 
-static unsigned long acr_strategy_get_min(const acr_option strategy) {
-  long values[2];
+static intmax_t acr_strategy_get_min(const acr_option strategy) {
+  intmax_t values[2];
   acr_strategy_get_int_val(strategy, values);
   return values[0];
 }
 
-static unsigned long acr_strategy_get_max(const acr_option strategy) {
-  long values[2];
+static intmax_t acr_strategy_get_max(const acr_option strategy) {
+  intmax_t values[2];
   acr_strategy_get_int_val(strategy, values);
   switch (acr_strategy_get_strategy_type(strategy)) {
     case acr_strategy_direct:
@@ -193,17 +194,17 @@ static unsigned long acr_strategy_get_max(const acr_option strategy) {
 
 static void acr_populate_strategy_and_alternative_list(
     const acr_compute_node node,
-    unsigned long strategy_list_size,
+    size_t strategy_list_size,
     acr_option_list strategy_list,
-    unsigned long alternative_list_size,
+    size_t alternative_list_size,
     acr_option_list alternative_list,
-    unsigned long *strategy_to_alternative_index) {
+    size_t *strategy_to_alternative_index) {
 
-  unsigned long size_list = acr_compute_node_get_option_list_size(node);
+  size_t size_list = acr_compute_node_get_option_list_size(node);
   acr_option_list options = acr_compute_node_get_option_list(node);
-  unsigned long current_strategy_position = 0ul;
-  unsigned long current_alternative_position = 0ul;
-  for (unsigned long i = 0ul; i < size_list; ++i) {
+  size_t current_strategy_position = 0;
+  size_t current_alternative_position = 0;
+  for (size_t i = 0; i < size_list; ++i) {
     acr_option current_option = acr_option_list_get_option(i, options);
     if (acr_option_get_type(current_option) == acr_type_strategy) {
       acr_option_list_set_option(current_option, current_strategy_position,
@@ -219,13 +220,13 @@ static void acr_populate_strategy_and_alternative_list(
 
   // sort strategies
   bool moved = true;
-  for (unsigned long i = 0; moved && i < strategy_list_size - 1; ++i) {
+  for (size_t i = 0; moved && i < strategy_list_size - 1; ++i) {
     moved = false;
-    for (unsigned long j = 0; j < strategy_list_size - 1 - i; ++j) {
+    for (size_t j = 0; j < strategy_list_size - 1 - i; ++j) {
       acr_option current = acr_option_list_get_option(j, strategy_list);
       acr_option next = acr_option_list_get_option(j+1, strategy_list);
-      unsigned long max_current = acr_strategy_get_max(current);
-      unsigned long min_next = acr_strategy_get_min(next);
+      intmax_t max_current = acr_strategy_get_max(current);
+      intmax_t min_next = acr_strategy_get_min(next);
       if (min_next < max_current) {
         acr_option_list_set_option(next, j, strategy_list);
         acr_option_list_set_option(current, j+1, strategy_list);
@@ -234,9 +235,9 @@ static void acr_populate_strategy_and_alternative_list(
     }
   }
 
-  for (unsigned long i = 0; i < strategy_list_size; ++i) {
+  for (size_t i = 0; i < strategy_list_size; ++i) {
     acr_option strategy = acr_option_list_get_option(i, strategy_list);
-    for (unsigned long j = 0; j < alternative_list_size; ++j) {
+    for (size_t j = 0; j < alternative_list_size; ++j) {
       acr_option alternative = acr_option_list_get_option(j, alternative_list);
       if (acr_strategy_correspond_to_alternative(strategy, alternative)) {
         strategy_to_alternative_index[i] = j;
@@ -247,7 +248,7 @@ static void acr_populate_strategy_and_alternative_list(
 
 static void acr_print_acr_alternatives(FILE *out,
       const char *prefix,
-      unsigned long num_alternatives,
+      size_t num_alternatives,
       const acr_option_list alternative_list,
       const osl_scop_p scop) {
   static const char* alternative_types_char[] = {
@@ -257,7 +258,7 @@ static void acr_print_acr_alternatives(FILE *out,
     osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
   fprintf(out, "static struct runtime_alternative %s_alternatives[] = {\n",
       prefix);
-  for (unsigned long i = 0; i < num_alternatives; ++i) {
+  for (size_t i = 0; i < num_alternatives; ++i) {
     const acr_option alternative =
       acr_option_list_get_option(i, alternative_list);
     enum acr_alternative_type alternative_type =
@@ -265,15 +266,15 @@ static void acr_print_acr_alternatives(FILE *out,
     if (i > 0) {
       fprintf(out, ",\n");
     }
-    fprintf(out, "  [%ld] = { .type = %s, .alternative_number = %luul, ",
+    fprintf(out, "  [%zu] = { .type = %s, .alternative_number = %zu, ",
         i,
         alternative_types_char[alternative_type], i);
     const char *name = acr_alternative_get_object_to_swap_name(alternative);
     switch (alternative_type) {
       case acr_alternative_parameter:
         fprintf(out,
-            ".value = { .alt.parameter.parameter_value = %ldl"
-            " , .alt.parameter.parameter_position = %luul"
+            ".value = { .alt.parameter.parameter_value = %zu"
+            " , .alt.parameter.parameter_position = %zu"
             " , .name_to_swap = \"%s\" } ",
             acr_alternative_get_replacement_parameter(alternative),
             osl_strings_find(parameters, name),
@@ -297,25 +298,25 @@ static void acr_print_acr_alternatives(FILE *out,
 static void acr_print_get_alternetive_from_val(
     FILE *out,
     const char* prefix,
-    unsigned long strategy_list_size,
+    size_t strategy_list_size,
     acr_option_list strategy_list,
-    unsigned long *strategy_to_alternative_index) {
+    size_t *strategy_to_alternative_index) {
 
   fprintf(out, "static struct runtime_alternative *%s_alternative_fun[%u] = {\n",
       prefix, UCHAR_MAX);
-  long max_current;
-  long min_current;
+  intmax_t max_current;
+  intmax_t min_current;
   bool not_first_alternative = false;
-  for (unsigned long i = 0; i < strategy_list_size; ++i) {
+  for (size_t i = 0; i < strategy_list_size; ++i) {
       acr_option current = acr_option_list_get_option(i, strategy_list);
       max_current = acr_strategy_get_max(current);
       min_current = acr_strategy_get_min(current);
-      for (long j = min_current; j <= max_current; ++j) {
+      for (intmax_t j = min_current; j <= max_current; ++j) {
         if (not_first_alternative)
           fprintf(out, ",\n");
         else
           not_first_alternative = true;
-        fprintf(out, "    [%lu] = &%s_alternatives[%lu]", j, prefix,
+        fprintf(out, "    [%zu] = &%s_alternatives[%zu]", j, prefix,
             strategy_to_alternative_index[i]);
       }
   }
@@ -330,11 +331,11 @@ static bool acr_print_acr_alternative_and_strategy_init(FILE* out,
     const acr_compute_node node,
     const osl_scop_p scop) {
   const char* prefix = acr_get_scop_prefix(node);
-  unsigned long num_strategy = 0ul;
-  unsigned long num_alternatives = 0ul;
-  unsigned long size_list = acr_compute_node_get_option_list_size(node);
+  size_t num_strategy = 0;
+  size_t num_alternatives = 0;
+  size_t size_list = acr_compute_node_get_option_list_size(node);
   acr_option_list options = acr_compute_node_get_option_list(node);
-  for (unsigned long i = 0ul; i < size_list; ++i) {
+  for (size_t i = 0; i < size_list; ++i) {
     acr_option current_option = acr_option_list_get_option(i, options);
     if (acr_option_get_type(current_option) == acr_type_strategy) {
       ++num_strategy;
@@ -343,20 +344,20 @@ static bool acr_print_acr_alternative_and_strategy_init(FILE* out,
       ++num_alternatives;
     }
   }
-  if (num_strategy == 0ul) {
+  if (num_strategy == 0) {
     fprintf(stderr,
         "[ACR] Warning: There is no strategies left for this node:\n");
     pprint_acr_compute_node(stderr, node, 0);
     return false;
   }
-  if (num_alternatives == 0ul) {
+  if (num_alternatives == 0) {
     fprintf(stderr,
         "[ACR] Warning: There is no alternatives left for this node:\n");
     pprint_acr_compute_node(stderr, node, 0);
     return false;
   }
   acr_option_list strategy_list = acr_new_option_list(num_strategy);
-  unsigned long *strategy_to_alternative_index =
+  size_t *strategy_to_alternative_index =
     malloc(num_strategy * sizeof(*strategy_to_alternative_index));
   acr_option_list alternative_list = acr_new_option_list(num_alternatives);
 
@@ -387,20 +388,21 @@ static bool acr_print_acr_alternative_and_strategy_init(FILE* out,
 static void acr_print_isl_lex_min_max_bound(FILE *out,
     bool upper_bound,
     isl_set *set,
-    unsigned long dim_to_print,
+    size_t dim_to_print,
     const osl_strings_p parameters) {
   const char max_char[] = "__acr__max__";
   const char min_char[] = "__acr__min__";
   const char *aggregator = upper_bound ? max_char : min_char;
-  unsigned long num_dim = isl_set_n_dim(set);
-  unsigned long num_param = isl_set_n_param(set);
+  size_t num_dim = isl_set_n_dim(set);
+  size_t num_param = isl_set_n_param(set);
   isl_set *only_dim_wanted = isl_set_copy(set);
   if (dim_to_print+1 < num_dim)
     only_dim_wanted = isl_set_project_out(only_dim_wanted, isl_dim_set,
-        dim_to_print+1, num_dim - dim_to_print - 1);
+        (unsigned int) (dim_to_print+1),
+        (unsigned int) (num_dim - dim_to_print - 1));
   if (dim_to_print != 0)
     only_dim_wanted = isl_set_project_out(only_dim_wanted, isl_dim_set,
-        0ul, dim_to_print);
+        0, (unsigned int) dim_to_print);
   only_dim_wanted = isl_set_coalesce(only_dim_wanted);
   isl_basic_set_list *bset_list = isl_set_get_basic_set_list(only_dim_wanted);
   isl_set_free(only_dim_wanted);
@@ -420,15 +422,17 @@ static void acr_print_isl_lex_min_max_bound(FILE *out,
         isl_val *dim_val =
           isl_constraint_get_constant_val(co);
         dim_val = isl_val_neg(dim_val);
-        dim_val = isl_val_add_ui(dim_val, 1ul);
+        dim_val = isl_val_add_ui(dim_val, 1);
         isl_printer_print_val(printer, dim_val);
         isl_printer_flush(printer);
         isl_val_free(dim_val);
-        for (unsigned long k = 0; k < num_param; ++k) {
-          if (isl_constraint_involves_dims(co, isl_dim_param, k, 1)) {
+        for (size_t k = 0; k < num_param; ++k) {
+          if (isl_constraint_involves_dims(
+                co, isl_dim_param, (unsigned int)k, 1)) {
             fprintf(out, " + %s*", parameters->string[k]);
             dim_val =
-              isl_constraint_get_coefficient_val(co, isl_dim_param, k);
+              isl_constraint_get_coefficient_val(
+                  co, isl_dim_param, (int)k);
             dim_val = isl_val_neg(dim_val);
             isl_printer_print_val(printer, dim_val);
             isl_printer_flush(printer);
@@ -457,10 +461,10 @@ static void acr_print_isl_lex_min_max_bound(FILE *out,
 static void acr_print_monitor_max_dims(FILE *out,
     const char *prefix,
     const dimensions_upper_lower_bounds *bounds,
-    unsigned long tiling_size,
+    uintmax_t tiling_size,
     const osl_scop_p scop) {
-  unsigned long num_monitor_dims = 0;
-  for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
+  size_t num_monitor_dims = 0;
+  for (size_t i = 0; i < bounds->num_dimensions; ++i) {
     if (bounds->dimensions_type[i] == acr_dimension_type_bound_to_monitor)
       num_monitor_dims++;
   }
@@ -468,7 +472,7 @@ static void acr_print_monitor_max_dims(FILE *out,
 
   fprintf(out,
       "  %s_runtime_data.monitor_dim_max =\n"
-      "    malloc(%luul * sizeof(*%s_runtime_data.monitor_dim_max));\n"
+      "    malloc(%zu* sizeof(*%s_runtime_data.monitor_dim_max));\n"
       "#ifdef __acr__max__\n"
       "#undef __acr__max__\n"
       "#endif\n"
@@ -479,14 +483,14 @@ static void acr_print_monitor_max_dims(FILE *out,
       "#define __acr__min__(a,b) (((a)<(b))?(a):(b))\n",
       prefix, num_monitor_dims, prefix);
 
-  unsigned long current_dim = 0;
-  for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
+  size_t current_dim = 0;
+  for (size_t i = 0; i < bounds->num_dimensions; ++i) {
     if (bounds->dimensions_type[i] == acr_dimension_type_bound_to_monitor) {
-      fprintf(out, "  %s_runtime_data.monitor_dim_max[%lu] = (",
+      fprintf(out, "  %s_runtime_data.monitor_dim_max[%zu] = (",
           prefix, current_dim++);
       acr_print_isl_lex_min_max_bound(out,
           false, bounds->bound_lexmax, i, parameters);
-      fprintf(out, ") / %luul + 1;\n", tiling_size);
+      fprintf(out, ") / %zu + 1;\n", tiling_size);
     }
   }
   fprintf(out, "#undef __acr__max__\n");
@@ -495,24 +499,24 @@ static void acr_print_monitor_max_dims(FILE *out,
 
 static void acr_print_acr_runtime_init(FILE* out,
     const acr_compute_node node,
-    unsigned long num_parameters,
+    size_t num_parameters,
     const dimensions_upper_lower_bounds_all_statements *dims,
     const dimensions_upper_lower_bounds *bounds,
     const osl_scop_p scop) {
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   const char* prefix = acr_init_get_function_name(init);
-  unsigned long num_alternatives = 0ul;
+  size_t num_alternatives = 0;
 
-  unsigned long size_list = acr_compute_node_get_option_list_size(node);
+  size_t size_list = acr_compute_node_get_option_list_size(node);
   acr_option_list options = acr_compute_node_get_option_list(node);
-  for (unsigned long i = 0ul; i < size_list; ++i) {
+  for (size_t i = 0; i < size_list; ++i) {
     acr_option current_option = acr_option_list_get_option(i, options);
     if (acr_option_get_type(current_option) == acr_type_alternative) {
       ++num_alternatives;
     }
   }
-  unsigned long num_monitor_dims = 0;
-  for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
+  size_t num_monitor_dims = 0;
+  for (size_t i = 0; i < bounds->num_dimensions; ++i) {
     if (bounds->dimensions_type[i] == acr_dimension_type_bound_to_monitor)
       num_monitor_dims++;
   }
@@ -520,45 +524,45 @@ static void acr_print_acr_runtime_init(FILE* out,
   acr_option grid = acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
   fprintf(out, "static void %s_monitoring_function(unsigned char*);\n", prefix);
   fprintf(out, "static struct acr_runtime_data %s_runtime_data = {\n"
-      "  .num_alternatives = %luul,\n"
+      "  .num_alternatives = %zu,\n"
       "  .alternatives = %s_alternatives,\n"
-      "  .num_parameters = %luul,\n"
-      "  .num_monitor_dims = %luul,\n"
-      "  .grid_size = %luul,\n"
-      "  .num_statements = %luul,\n"
-      "  .dimensions_per_statements = (unsigned long [%luul]) {\n",
+      "  .num_parameters = %zu,\n"
+      "  .num_monitor_dims = %zu,\n"
+      "  .grid_size = %zu,\n"
+      "  .num_statements = %zu,\n"
+      "  .dimensions_per_statements = (unsigned int [%zu]) {\n",
       prefix, num_alternatives, prefix,
       num_parameters, num_monitor_dims, acr_grid_get_grid_size(grid),
       dims->num_statements, dims->num_statements);
-  for (unsigned long i = 0; i < dims->num_statements; ++i) {
+  for (size_t i = 0; i < dims->num_statements; ++i) {
     const dimensions_upper_lower_bounds *current_bound =
       dims->statements_bounds[i];
     if (i > 0)
       fprintf(out, ",\n");
-    fprintf(out, "    [%lu] = %luul",
+    fprintf(out, "    [%zu] = %zu",
         i, current_bound->num_dimensions);
   }
   fprintf(out, "\n  },\n");
   fprintf(out,
       "  .alternative_from_val = %s_get_alternative_from_val,\n"
       "  .monitoring_function = %s_monitoring_function,\n"
-      "  .alternative_still_usable = 0u,\n"
+      "  .alternative_still_usable = 0,\n"
       "  .monitor_thread_continue = true,\n"
       "  .function_prototype = \"",
       prefix, prefix);
   acr_print_parameters(out, init);
   fprintf(out, "\",\n");
   fprintf(out,
-      "  .statement_dimension_types = (enum acr_dimension_type* [%luul]) {\n",
+      "  .statement_dimension_types = (enum acr_dimension_type* [%zu]) {\n",
       dims->num_statements);
-  for (unsigned long i = 0; i < dims->num_statements; ++i) {
+  for (size_t i = 0; i < dims->num_statements; ++i) {
     const dimensions_upper_lower_bounds *current_bound =
       dims->statements_bounds[i];
     if (i > 0)
       fprintf(out, ",\n");
-    fprintf(out, "    [%lu] = (enum acr_dimension_type[%luul]) {",
+    fprintf(out, "    [%zu] = (enum acr_dimension_type[%zu]) {",
         i, current_bound->num_dimensions);
-    for (unsigned long j = 0; j < current_bound->num_dimensions; ++j) {
+    for (size_t j = 0; j < current_bound->num_dimensions; ++j) {
       if (j > 0)
         fprintf(out, ", ");
       switch (current_bound->dimensions_type[j]) {
@@ -582,7 +586,7 @@ static void acr_print_acr_runtime_init(FILE* out,
   acr_print_parameters(out, init);
   fprintf(out, " {\n");
 
-  unsigned long tiling_size =
+  uintmax_t tiling_size =
     acr_grid_get_grid_size(acr_compute_node_get_option_of_type(acr_type_grid, node, 1));
   acr_print_monitor_max_dims(out, prefix, bounds, tiling_size, scop);
 
@@ -610,7 +614,7 @@ static void acr_print_acr_runtime_init(FILE* out,
 
 void acr_print_init_function_declaration(FILE* kernel_file, FILE* out,
     const acr_option init,
-    unsigned long kernel_start, unsigned long kernel_end) {
+    size_t kernel_start, size_t kernel_end) {
 
   fprintf(out, "static void %s_acr_runtime_init",
       acr_init_get_function_name(init));
@@ -619,7 +623,7 @@ void acr_print_init_function_declaration(FILE* kernel_file, FILE* out,
   fprintf(out, "static void %s_acr_initial", acr_init_get_function_name(init));
   acr_print_parameters(out, init);
   fprintf(out, " {\n");
-  fseek(kernel_file, kernel_start, SEEK_SET);
+  fseek(kernel_file, (long) kernel_start, SEEK_SET);
   acr_copy_from_file_to_file(kernel_file, out, kernel_start, kernel_end);
   fprintf(out, "\n}\n\n");
 
@@ -630,7 +634,7 @@ void acr_print_init_function_declaration(FILE* kernel_file, FILE* out,
 
 bool acr_print_node_initialization(FILE* in, FILE* out,
     const acr_compute_node node,
-    unsigned long kernel_start, unsigned long kernel_end) {
+    size_t kernel_start, size_t kernel_end) {
 
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   if (init == NULL) {
@@ -669,14 +673,14 @@ void acr_print_node_init_function_call(FILE* out,
 
 static void acr_print_init_function_call(FILE* out, const acr_option init) {
   fprintf(out, "%s(", acr_init_get_function_name(init));
-  unsigned long num_parameters = acr_init_get_num_parameters(init);
+  size_t num_parameters = acr_init_get_num_parameters(init);
   acr_parameter_declaration_list declaration_list =
     acr_init_get_parameter_list(init);
   if (num_parameters != 1 ||
       (num_parameters == 1 && strcmp(
-        acr_parameter_declaration_get_parameter_name(declaration_list, 0ul),
+        acr_parameter_declaration_get_parameter_name(declaration_list, 0),
         "void") != 0))
-  for (unsigned long i = 0; i < num_parameters; ++i) {
+  for (size_t i = 0; i < num_parameters; ++i) {
     if (i != 0)
       fprintf(out, ", ");
     fprintf(out, "%s",
@@ -730,11 +734,7 @@ static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     fprintf(stderr, "[ACR] error: The current node has no grid info\n");
     return false;
   }
-  unsigned long grid_size = acr_grid_get_grid_size(grid);
-  if (monitor == NULL) {
-    fprintf(stderr, "No data to monitor\n");
-    return false;
-  }
+  uintmax_t grid_size = acr_grid_get_grid_size(grid);
   const char *prefix = acr_get_scop_prefix(node);
   osl_scop_p new_scop = acr_openscop_gen_monitor_loop(monitor, scop,
       grid_size, dims, bound_used, prefix);
@@ -743,7 +743,7 @@ static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     return false;
   }
   acr_print_acr_runtime_init(out, node,
-      scop->context->nb_parameters, dims, *bound_used, scop);
+      (size_t)scop->context->nb_parameters, dims, *bound_used, scop);
 
 
   fprintf(out,
@@ -790,7 +790,7 @@ static void acr_delete_alternative_parameters_where_parameter_not_present_in_sco
     osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
   size_t total_parameters = osl_strings_size(parameters);
 
-  for (unsigned int i = 0ul; i < acr_compute_node_get_option_list_size(node); ++i) {
+  for (size_t i = 0; i < acr_compute_node_get_option_list_size(node); ++i) {
     const acr_option_list option_list = acr_compute_node_get_option_list(node);
     const acr_option option = acr_option_list_get_option(i, option_list);
     if (acr_option_get_type(option) == acr_type_alternative) {
@@ -805,7 +805,7 @@ static void acr_delete_alternative_parameters_where_parameter_not_present_in_sco
               alternate_param);
           pprint_acr_option(stderr, option, 0);
           acr_compute_node_delete_option_from_position(i, node);
-          i -= 1ul;
+          i -= 1;
         }
       }
     }
@@ -839,10 +839,10 @@ void acr_generate_code(const char* filename) {
       return;
     }
     acr_generate_preamble(new_file, filename);
-    const unsigned long list_size = acr_compute_node_list_get_size(node_list);
+    const size_t list_size = acr_compute_node_list_get_size(node_list);
     size_t position_in_input = 0;
-    fseek(current_file, position_in_input, SEEK_SET);
-    for (unsigned long i = 0; i < list_size; ++i) {
+    fseek(current_file, (long)position_in_input, SEEK_SET);
+    for (size_t i = 0; i < list_size; ++i) {
       acr_compute_node node = acr_compute_node_list_get_node(i, node_list);
       osl_scop_p scop = acr_extract_scop_in_compute_node(
           node, current_file, filename);
@@ -869,11 +869,11 @@ void acr_generate_code(const char* filename) {
         FILE* temp_buffer = open_memstream(&buffer, &size_buffer);
         const size_t scop_start_position = position_in_input;
         const char* scop_prefix = acr_get_scop_prefix(node);
-        unsigned long kernel_start, kernel_end;
+        size_t kernel_start, kernel_end;
         acr_scop_coord_to_acr_coord(current_file, scop, node,
             &kernel_start, &kernel_end);
 
-        fseek(current_file, position_in_input, SEEK_SET);
+        fseek(current_file, (long)position_in_input, SEEK_SET);
         position_in_input = acr_copy_from_file_avoiding_pragmas(
             current_file, temp_buffer, position_in_input,
             acr_position_of_init_in_node(node), all_options);
@@ -908,7 +908,7 @@ void acr_generate_code(const char* filename) {
           acr_osl_free_dimension_upper_lower_bounds_all(bounds_all);
           continue;
         }
-        fseek(current_file, position_in_input, SEEK_SET);
+        fseek(current_file, (long)position_in_input, SEEK_SET);
         position_in_input = acr_copy_from_file_avoiding_pragmas(
             current_file,
             temp_buffer,
@@ -917,7 +917,7 @@ void acr_generate_code(const char* filename) {
 
         acr_print_node_init_function_call(temp_buffer, node);
         position_in_input = kernel_end;
-        fseek(current_file, position_in_input, SEEK_SET);
+        fseek(current_file, (long)position_in_input, SEEK_SET);
         osl_scop_free(scop);
 
         acr_option destroy =
@@ -935,9 +935,9 @@ void acr_generate_code(const char* filename) {
         acr_osl_free_dimension_upper_lower_bounds_all(bounds_all);
       }
     }
-    fseek(current_file, 0l, SEEK_END);
-    long end_file = ftell(current_file);
-    fseek(current_file, position_in_input, SEEK_SET);
+    fseek(current_file, 0, SEEK_END);
+    size_t end_file = (size_t) ftell(current_file);
+    fseek(current_file, (long)position_in_input, SEEK_SET);
     position_in_input = acr_copy_from_file_avoiding_pragmas(
         current_file, new_file, position_in_input,
         end_file, all_options);
@@ -980,7 +980,7 @@ void acr_print_structure_and_related_scop(FILE* out, const char* filename) {
     acr_compute_node_list node_list =
       acr_new_compute_node_list_split_node(compute_node);
     if (node_list) {
-      for(unsigned long j = 0; j < node_list->list_size; ++j) {
+      for(size_t j = 0; j < node_list->list_size; ++j) {
         acr_compute_node node = acr_compute_node_list_get_node(j, node_list);
         osl_scop_p scop = acr_extract_scop_in_compute_node(
             node, current_file, filename);
@@ -993,14 +993,14 @@ void acr_print_structure_and_related_scop(FILE* out, const char* filename) {
               node,
               scop);
           while(acr_simplify_compute_node(node));
-          fprintf(out, "##### ACR options for node %lu: #####\n", j);
-          pprint_acr_compute_node(out, node, 0ul);
-          fprintf(out, "##### Scop for node %lu: #####\n", j);
+          fprintf(out, "##### ACR options for node %zu: #####\n", j);
+          pprint_acr_compute_node(out, node, 0);
+          fprintf(out, "##### Scop for node %zu: #####\n", j);
           osl_scop_print(out, scop);
           osl_scop_free(scop);
         } else {
-          fprintf(out, "##### No scop found for node %lu: #####", j);
-          pprint_acr_compute_node(out, node, 0ul);
+          fprintf(out, "##### No scop found for node %zu: #####", j);
+          pprint_acr_compute_node(out, node, 0);
         }
         fprintf(out, "\n");
       }
@@ -1030,7 +1030,7 @@ osl_scop_p acr_extract_scop_in_compute_node(const acr_compute_node node,
   clan_options.precision = 0;
   clan_options.structure = 0;
 
-  unsigned long start, end;
+  size_t start, end;
   acr_get_start_and_stop_for_clan(node, &start, &end);
 
   osl_scop_p scop = clan_scop_extract_delimited(input_file,
@@ -1040,15 +1040,15 @@ osl_scop_p acr_extract_scop_in_compute_node(const acr_compute_node node,
 }
 
 void acr_get_start_and_stop_for_clan(const acr_compute_node node,
-    unsigned long* start, unsigned long *stop) {
+    size_t* start, size_t *stop) {
 
-  *start = 0ul;
-  *stop = 0ul;
+  *start = 0;
+  *stop = 0;
 
-  unsigned long option_list_size = acr_compute_node_get_option_list_size(node);
+  size_t option_list_size = acr_compute_node_get_option_list_size(node);
   const acr_option_list option_list = acr_compute_node_get_option_list(node);
 
-  for (unsigned int i = 0ul; i < option_list_size; ++i) {
+  for (size_t i = 0; i < option_list_size; ++i) {
     const acr_option option = acr_option_list_get_option(i, option_list);
     switch (acr_option_get_type(option)) {
       case acr_type_init:
@@ -1079,18 +1079,18 @@ void acr_scop_coord_to_acr_coord(
     FILE* kernel_file,
     const osl_scop_p scop,
     const acr_compute_node compute_node,
-    unsigned long* start,
-    unsigned long* end) {
+    size_t  *start,
+    size_t *end) {
   acr_get_start_and_stop_for_clan(compute_node, start, end);
   osl_coordinates_p osl_coord = osl_generic_lookup(scop->extension,
       OSL_URI_COORDINATES);
   if (osl_coord == NULL)
     return;
-  fseek(kernel_file, *start, SEEK_SET);
-  unsigned long line_num = 1;
+  fseek(kernel_file, (long)*start, SEEK_SET);
+  size_t line_num = 1;
   char c;
-  unsigned long current_position = *start;
-  while (line_num < (unsigned long) osl_coord->line_start) {
+  size_t current_position = *start;
+  while (line_num < (size_t) osl_coord->line_start) {
     if(fscanf(kernel_file, "%c", &c) == EOF)
       break;
     ++current_position;
@@ -1098,11 +1098,11 @@ void acr_scop_coord_to_acr_coord(
       ++line_num;
   }
   if (osl_coord->column_start > 0) {
-    current_position += osl_coord->column_start - 1;
-    fseek(kernel_file, osl_coord->column_start - 1, SEEK_CUR);
+    current_position += (size_t)osl_coord->column_start - 1;
+    fseek(kernel_file, (long)osl_coord->column_start - 1, SEEK_CUR);
   }
   *start = current_position;
-  while (line_num < (unsigned long) osl_coord->line_end) {
+  while (line_num < (size_t) osl_coord->line_end) {
     if(fscanf(kernel_file, "%c", &c) == EOF)
       break;
     ++current_position;
@@ -1110,6 +1110,6 @@ void acr_scop_coord_to_acr_coord(
       ++line_num;
   }
   if (osl_coord->column_end > 0)
-    current_position += osl_coord->column_end;
+    current_position += (size_t)osl_coord->column_end;
   *end = current_position;
 }

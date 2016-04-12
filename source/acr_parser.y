@@ -18,6 +18,7 @@
 
 %{
 
+#include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -47,8 +48,8 @@ static const char* acr_pragma_options_error_messages[] =
 
 static const char* acr_pragma_processing_functions[] =
   {
-    [acr_monitor_function_min]  = "min",
-    [acr_monitor_function_max]  = "max",
+    [acr_monitor_function_min] = "min",
+    [acr_monitor_function_max] = "max",
     [acr_monitor_function_avg] = "avg",
   };
 
@@ -81,8 +82,8 @@ struct parser_option_list* option_list;
     union {
       float floating_point;
       struct {
-        long int integer;
-        unsigned long uinteger;
+        intmax_t integer;
+        size_t uinteger;
       } integer_val;
     } value;
     enum {integer_value, floating_point_value} type;
@@ -90,7 +91,7 @@ struct parser_option_list* option_list;
   acr_option option;
   struct {
     char* param;
-    long int val;
+    intmax_t val;
   } alternative_parameter;
   struct {
     char* function_to_swap;
@@ -418,7 +419,7 @@ acr_init_option
       }
       if ($5) {
         acr_parameter_declaration* parameter_list;
-        unsigned long int num_parameters =
+        size_t num_parameters =
             translate_and_free_param_declaration_list($5, &parameter_list);
         $$ = acr_new_init($3, last_pragma_start_line, num_parameters,
                           parameter_list);
@@ -679,7 +680,7 @@ acr_strategy_options
           bounds[1] = $5.value.floating_point;
         $$ = acr_new_strategy_range_float($7, bounds, last_pragma_start_line);
       } else {  // integer
-        long int bounds[2];
+        intmax_t bounds[2];
         bounds[0] = $3.value.integer_val.integer;
         bounds[1] = $5.value.integer_val.integer;
         $$ = acr_new_strategy_range_int($7, bounds, last_pragma_start_line);
@@ -704,8 +705,8 @@ minus
 %%
 
 static void error_print_last_pragma(void) {
-  long current_position = ftell(acrin);
-  fseek(acrin, last_pragma_start_line, SEEK_SET);
+  size_t current_position = (size_t) ftell(acrin);
+  fseek(acrin, (long) last_pragma_start_line, SEEK_SET);
   char c;
   char previous;
 
@@ -724,7 +725,7 @@ static void error_print_last_pragma(void) {
   }
   fprintf(stderr, "*\n\n");
   fflush(stderr);
-  fseek(acrin, current_position, SEEK_SET);
+  fseek(acrin, (long) current_position, SEEK_SET);
 }
 
 static void handle_carriage_return(void) {
@@ -744,8 +745,8 @@ void yyerror(const char *s)
       position_scanning_row + 1,
       position_scanning_column + 1 - last_token_size);
 
-  long current_position = ftell(acrin);
-  fseek(acrin, position_of_last_starting_row, SEEK_SET);
+  intmax_t current_position = ftell(acrin);
+  fseek(acrin, (long) position_of_last_starting_row, SEEK_SET);
 
   if(position_in_file == 0)
     return;
@@ -797,7 +798,7 @@ int start_acr_parsing(FILE* file, acr_compute_node* node_to_init) {
     parser_free_option_list(option_list);
   } else {
     acr_option_list new_option_list;
-    unsigned long list_size = parser_translate_option_list_and_free(option_list,
+    size_t list_size = parser_translate_option_list_and_free(option_list,
         &new_option_list);
     if (new_option_list) {
       *node_to_init = acr_new_compute_node(list_size, new_option_list);

@@ -19,6 +19,7 @@
 #ifndef __ACR_PRAGMA_STRUCT_H
 #define __ACR_PRAGMA_STRUCT_H
 
+#include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include "acr/utils.h"
@@ -32,7 +33,7 @@ enum acr_alternative_type {
 typedef struct acr_alternative {
   size_t pragma_position;
   union {
-    long int replacement_value;
+    intmax_t replacement_value;
     char* replacement_function;
   } swapped_by;
   char* name_of_object_to_swap;
@@ -46,16 +47,16 @@ typedef struct acr_destroy {
 
 typedef struct acr_grid {
   size_t pragma_position;
-  unsigned long int grid_size;
+  size_t grid_size;
 } acr_grid;
 
 typedef struct acr_parameter_specifier {
-  unsigned long int pointer_depth;
+  size_t pointer_depth;
   char* specifier;
 } acr_parameter_specifier, *acr_parameter_specifier_list;
 
 typedef struct acr_parameter_declaration {
-  unsigned long int num_specifiers;
+  size_t num_specifiers;
   acr_parameter_specifier_list parameter_specifiers_list;
   char* parameter_name;
 } acr_parameter_declaration, *acr_parameter_declaration_list;
@@ -63,7 +64,7 @@ typedef struct acr_parameter_declaration {
 typedef struct acr_init {
   size_t pragma_position;
   char* function_name;
-  unsigned long int num_parameters;
+  size_t num_parameters;
   acr_parameter_declaration_list parameters_list;
 } acr_init;
 
@@ -72,10 +73,10 @@ typedef struct acr_array_dimension {
 } *acr_array_dimension, **acr_array_dimensions_list;
 
 typedef struct acr_array_declaration {
-  unsigned long int num_specifiers;
+  size_t num_specifiers;
   acr_parameter_specifier_list parameter_specifiers_list;
   char* array_name;
-  unsigned long int num_dimensions;
+  size_t num_dimensions;
   acr_array_dimensions_list array_dimensions_list;
 } acr_array_declaration;
 
@@ -109,7 +110,7 @@ typedef struct acr_strategy {
   enum acr_strategy_type strategy_type;
   enum acr_strategy_value_type value_type;
   union {
-    long int value_int;
+    intmax_t value_int;
     float value_float;
   } boundaries[2];
   char* strategy_name;
@@ -138,12 +139,12 @@ typedef struct acr_option {
 } *acr_option, **acr_option_list;
 
 typedef struct acr_compute_node {
-  unsigned long int list_size;
+  size_t list_size;
   acr_option_list option_list;
 } *acr_compute_node;
 
 typedef struct acr_compute_node_list {
-  unsigned long int list_size;
+  size_t list_size;
   acr_compute_node* compute_node_list;
 } *acr_compute_node_list;
 
@@ -158,7 +159,7 @@ acr_option acr_new_alternative_function(const char* alternative_name,
 
 acr_option acr_new_alternative_parameter(const char* alternative_name,
                                          const char* parameter_to_swap,
-                                         long int replacement_value,
+                                         intmax_t replacement_value,
                                          size_t pragma_position);
 
 acr_option acr_copy_alternative(const acr_option alternative);
@@ -185,7 +186,7 @@ static inline char* acr_alternative_get_replacement_function(
     NULL;
 }
 
-static inline long int acr_alternative_get_replacement_parameter(
+static inline intmax_t acr_alternative_get_replacement_parameter(
     const acr_option option){
   return acr_alternative_get_type(option) == acr_alternative_parameter ?
     option->options.alternative.swapped_by.replacement_value :
@@ -206,12 +207,12 @@ static inline size_t acr_destroy_get_pragma_position(
   return option->options.destroy.pragma_position;
 }
 
-acr_option acr_new_grid(unsigned long int grid_size,
+acr_option acr_new_grid(size_t grid_size,
                         size_t pragma_position);
 
 acr_option acr_copy_grid(const acr_option grid);
 
-static inline unsigned long int acr_grid_get_grid_size(
+static inline size_t acr_grid_get_grid_size(
     const acr_option option) {
   return option->options.grid.grid_size;
 }
@@ -222,7 +223,7 @@ static inline size_t acr_grid_get_pragma_position(const acr_option option) {
 
 acr_option acr_new_init(const char* function_name,
                         size_t pragma_position,
-                        unsigned long int num_parameters,
+                        size_t num_parameters,
                         acr_parameter_declaration_list parameters_list);
 
 acr_option acr_copy_init(const acr_option init);
@@ -236,7 +237,7 @@ static inline size_t acr_init_get_pragma_position(
   return option->options.init.pragma_position;
 }
 
-static inline unsigned long int acr_init_get_num_parameters(
+static inline size_t acr_init_get_num_parameters(
     const acr_option option) {
   return option->options.init.num_parameters;
 }
@@ -248,15 +249,15 @@ static inline acr_parameter_declaration_list acr_init_get_parameter_list(
 
 
 acr_parameter_declaration_list acr_new_parameter_declaration_list(
-    unsigned long int list_size);
+    size_t list_size);
 
 acr_parameter_declaration_list acr_copy_parameter_declaration_list(
     const acr_parameter_declaration_list parameter_list,
-    unsigned long list_size);
+    size_t list_size);
 
 static inline void acr_set_parameter_declaration(
     const char* parameter_name,
-    unsigned long int num_specifiers,
+    size_t num_specifiers,
     acr_parameter_specifier_list specifier_list,
     acr_parameter_declaration_list declaration_to_set) {
   declaration_to_set->parameter_specifiers_list = specifier_list;
@@ -266,28 +267,28 @@ static inline void acr_set_parameter_declaration(
 
 static inline char* acr_parameter_declaration_get_parameter_name(
     const acr_parameter_declaration_list declaration_list,
-    unsigned long int position_in_list) {
+    size_t position_in_list) {
   return declaration_list[position_in_list].parameter_name;
 }
 
-static inline unsigned long int acr_parameter_declaration_get_num_specifiers(
+static inline size_t acr_parameter_declaration_get_num_specifiers(
     const acr_parameter_declaration_list declaration_list,
-    unsigned long int position_in_list) {
+    size_t position_in_list) {
   return declaration_list[position_in_list].num_specifiers;
 }
 
 static inline acr_parameter_specifier_list acr_parameter_declaration_get_specif_list(
     const acr_parameter_declaration_list declaration_list,
-    unsigned long int position_in_list) {
+    size_t position_in_list) {
   return declaration_list[position_in_list].parameter_specifiers_list;
 }
 
 acr_parameter_specifier_list acr_new_parameter_specifier_list(
-    unsigned long int list_size);
+    size_t list_size);
 
 static inline void acr_set_parameter_specifier(
     const char* specifier_name,
-    unsigned long int pointer_depth,
+    size_t pointer_depth,
     acr_parameter_specifier_list specifier) {
   specifier->specifier = acr_strdup(specifier_name);
   specifier->pointer_depth = pointer_depth;
@@ -295,19 +296,19 @@ static inline void acr_set_parameter_specifier(
 
 static inline bool acr_parameter_specifier_is_pointer(
     const acr_parameter_specifier_list specifier,
-    unsigned long int position_in_list) {
+    size_t position_in_list) {
   return specifier[position_in_list].pointer_depth > 0;
 }
 
-static inline unsigned long int acr_parameter_specifier_get_pointer_depth(
+static inline size_t acr_parameter_specifier_get_pointer_depth(
     const acr_parameter_specifier_list specifier,
-    unsigned long int position_in_list) {
+    size_t position_in_list) {
   return specifier[position_in_list].pointer_depth;
 }
 
 static inline char* acr_parameter_specifier_get_specifier(
     const acr_parameter_specifier_list specifier,
-    unsigned long int position_in_list) {
+    size_t position_in_list) {
   return specifier[position_in_list].specifier;
 }
 
@@ -338,10 +339,10 @@ static inline char* acr_monitor_get_filter_name(acr_option option) {
 }
 
 static inline void acr_set_array_declaration(
-    unsigned long int num_specifiers,
+    size_t num_specifiers,
     acr_parameter_specifier_list parameters_list,
     const char* array_name,
-    unsigned long int num_dimensions,
+    size_t num_dimensions,
     acr_array_dimensions_list array_dimensions,
     struct acr_array_declaration* array_declaration) {
   array_declaration->array_dimensions_list = array_dimensions;
@@ -351,7 +352,7 @@ static inline void acr_set_array_declaration(
   array_declaration->parameter_specifiers_list = parameters_list;
 }
 
-static inline unsigned long int acr_array_decl_get_num_specifiers(
+static inline size_t acr_array_decl_get_num_specifiers(
     acr_array_declaration* declaration) {
   return declaration->num_specifiers;
 }
@@ -366,7 +367,7 @@ static inline char* acr_array_decl_get_array_name(
   return declaration->array_name;
 }
 
-static inline unsigned long int acr_array_decl_get_num_dimensions(
+static inline size_t acr_array_decl_get_num_dimensions(
     acr_array_declaration* declaration) {
   return declaration->num_dimensions;
 }
@@ -377,7 +378,7 @@ static inline acr_array_dimensions_list acr_array_decl_get_dimensions_list(
 }
 
 acr_option acr_new_strategy_direct_int(const char* strategy_name,
-                                       long int matching_value,
+                                       intmax_t matching_value,
                                        size_t pragma_position);
 
 acr_option acr_new_strategy_direct_float(const char* strategy_name,
@@ -385,7 +386,7 @@ acr_option acr_new_strategy_direct_float(const char* strategy_name,
                                          size_t pragma_position);
 
 acr_option acr_new_strategy_range_int(const char* strategy_name,
-                                      long int matching_value[2],
+                                      intmax_t matching_value[2],
                                       size_t pragma_position);
 
 acr_option acr_new_strategy_range_float(const char* strategy_name,
@@ -421,29 +422,29 @@ static inline void acr_strategy_get_float_val(
 
 static inline void acr_strategy_get_int_val(
     const acr_option option,
-    long int values[2]){
+    intmax_t values[2]){
   values[0] = option->options.strategy.boundaries[0].value_int;
   values[1] = option->options.strategy.boundaries[1].value_int;
 }
 
-acr_option_list acr_new_option_list(unsigned long int size);
+acr_option_list acr_new_option_list(size_t size);
 
 static inline void acr_option_list_set_option(acr_option option,
-                                              unsigned long int position,
+                                              size_t position,
                                               acr_option_list list) {
   list[position] = option;
 }
 
-static inline acr_option acr_option_list_get_option(unsigned long int position,
+static inline acr_option acr_option_list_get_option(size_t position,
                                                     acr_option_list list) {
   return list[position];
 }
 
 void acr_free_option(acr_option option);
 
-void acr_free_option_list(acr_option_list option_list, unsigned long int size);
+void acr_free_option_list(acr_option_list option_list, size_t size);
 
-acr_compute_node acr_new_compute_node(unsigned long int list_size,
+acr_compute_node acr_new_compute_node(size_t list_size,
     acr_option_list list);
 
 void acr_free_compute_node(acr_compute_node node);
@@ -453,7 +454,7 @@ static inline acr_option_list acr_compute_node_get_option_list(
   return node->option_list;
 }
 
-static inline unsigned long int acr_compute_node_get_option_list_size(
+static inline size_t acr_compute_node_get_option_list_size(
     acr_compute_node node) {
   return node->list_size;
 }
@@ -461,7 +462,7 @@ static inline unsigned long int acr_compute_node_get_option_list_size(
 void acr_free_acr_array_declaration(
     struct acr_array_declaration* array_declaration);
 
-acr_array_dimensions_list acr_new_array_dimensions_list(unsigned long int size);
+acr_array_dimensions_list acr_new_array_dimensions_list(size_t size);
 
 static inline void acr_free_array_dimension(acr_array_dimension dim) {
   if (!dim)
@@ -473,11 +474,11 @@ static inline void acr_free_array_dimension(acr_array_dimension dim) {
 acr_array_dimension acr_new_array_dimensions(const char* identifier);
 
 static inline void acr_free_array_dimensions_list(
-    unsigned long list_size,
+    size_t list_size,
     acr_array_dimensions_list list) {
   if (!list)
     return;
-  for (unsigned long int i = 0; i < list_size; ++i) {
+  for (size_t i = 0; i < list_size; ++i) {
     acr_free_array_dimension(list[i]);
   }
   free(list);
@@ -489,24 +490,24 @@ static inline char* acr_array_dimension_get_identifier(acr_array_dimension dim){
   return dim->identifier;
 }
 
-acr_compute_node_list acr_new_compute_node_list(unsigned long list_size);
+acr_compute_node_list acr_new_compute_node_list(size_t list_size);
 
 void acr_free_compute_node_list(acr_compute_node_list list);
 
 static inline acr_compute_node acr_compute_node_list_set_node(
-    unsigned long position,
+    size_t position,
     const acr_compute_node node,
     acr_compute_node_list node_list) {
   return node_list->compute_node_list[position] = node;
 }
 
 static inline acr_compute_node acr_compute_node_list_get_node(
-    unsigned long position,
+    size_t position,
     const acr_compute_node_list node_list) {
   return node_list->compute_node_list[position];
 }
 
-static inline unsigned long acr_compute_node_list_get_size(
+static inline size_t acr_compute_node_list_get_size(
     const acr_compute_node_list node_list) {
   return node_list->list_size;
 }
@@ -525,7 +526,7 @@ acr_compute_node_list acr_copy_compute_node_list(
 
 acr_parameter_specifier_list acr_copy_parameter_specifier_list(
     const acr_parameter_specifier_list specifier_list,
-    unsigned long list_size);
+    size_t list_size);
 
 size_t acr_option_get_pragma_position(const acr_option option);
 
@@ -534,7 +535,7 @@ void acr_copy_array_declaration(
     acr_array_declaration* new_array_dec);
 
 acr_option acr_compute_node_get_option_of_type(enum acr_type option_type,
-    const acr_compute_node node, unsigned long which_one);
+    const acr_compute_node node, size_t which_one);
 
 bool acr_alternative_has_no_strategy_in_node(const acr_option alternative,
     const acr_compute_node node);
@@ -547,7 +548,7 @@ bool acr_strategy_correspond_to_alternative(
     const acr_option alternative);
 
 void acr_compute_node_delete_option_from_position(
-    unsigned long position,
+    size_t position,
     acr_compute_node node);
 
 bool acr_simplify_compute_node(acr_compute_node node);

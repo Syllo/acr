@@ -35,15 +35,15 @@ void acr_print_scop_to_buffer(osl_scop_p scop, char** buffer,
 }
 
 static void osl_set_scattering_base(
-    unsigned long num_iterators,
+    int num_iterators,
     osl_relation_p scattering) {
   // update beta
-  for (unsigned int i = 0; i < num_iterators; ++i) {
-    unsigned long iterator_column = 2 + num_iterators * 2 + i;
-    unsigned long scatter_row = i * 2 + 1;
-    unsigned long scatter_column = 2 + i * 2;
-    unsigned long beta_row = i * 2;
-    unsigned long beta_column = 1 + i * 2;
+  for (int i = 0; i < num_iterators; ++i) {
+    int iterator_column = 2 + num_iterators * 2 + i;
+    int scatter_row = i * 2 + 1;
+    int scatter_column = 2 + i * 2;
+    int beta_row = i * 2;
+    int beta_column = 1 + i * 2;
     osl_int_decrement(scattering->precision, &scattering->m[beta_row][beta_column],
         scattering->m[beta_row][beta_column]);
     osl_int_decrement(scattering->precision,
@@ -79,14 +79,14 @@ void osl_relation_swap_column(osl_relation_p relation,
 }
 
 static void acr_osl_apply_tiling(
-    unsigned long num_iterators,
+    size_t num_iterators,
     osl_relation_p scattering,
-    unsigned long tiling_size) {
+    size_t tiling_size) {
   osl_int_p temp_val = osl_int_malloc(scattering->precision);
   int last_row = scattering->nb_rows - 1;
-  for (unsigned long i = 0; i < num_iterators; ++i) {
-    int where_to_add_two_column = 2 + i * 4;
-    osl_relation_insert_blank_column(scattering, where_to_add_two_column);
+  for (size_t i = 0; i < num_iterators; ++i) {
+    size_t where_to_add_two_column = 2 + i * 4;
+    osl_relation_insert_blank_column(scattering, (int)where_to_add_two_column);
 
     // Set beta to zero
     osl_relation_insert_blank_row(scattering, -1);
@@ -95,11 +95,11 @@ static void acr_osl_apply_tiling(
         &scattering->m[last_row][where_to_add_two_column],
         scattering->m[last_row][where_to_add_two_column]);
 
-    osl_relation_insert_blank_column(scattering, where_to_add_two_column);
+    osl_relation_insert_blank_column(scattering, (int)where_to_add_two_column);
     // Set new scatter to do strip-mine
     osl_relation_insert_blank_row(scattering, -1);
     last_row += 1;
-    osl_int_set_si(scattering->precision, temp_val, tiling_size);
+    osl_int_set_si(scattering->precision, temp_val, (int)tiling_size);
     osl_int_assign(scattering->precision,
         &scattering->m[last_row][where_to_add_two_column], *temp_val);
     osl_int_assign(scattering->precision,
@@ -130,8 +130,9 @@ static void acr_osl_apply_tiling(
 
     scattering->nb_output_dims += 2;
 
-    for (int j = i; j > 0; --j) {
-      osl_relation_swap_column(scattering, where_to_add_two_column, where_to_add_two_column - 2);
+    for (size_t j = i; j > 0; --j) {
+      osl_relation_swap_column(scattering, (int)where_to_add_two_column,
+          (int)where_to_add_two_column - 2);
       where_to_add_two_column -= 2;
     }
   }
@@ -139,18 +140,19 @@ static void acr_osl_apply_tiling(
 }
 
 static osl_relation_p acr_openscop_new_scattering_relation(
-    unsigned long num_iterators, unsigned long num_parameters) {
+    int num_iterators, int num_parameters) {
   osl_relation_p scattering = osl_relation_malloc(
       num_iterators*2+1,
       3 + num_parameters + num_iterators * 3);
   osl_relation_set_type(scattering, OSL_TYPE_SCATTERING);
-  osl_relation_set_attributes(scattering, num_iterators*2+1, num_iterators, 0, num_parameters);
+  osl_relation_set_attributes(scattering, num_iterators*2+1,
+      num_iterators, 0, num_parameters);
   osl_set_scattering_base(num_iterators, scattering);
   return scattering;
 }
 
 static inline void _acr_openscop_add_missing_identifiers(
-    unsigned long* size_string,
+    size_t *size_string,
     osl_strings_p identifiers,
     const acr_array_dimension dimension) {
   if (osl_strings_find(identifiers, dimension->identifier)
@@ -166,7 +168,7 @@ osl_strings_p acr_openscop_get_monitor_identifiers(const acr_option monitor) {
   acr_array_declaration* array_decl =
     acr_monitor_get_array_declaration(monitor);
   acr_array_dimensions_list dim_list = array_decl->array_dimensions_list;
-  for (unsigned long i = 0; i < array_decl->num_dimensions; ++i) {
+  for (size_t i = 0; i < array_decl->num_dimensions; ++i) {
     _acr_openscop_add_missing_identifiers(&string_size, identifiers, dim_list[i]);
   }
   return identifiers;
@@ -191,12 +193,12 @@ bool acr_osl_check_if_identifiers_are_not_parameters(const osl_scop_p scop,
 
 static void acr_print_array_access_monitor_dim_n(
     FILE *out,
-    unsigned long num_dimensions,
-    const unsigned long *monitor_dim,
-    unsigned long dimmension,
+    size_t num_dimensions,
+    const size_t *monitor_dim,
+    size_t dimmension,
     const char *prefix) {
   fprintf(out, "(c%lu", monitor_dim[dimmension]*2);
-  for (unsigned long i = dimmension+1; i < num_dimensions; ++i) {
+  for (size_t i = dimmension+1; i < num_dimensions; ++i) {
     fprintf(out, " * %s_runtime_data.monitor_dim_max[%lu]", prefix, i);
   }
   fprintf(out, ")");
@@ -204,12 +206,12 @@ static void acr_print_array_access_monitor_dim_n(
 
 static inline void print_monitor_result_access(
     FILE* out,
-    unsigned long num_dimensions,
-    const unsigned long *monitor_dim,
+    size_t num_dimensions,
+    const size_t *monitor_dim,
     const char *prefix) {
   fprintf(out, "monitor_result");
   fprintf(out, "[");
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
+  for(size_t i = 0; i < num_dimensions; ++i) {
     if (i > 0)
       fprintf(out, " + ");
     acr_print_array_access_monitor_dim_n(out, num_dimensions,
@@ -221,20 +223,20 @@ static inline void print_monitor_result_access(
 static void acr_openscop_scan_min_max_op(
     const acr_option monitor,
     const char* filter_function,
-    unsigned long grid_size,
+    size_t grid_size,
     bool max,
-    const unsigned long *monitor_dim,
+    const size_t *monitor_dim,
     osl_statement_p statement,
     const char *prefix) {
   osl_body_p body = osl_body_malloc();
-  unsigned int num_iterators = statement->domain->nb_output_dims;
+  int num_iterators = statement->domain->nb_output_dims;
   osl_strings_p iterators = osl_strings_generate("i", num_iterators);
   body->iterators = iterators;
   char* statement_string;
   size_t size_string;
   FILE* tempbuffer = open_memstream(&statement_string, &size_string);
   acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
-  unsigned long num_dimensions = acr_array_decl_get_num_dimensions(decl);
+  size_t num_dimensions = acr_array_decl_get_num_dimensions(decl);
 #ifndef ACR_DEBUG
   print_monitor_result_access(tempbuffer,
       num_dimensions, monitor_dim, prefix);
@@ -251,7 +253,7 @@ static void acr_openscop_scan_min_max_op(
     fprintf(tempbuffer, "%s(", filter_function);
   }
   fprintf(tempbuffer, "%s", acr_array_decl_get_array_name(decl));
-  for (unsigned long i = 0; i < num_dimensions; ++i) {
+  for (size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "[i%lu]", monitor_dim[i]);
   }
   if (filter_function) {
@@ -262,7 +264,7 @@ static void acr_openscop_scan_min_max_op(
     fprintf(tempbuffer, "%s(", filter_function);
   }
   fprintf(tempbuffer, "%s", acr_array_decl_get_array_name(decl));
-  for (unsigned long i = 0; i < num_dimensions; ++i) {
+  for (size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "[i%lu]", monitor_dim[i]);
   }
   if (filter_function) {
@@ -276,18 +278,18 @@ static void acr_openscop_scan_min_max_op(
   (void) filter_function;
   (void) max;
   fprintf(tempbuffer, "fprintf(stderr, \"compare ");
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
+  for(size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "%%d ");
   }
   fprintf(tempbuffer, "= ");
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
+  for(size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "%%d ");
   }
   fprintf(tempbuffer, "\\n\"");
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
+  for(size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, ", c%lu", monitor_dim[i]*2);
   }
-  for (unsigned long i = 0; i < num_dimensions; ++i) {
+  for (size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, ", i%lu", monitor_dim[i]);
   }
   fprintf(tempbuffer, ");");
@@ -306,10 +308,10 @@ static void acr_openscop_scan_min_max_op(
       &scattering->m[row_position][0],
       scattering->m[row_position][0]);
   osl_int_t temp;
-  osl_int_init_set_si(scattering->precision, &temp, grid_size);
-  for (unsigned long i = 0; i < num_dimensions; ++i) {
-    unsigned long initial_iterator_pos = 2 + 2*num_dimensions + i*2 ;
-    unsigned long initial_scattering_pos = 2 + i*2;
+  osl_int_init_set_si(scattering->precision, &temp, (int)grid_size);
+  for (size_t i = 0; i < num_dimensions; ++i) {
+    size_t initial_iterator_pos = 2 + 2*num_dimensions + i*2 ;
+    size_t initial_scattering_pos = 2 + i*2;
     osl_int_increment(scattering->precision,
         &scattering->m[row_position][initial_iterator_pos],
         scattering->m[row_position][initial_iterator_pos]);
@@ -324,20 +326,20 @@ static void acr_openscop_scan_min_max_op(
 static void acr_openscop_scan_init(
     const acr_option monitor,
     const char* filter_function,
-    unsigned long grid_size,
+    size_t grid_size,
     enum acr_monitor_processing_funtion process_fun,
-    const unsigned long *monitor_dim,
+    const size_t *monitor_dim,
     osl_statement_p statement,
     const char *prefix) {
   osl_body_p body = osl_body_malloc();
-  unsigned int num_iterators = statement->domain->nb_output_dims;
+  int num_iterators = statement->domain->nb_output_dims;
   osl_strings_p iterators = osl_strings_generate("i", num_iterators);
   body->iterators = iterators;
   char* statement_string;
   size_t size_string;
   FILE* tempbuffer = open_memstream(&statement_string, &size_string);
   acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
-  unsigned long num_dimensions = acr_array_decl_get_num_dimensions(decl);
+  size_t num_dimensions = acr_array_decl_get_num_dimensions(decl);
 #ifndef ACR_DEBUG
   switch (process_fun) {
     case acr_monitor_function_min:
@@ -356,7 +358,7 @@ static void acr_openscop_scan_init(
     fprintf(tempbuffer, "%s(", filter_function);
   }
   fprintf(tempbuffer, "%s", acr_array_decl_get_array_name(decl));
-  for (unsigned long i = 0; i < num_dimensions; ++i) {
+  for (size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "[i%lu]", monitor_dim[i]);
   }
   if (filter_function) {
@@ -366,18 +368,18 @@ static void acr_openscop_scan_init(
 #else
   (void) filter_function;
   fprintf(tempbuffer, "fprintf(stderr, \"Scan init ");
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
+  for(size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "%%d ");
   }
   fprintf(tempbuffer, "= ");
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
+  for(size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "%%d ");
   }
   fprintf(tempbuffer, "\\n\"");
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
+  for(size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, ", c%lu", monitor_dim[i]*2);
   }
-  for (unsigned long i = 0; i < num_dimensions; ++i) {
+  for (size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, ", i%lu", monitor_dim[i]);
   }
   fprintf(tempbuffer, ");");
@@ -393,10 +395,10 @@ static void acr_openscop_scan_init(
   osl_relation_insert_blank_row(scattering, -1);
   int row_position = scattering->nb_rows - 1;
   osl_int_t temp;
-  osl_int_init_set_si(scattering->precision, &temp, grid_size);
-  for (unsigned long i = 0; i < num_dimensions; ++i) {
-    unsigned long initial_iterator_pos = 2 + 2*num_dimensions + i*2 ;
-    unsigned long initial_scattering_pos = 2 + i*2;
+  osl_int_init_set_si(scattering->precision, &temp, (int)grid_size);
+  for (size_t i = 0; i < num_dimensions; ++i) {
+    size_t initial_iterator_pos = 2 + 2*num_dimensions + i*2 ;
+    size_t initial_scattering_pos = 2 + i*2;
     osl_int_increment(scattering->precision,
         &scattering->m[row_position][initial_iterator_pos],
         scattering->m[row_position][initial_iterator_pos]);
@@ -411,9 +413,9 @@ static void acr_openscop_scan_init(
 void acr_openscop_set_tiled_to_do_min_max(
     const acr_option monitor,
     const char* filter_function,
-    unsigned long grid_size,
+    size_t grid_size,
     bool max,
-    const unsigned long *monitor_dim,
+    const size_t *monitor_dim,
     osl_scop_p scop,
     const char *prefix) {
   osl_statement_p init, inf_or_sup;
@@ -430,25 +432,25 @@ void acr_openscop_set_tiled_to_do_min_max(
 static void acr_openscop_scan_avg_add(
     const acr_option monitor,
     const char* filter_function,
-    unsigned long grid_size,
-    const unsigned long *monitor_dim,
+    size_t grid_size,
+    const size_t *monitor_dim,
     osl_statement_p statement) {
   osl_body_p body = osl_body_malloc();
-  unsigned int num_iterators = statement->domain->nb_output_dims;
+  int num_iterators = statement->domain->nb_output_dims;
   osl_strings_p iterators = osl_strings_generate("i", num_iterators);
   body->iterators = iterators;
   char* statement_string;
   size_t size_string;
   FILE* tempbuffer = open_memstream(&statement_string, &size_string);
   acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
-  unsigned long num_dimensions = acr_array_decl_get_num_dimensions(decl);
+  size_t num_dimensions = acr_array_decl_get_num_dimensions(decl);
 #ifndef ACR_DEBUG
   fprintf(tempbuffer, "temp_avg += ");
   if (filter_function) {
     fprintf(tempbuffer, "%s(", filter_function);
   }
   fprintf(tempbuffer, "%s", acr_array_decl_get_array_name(decl));
-  for (unsigned long i = 0; i < num_dimensions; ++i) {
+  for (size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "[i%lu]", monitor_dim[i]);
   }
   if (filter_function) {
@@ -458,11 +460,11 @@ static void acr_openscop_scan_avg_add(
 #else
   (void) filter_function;
   fprintf(tempbuffer, "fprintf(stderr, \"Avg add tempval += ");
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
+  for(size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "%%d ");
   }
   fprintf(tempbuffer, "\\n\"");
-  for (unsigned long i = 0; i < num_dimensions; ++i) {
+  for (size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, ", i%lu", monitor_dim[i]);
   }
   fprintf(tempbuffer, ");");
@@ -482,10 +484,10 @@ static void acr_openscop_scan_avg_add(
       &scattering->m[row_position][0],
       scattering->m[row_position][0]);
   osl_int_t temp;
-  osl_int_init_set_si(scattering->precision, &temp, grid_size);
-  for (unsigned long i = 0; i < num_dimensions; ++i) {
-    unsigned long initial_iterator_pos = 2 + 2*num_dimensions + i*2 ;
-    unsigned long initial_scattering_pos = 2 + i*2;
+  osl_int_init_set_si(scattering->precision, &temp, (int)grid_size);
+  for (size_t i = 0; i < num_dimensions; ++i) {
+    size_t initial_iterator_pos = 2 + 2*num_dimensions + i*2 ;
+    size_t initial_scattering_pos = 2 + i*2;
     osl_int_increment(scattering->precision,
         &scattering->m[row_position][initial_iterator_pos],
         scattering->m[row_position][initial_iterator_pos]);
@@ -499,30 +501,30 @@ static void acr_openscop_scan_avg_add(
 
 static void acr_openscop_scan_avg_div(
     const acr_option monitor,
-    unsigned long grid_size,
-    const unsigned long *monitor_dim,
+    size_t grid_size,
+    const size_t *monitor_dim,
     osl_statement_p statement,
     const char *prefix) {
   osl_body_p body = osl_body_malloc();
-  unsigned int num_iterators = statement->domain->nb_output_dims;
+  int num_iterators = statement->domain->nb_output_dims;
   osl_strings_p iterators = osl_strings_generate("i", num_iterators);
   body->iterators = iterators;
   char* statement_string;
   size_t size_string;
   FILE* tempbuffer = open_memstream(&statement_string, &size_string);
   acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
-  unsigned long num_dimensions = acr_array_decl_get_num_dimensions(decl);
+  size_t num_dimensions = acr_array_decl_get_num_dimensions(decl);
 #ifndef ACR_DEBUG
   print_monitor_result_access(tempbuffer,
       num_dimensions, monitor_dim, prefix);
   fprintf(tempbuffer, " = temp_avg / num_value;");
 #else
   fprintf(tempbuffer, "fprintf(stderr, \"Avg div ");
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
+  for(size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, "%%d ");
   }
   fprintf(tempbuffer, "by %%zu\\n\"");
-  for(unsigned long i = 0; i < num_dimensions; ++i) {
+  for(size_t i = 0; i < num_dimensions; ++i) {
     fprintf(tempbuffer, ", c%lu", monitor_dim[i]*2);
   }
   fprintf(tempbuffer, ", num_value);");
@@ -535,10 +537,10 @@ static void acr_openscop_scan_avg_div(
   osl_relation_insert_blank_row(scattering, -1);
   int row_position = scattering->nb_rows - 1;
   osl_int_t temp;
-  osl_int_init_set_si(scattering->precision, &temp, grid_size);
-  for (unsigned long i = 0; i < num_dimensions; ++i) {
-    unsigned long initial_iterator_pos = 2 + 2*num_dimensions + i*2 ;
-    unsigned long initial_scattering_pos = 2 + i*2;
+  osl_int_init_set_si(scattering->precision, &temp, (int)grid_size);
+  for (size_t i = 0; i < num_dimensions; ++i) {
+    size_t initial_iterator_pos = 2 + 2*num_dimensions + i*2 ;
+    size_t initial_scattering_pos = 2 + i*2;
     osl_int_increment(scattering->precision,
         &scattering->m[row_position][initial_iterator_pos],
         scattering->m[row_position][initial_iterator_pos]);
@@ -547,7 +549,7 @@ static void acr_openscop_scan_avg_div(
         scattering->m[row_position][initial_scattering_pos],
         temp);
   }
-  unsigned long row_pos = (num_dimensions % 2) == 1 ?
+  size_t row_pos = (num_dimensions % 2) == 1 ?
     1 + 2*num_dimensions + 3*(num_dimensions-1)/2 :
     num_dimensions;
   osl_int_increment(scattering->precision,
@@ -560,8 +562,8 @@ static void acr_openscop_scan_avg_div(
 void acr_openscop_set_tiled_to_do_avg(
     const acr_option monitor,
     const char* filter_function,
-    unsigned long grid_size,
-    const unsigned long *monitor_dim,
+    size_t grid_size,
+    const size_t *monitor_dim,
     osl_scop_p scop,
     const char *prefix) {
   osl_statement_p init, add, div;
@@ -592,7 +594,7 @@ void acr_openscop_get_identifiers_with_dependencies(
   char *const*ids = identifiers->string;
   osl_statement_p current_statement = scop->statement;
   bool found_all = false;
-  unsigned long current_statement_num = 0;
+  size_t current_statement_num = 0;
   osl_body_p body = NULL;
   size_t num_iterators = 0;
   while (!found_all && current_statement) {
@@ -626,7 +628,7 @@ void acr_openscop_get_identifiers_with_dependencies(
   for (size_t i = 0; i < num_id; ++i) {
     const size_t position = osl_strings_find(body->iterators, ids[i]);
     dims_left[position] = true;
-    for (unsigned long j = 0; j < position; ++j) {
+    for (size_t j = 0; j < position; ++j) {
       if(acr_osl_dim_has_constraints_with_dim(j, position,
             dims->statements_bounds[current_statement_num])) {
         dims_left[j] = true;
@@ -650,18 +652,18 @@ static osl_relation_p acr_openscop_reduce_domain_to_id(
   osl_relation_p new_domain = osl_relation_clone(initial_domain);
   size_t num_initial_it = osl_strings_size(initial_iterators);
   size_t num_remaining_it = osl_strings_size(remaining_iterators);
-  unsigned long deleted = 0;
+  size_t deleted = 0;
   for (size_t i = 0; i < num_initial_it; ++i) {
     if (osl_strings_find(remaining_iterators, initial_iterators->string[i]) >=
         num_remaining_it) {
-      unsigned long column_num = 1+i-deleted;
+      size_t column_num = 1+i-deleted;
       for (int j = 0; j < new_domain->nb_rows; ++j) {
         if (!osl_int_zero(new_domain->precision, new_domain->m[j][column_num])){
           osl_relation_remove_row(new_domain, j);
           j--;
         }
       }
-      osl_relation_remove_column(new_domain, column_num);
+      osl_relation_remove_column(new_domain, (int)column_num);
       new_domain->nb_output_dims -= 1;
       deleted += 1;
     }
@@ -677,19 +679,19 @@ static void acr_openscop_add_related_dims_in_scattering(
   while (current_statement) {
     osl_relation_p scattering = current_statement->scattering;
 
-    for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
+    for (size_t i = 0; i < bounds->num_dimensions; ++i) {
       already_added[i] = false;
       if (bounds->dimensions_type[i] == acr_dimension_type_bound_to_monitor) {
         already_added[i] = true;
         if (acr_osl_dim_has_constraints_with_previous_dims(i, bounds)) {
           bool remaining = i > 0;
-          for (unsigned long j = i-1; remaining; --j) {
+          for (size_t j = i-1; remaining; --j) {
             if (!already_added[j] &&
                 bounds->has_constraint_with_previous_dim[i][j]) {
-              unsigned long where_to_add_in_dim = scattering->nb_columns - 1 -
+              int where_to_add_in_dim = scattering->nb_columns - 1 -
                 scattering->nb_parameters - scattering->nb_input_dims;
-              unsigned long where_to_add_out_dim = 2;
-              for (unsigned long k = 0; k <j; ++k) {
+              int where_to_add_out_dim = 2;
+              for (size_t k = 0; k <j; ++k) {
                 if (already_added[k] || bounds->dimensions_type[k] ==
                     acr_dimension_type_bound_to_monitor) {
                   where_to_add_in_dim += 1;
@@ -734,15 +736,15 @@ static void acr_openscop_add_related_dims_in_scattering(
 
 static void monitor_openscop_generate_monitor_dim(
     const dimensions_upper_lower_bounds *dims,
-    unsigned long num_dims,
-    unsigned long **monitor_dim) {
+    size_t num_dims,
+    size_t **monitor_dim) {
   bool *used_to_compute =
     malloc(dims->num_dimensions * sizeof(*used_to_compute));
-  for (unsigned long i = 0; i < dims->num_dimensions; ++i) {
+  for (size_t i = 0; i < dims->num_dimensions; ++i) {
     used_to_compute[i] = false;
     if (dims->dimensions_type[i] == acr_dimension_type_bound_to_monitor) {
       used_to_compute[i] = true;
-      for (unsigned long j = 0; j < i; ++j) {
+      for (size_t j = 0; j < i; ++j) {
         if (!used_to_compute[j] &&
             dims->has_constraint_with_previous_dim[i][j]) {
           used_to_compute[j] = true;
@@ -750,11 +752,11 @@ static void monitor_openscop_generate_monitor_dim(
       }
     }
   }
-  unsigned long *mondim = malloc(num_dims * sizeof(*mondim));
-  for (unsigned long i = 0; i < num_dims; ++i) {
+  size_t *mondim = malloc(num_dims * sizeof(*mondim));
+  for (size_t i = 0; i < num_dims; ++i) {
     mondim[i] = 0;
-    unsigned long current_dim = 0;
-    for (unsigned long j = 0; j < dims->num_dimensions; ++j) {
+    size_t current_dim = 0;
+    for (size_t j = 0; j < dims->num_dimensions; ++j) {
       if (used_to_compute[j]) {
         mondim[i] += 1;
         if (dims->dimensions_type[j] == acr_dimension_type_bound_to_monitor) {
@@ -773,7 +775,7 @@ static void monitor_openscop_generate_monitor_dim(
 
 osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
     const osl_scop_p scop,
-    unsigned long grid_size,
+    size_t grid_size,
     const dimensions_upper_lower_bounds_all_statements *dims,
     dimensions_upper_lower_bounds **bound_used,
     const char *prefix) {
@@ -796,11 +798,11 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
         all_identifiers);
 
   acr_array_declaration *decl = acr_monitor_get_array_declaration(monitor);
-  unsigned long num_tiling_dim = acr_array_decl_get_num_dimensions(decl);
+  size_t num_tiling_dim = acr_array_decl_get_num_dimensions(decl);
 
   osl_relation_p scattering =
     acr_openscop_new_scattering_relation(
-        num_tiling_dim, new_domain->nb_parameters);
+        (int)num_tiling_dim, (int)new_domain->nb_parameters);
   acr_osl_apply_tiling(num_tiling_dim, scattering, grid_size);
 
   osl_statement_p new_statement = osl_statement_malloc();
@@ -816,7 +818,7 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
   new_scop->parameters = osl_generic_clone(scop->parameters);
   new_scop->statement = new_statement;
 
-  unsigned long *monitor_dim;
+  size_t *monitor_dim;
     monitor_openscop_generate_monitor_dim(*bound_used, num_tiling_dim,
         &monitor_dim);
 
@@ -854,18 +856,18 @@ osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
 
 struct acr_get_min_max {
   dimensions_upper_lower_bounds *bounds;
-  unsigned long current_dimension;
+  size_t current_dimension;
 };
 
 static isl_stat _acr_get_min_max_in_constraint(isl_constraint *co, void* user) {
   struct acr_get_min_max *wrapper = (struct acr_get_min_max*) user;
   dimensions_upper_lower_bounds *bounds = wrapper->bounds;
-  unsigned long dimension = wrapper->current_dimension;
+  size_t dimension = wrapper->current_dimension;
   if (isl_constraint_involves_dims(co, isl_dim_set, 0, 1)) {
     isl_bool lower_bound = isl_constraint_is_lower_bound(co, isl_dim_set, 0);
-    for (unsigned long i = 0; i < bounds->num_parameters; ++i) {
+    for (size_t i = 0; i < bounds->num_parameters; ++i) {
       isl_val *dim_val =
-        isl_constraint_get_coefficient_val(co, isl_dim_param, i);
+        isl_constraint_get_coefficient_val(co, isl_dim_param, (int)i);
       if (lower_bound == isl_bool_true) {
         if (isl_val_is_zero(dim_val) == isl_bool_false) {
           bounds->lower_bound[dimension][i] = true;
@@ -906,13 +908,13 @@ static isl_stat _acr_get_min_max_in_bset(isl_basic_set *bs, void* user) {
 static isl_stat _acr_get_dimensions_dep_constraint(
     isl_constraint *co, void* user) {
   dimensions_upper_lower_bounds *bounds = (dimensions_upper_lower_bounds*) user;
-  for (unsigned long dim = 1; dim < bounds->num_dimensions; ++dim) {
-    for (unsigned long previous_dims = 0; previous_dims < dim; ++previous_dims){
-      if (isl_constraint_involves_dims(co, isl_dim_set, dim, 1) &&
-          isl_constraint_involves_dims(co, isl_dim_set, previous_dims, 1)) {
+  for (size_t dim = 1; dim < bounds->num_dimensions; ++dim) {
+    for (size_t previous_dims = 0; previous_dims < dim; ++previous_dims){
+      if (isl_constraint_involves_dims(co, isl_dim_set, (unsigned int)dim, 1) &&
+          isl_constraint_involves_dims(co, isl_dim_set, (unsigned int)previous_dims, 1)) {
         bounds->has_constraint_with_previous_dim[dim][previous_dims] = true;
         if (previous_dims != 0) {
-          for (unsigned long i = 0; i < previous_dims-1; ++i) {
+          for (size_t i = 0; i < previous_dims-1; ++i) {
             bounds->has_constraint_with_previous_dim[dim][i] =
               bounds->has_constraint_with_previous_dim[dim][i] ||
               bounds->has_constraint_with_previous_dim[previous_dims][i];
@@ -956,12 +958,12 @@ dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
   bounds->has_constraint_with_previous_dim =
     malloc(bounds->num_dimensions *
         sizeof(*bounds->has_constraint_with_previous_dim));
-  for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
+  for (size_t i = 0; i < bounds->num_dimensions; ++i) {
     bounds->lower_bound[i] =
       malloc((bounds->num_parameters) * sizeof(**bounds->lower_bound));
     bounds->upper_bound[i] =
       malloc((bounds->num_parameters) * sizeof(**bounds->upper_bound));
-    for (unsigned long j = 0 ; j <bounds->num_parameters; ++j) {
+    for (size_t j = 0 ; j <bounds->num_parameters; ++j) {
       bounds->lower_bound[i][j] = false;
       bounds->upper_bound[i][j] = false;
     }
@@ -970,7 +972,7 @@ dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
     } else {
       bounds->has_constraint_with_previous_dim[i] =
         malloc(i * sizeof(**bounds->has_constraint_with_previous_dim));
-      for (unsigned long j = 0 ; j < i; ++j) {
+      for (size_t j = 0 ; j < i; ++j) {
         bounds->has_constraint_with_previous_dim[i][j] = false;
       }
     }
@@ -980,14 +982,15 @@ dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
   bounds->bound_lexmax = isl_set_copy(domain);
   bounds->bound_lexmax = isl_set_lexmax(bounds->bound_lexmax);
 
-  for (unsigned long dim = 0; dim < bounds->num_dimensions; ++dim) {
+  for (size_t dim = 0; dim < bounds->num_dimensions; ++dim) {
     isl_set *project_domain = isl_set_copy(domain);
     if (dim+1 < bounds->num_dimensions)
       project_domain = isl_set_project_out(project_domain, isl_dim_set,
-          dim+1, bounds->num_dimensions - dim - 1);
+          (unsigned int) (dim+1),
+          (unsigned int) (bounds->num_dimensions - dim - 1));
     if (dim != 0)
       project_domain = isl_set_project_out(project_domain, isl_dim_set,
-          0ul, dim);
+          0ul, (unsigned int) dim);
     struct acr_get_min_max wrapper =
         { .current_dimension = dim, .bounds = bounds};
     isl_set_foreach_basic_set(project_domain,
@@ -1013,7 +1016,7 @@ dimensions_upper_lower_bounds_all_statements* acr_osl_get_upper_lower_bound_all(
   bounds_all->statements_bounds =
     malloc(bounds_all->num_statements * sizeof(*bounds_all->statements_bounds));
   statement_iterator = statement_list;
-  unsigned long statement_num = 0ul;
+  size_t statement_num = 0;
   while (statement_iterator) {
     bounds_all->statements_bounds[statement_num] =
       acr_osl_get_min_max_bound_statement(statement_iterator);
@@ -1025,7 +1028,7 @@ dimensions_upper_lower_bounds_all_statements* acr_osl_get_upper_lower_bound_all(
 
 void acr_osl_free_dimension_upper_lower_bounds(
     dimensions_upper_lower_bounds *bounds) {
-  for (unsigned long i = 0; i < bounds->num_dimensions; ++i) {
+  for (size_t i = 0; i < bounds->num_dimensions; ++i) {
     free(bounds->lower_bound[i]);
     free(bounds->upper_bound[i]);
     free(bounds->has_constraint_with_previous_dim[i]);
@@ -1043,7 +1046,7 @@ void acr_osl_free_dimension_upper_lower_bounds(
 
 void acr_osl_free_dimension_upper_lower_bounds_all(
     dimensions_upper_lower_bounds_all_statements *bounds_all) {
-  for (unsigned long i = 0; i < bounds_all->num_statements; ++i) {
+  for (size_t i = 0; i < bounds_all->num_statements; ++i) {
     acr_osl_free_dimension_upper_lower_bounds(bounds_all->statements_bounds[i]);
   }
   free(bounds_all->statements_bounds);
@@ -1051,11 +1054,11 @@ void acr_osl_free_dimension_upper_lower_bounds_all(
 }
 
 bool acr_osl_dim_has_constraints_with_dim(
-    unsigned long dim1,
-    unsigned long dim2,
+    size_t dim1,
+    size_t dim2,
     const dimensions_upper_lower_bounds *bounds) {
   if (dim1 > dim2) {
-    unsigned long tempdim = dim1;
+    size_t tempdim = dim1;
     dim1 = dim2;
     dim2 = tempdim;
   }
@@ -1069,12 +1072,12 @@ bool acr_osl_dim_has_constraints_with_dim(
 }
 
 bool acr_osl_dim_has_constraints_with_previous_dims(
-    unsigned long dim1,
+    size_t dim1,
     const dimensions_upper_lower_bounds *bounds) {
   if (dim1 >= bounds->num_dimensions)
     return false;
   bool has_anything_to_do_with_other = false;
-  for (unsigned long i = 0; !has_anything_to_do_with_other && i < dim1; ++i) {
+  for (size_t i = 0; !has_anything_to_do_with_other && i < dim1; ++i) {
     has_anything_to_do_with_other =
       bounds->has_constraint_with_previous_dim[dim1][i];
   }
@@ -1088,17 +1091,17 @@ static bool _acr_osl_test_and_set_dims_type(
     const osl_strings_p context_parameters,
     dimensions_upper_lower_bounds *bounds) {
 
-  unsigned long num_monitor_dim = osl_strings_size(monitor_parameters_name);
-  unsigned long num_alt_param = osl_strings_size(alternative_parameters);
+  size_t num_monitor_dim = osl_strings_size(monitor_parameters_name);
+  size_t num_alt_param = osl_strings_size(alternative_parameters);
   osl_body_p body = osl_generic_lookup(statement->extension, OSL_URI_BODY);
   char **iterators = body->iterators->string;
-  unsigned long num_iterators = osl_strings_size(body->iterators);
+  size_t num_iterators = osl_strings_size(body->iterators);
 
   char **alt_params = alternative_parameters->string;
-  for (unsigned long i = 0; i < num_iterators; ++i) {
+  for (size_t i = 0; i < num_iterators; ++i) {
     if (osl_strings_find(monitor_parameters_name,iterators[i])<num_monitor_dim){
       if (i > 0) {
-        for (unsigned long j = 0; j < i ; ++j) {
+        for (size_t j = 0; j < i ; ++j) {
           if (bounds->has_constraint_with_previous_dim[i][j] &&
               bounds->dimensions_type[j] == acr_dimension_type_bound_to_alternative) {
             fprintf(stderr,
@@ -1111,8 +1114,8 @@ static bool _acr_osl_test_and_set_dims_type(
           }
         }
       }
-      for (unsigned long j = 0; j < num_alt_param; ++j) {
-        unsigned long param_pos =
+      for (size_t j = 0; j < num_alt_param; ++j) {
+        size_t param_pos =
           osl_strings_find(context_parameters, alt_params[j]);
         if (bounds->upper_bound[i][param_pos] == true ||
             bounds->lower_bound[i][param_pos] == true) {
@@ -1129,8 +1132,8 @@ static bool _acr_osl_test_and_set_dims_type(
       bounds->dimensions_type[i] = acr_dimension_type_bound_to_monitor;
     } else { // not monitoring
       bool has_alt_param = false;
-      for (unsigned long j = 0; !has_alt_param && j < num_alt_param; ++j) {
-        unsigned long param_pos =
+      for (size_t j = 0; !has_alt_param && j < num_alt_param; ++j) {
+        size_t param_pos =
           osl_strings_find(context_parameters, alt_params[j]);
         if (bounds->upper_bound[i][param_pos] == true ||
             bounds->lower_bound[i][param_pos] == true) {
@@ -1141,7 +1144,7 @@ static bool _acr_osl_test_and_set_dims_type(
       if (!has_alt_param) {
         if (i > 0) {
           bool has_constraint = false;
-          for (unsigned long j = 0; !has_constraint && j < i ; ++j) {
+          for (size_t j = 0; !has_constraint && j < i ; ++j) {
             if (bounds->has_constraint_with_previous_dim[i][j]) {
               switch (bounds->dimensions_type[j]) {
                 case acr_dimension_type_bound_to_alternative:
@@ -1174,8 +1177,8 @@ bool acr_osl_find_and_verify_free_dims_position(
   size_t string_size = 0;
   osl_strings_p pragma_monitor_iterators = NULL;
   acr_option_list opt_list = acr_compute_node_get_option_list(node);
-  unsigned long list_size = acr_compute_node_get_option_list_size(node);
-  for (unsigned long i = 0; i < list_size; ++i) {
+  size_t list_size = acr_compute_node_get_option_list_size(node);
+  for (size_t i = 0; i < list_size; ++i) {
     acr_option current_option =
       acr_option_list_get_option(i, opt_list);
     if (acr_option_get_type(current_option) == acr_type_alternative &&
@@ -1207,7 +1210,7 @@ bool acr_osl_find_and_verify_free_dims_position(
   bool valid = true;
   osl_strings_p context_parameters =
     osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
-  for (unsigned long i = 0; valid && i < bounds_all->num_statements; ++i) {
+  for (size_t i = 0; valid && i < bounds_all->num_statements; ++i) {
     valid = _acr_osl_test_and_set_dims_type(
         current_statement,
         pragma_monitor_iterators,

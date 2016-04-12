@@ -26,10 +26,10 @@
 void free_acr_runtime_data(struct acr_runtime_data* data) {
   data->monitor_thread_continue = false;
   pthread_join(data->monitor_thread, NULL);
-  for (unsigned long i = 0; i < data->num_alternatives; ++i) {
+  for (size_t i = 0; i < data->num_alternatives; ++i) {
     struct runtime_alternative *alt = &data->alternatives[i];
     if (alt->type == acr_runtime_alternative_parameter) {
-      for (unsigned long j = 0; j < alt->value.alt.parameter.num_domains; ++j) {
+      for (size_t j = 0; j < alt->value.alt.parameter.num_domains; ++j) {
         isl_set_free(alt->value.alt.parameter.parameter_constraints[j]);
       }
       free(alt->value.alt.parameter.parameter_constraints);
@@ -56,7 +56,7 @@ void init_acr_runtime_data(
       data->osl_relation);
   acr_cloog_init_scop_to_match_alternatives(data);
   data->monitor_total_size = 1;
-  for (unsigned long i = 0; i < data->num_monitor_dims; ++i) {
+  for (size_t i = 0; i < data->num_monitor_dims; ++i) {
     data->monitor_total_size *= data->monitor_dim_max[i];
   }
   pthread_spin_init(&data->alternative_lock, PTHREAD_PROCESS_PRIVATE);

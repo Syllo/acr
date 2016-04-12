@@ -36,6 +36,7 @@ WS  [ \t\v\f]
 
 #include "acr/scanner_utils.h"
 
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
 
@@ -148,26 +149,26 @@ static bool parsing_pragma_acr_name = false;
 
 {HP}{H}+{IS}? {
                 yylval->constant_value.type = integer_value;
-                yylval->constant_value.value.integer_val.integer =
-                    strtol(yytext, NULL, 16);
-                yylval->constant_value.value.integer_val.uinteger =
-                    strtoul(yytext, NULL, 16);
+                sscanf(yytext, "%"SCNiMAX,
+                  &yylval->constant_value.value.integer_val.integer);
+                sscanf(yytext, "%zx",
+                  &yylval->constant_value.value.integer_val.uinteger);
                 return acr_token_filter(I_CONSTANT);
               } /* hexa */
 {NZ}{D}*{IS}? {
                 yylval->constant_value.type = integer_value;
-                yylval->constant_value.value.integer_val.integer =
-                    strtol(yytext, NULL, 10);
-                yylval->constant_value.value.integer_val.uinteger =
-                    strtoul(yytext, NULL, 10);
+                sscanf(yytext, "%"SCNiMAX,
+                  &yylval->constant_value.value.integer_val.integer);
+                sscanf(yytext, "%zu",
+                  &yylval->constant_value.value.integer_val.uinteger);
                 return acr_token_filter(I_CONSTANT);
               } /* decimal */
 "0"{O}*{IS}?  {
                 yylval->constant_value.type = integer_value;
-                yylval->constant_value.value.integer_val.integer =
-                    strtol(yytext, NULL, 8);
-                yylval->constant_value.value.integer_val.uinteger =
-                    strtol(yytext, NULL, 8);
+                sscanf(yytext, "%"SCNiMAX,
+                  &yylval->constant_value.value.integer_val.integer);
+                sscanf(yytext, "%zo",
+                  &yylval->constant_value.value.integer_val.uinteger);
                 return acr_token_filter(I_CONSTANT);
               } /* octal */
  /*{CP}?"'"([^'\\\n]|{ES})+"'" {

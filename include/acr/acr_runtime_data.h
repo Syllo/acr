@@ -28,15 +28,15 @@ struct acr_runtime_data {
   CloogInput* cloog_input;
   CloogState* state;
   struct osl_scop* osl_relation;
-  unsigned long num_alternatives;
+  size_t num_alternatives;
   struct runtime_alternative *alternatives;
-  unsigned long num_parameters;
-  unsigned long num_monitor_dims;
+  unsigned int num_parameters;
+  unsigned int num_monitor_dims;
   size_t *monitor_dim_max;
   size_t monitor_total_size;
-  unsigned long grid_size;
-  unsigned long num_statements;
-  unsigned long *dimensions_per_statements;
+  size_t grid_size;
+  size_t num_statements;
+  unsigned int *dimensions_per_statements;
   enum acr_dimension_type **statement_dimension_types;
   char* function_prototype;
   struct runtime_alternative* (*alternative_from_val)(unsigned char);
@@ -44,8 +44,8 @@ struct acr_runtime_data {
 
   pthread_spinlock_t alternative_lock;
   void *alternative_function;
-  unsigned int alternative_still_usable;
-  unsigned int usability_inital_value;
+  uint_fast8_t alternative_still_usable;
+  uint_fast8_t usability_inital_value;
   pthread_t monitor_thread;
   bool monitor_thread_continue;
 };

@@ -27,19 +27,19 @@
 isl_set** acr_isl_set_from_monitor(
     isl_ctx *ctx,
     const unsigned char *data,
-    unsigned long num_strategies,
-    unsigned long int num_param,
-    unsigned long num_dimensions,
+    size_t num_strategies,
+    unsigned int num_param,
+    unsigned int num_dimensions,
     const size_t *dimensions,
     size_t dimensions_total_size,
-    unsigned long tiling_size,
+    size_t tiling_size,
     struct runtime_alternative*
         (*get_alternative_from_val)(unsigned char data));
 
 isl_set* acr_isl_set_from_alternative_parameter_construct(
     isl_ctx *ctx,
-    unsigned long num_parameters,
-    unsigned long num_dimensions,
+    unsigned int num_parameters,
+    unsigned int num_dimensions,
     struct runtime_alternative* alternative);
 
 #endif // __ACR_ISL_RUNTIME_H

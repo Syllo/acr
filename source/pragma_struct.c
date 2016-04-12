@@ -42,8 +42,8 @@ acr_option acr_new_alternative_function(const char* alternative_name,
 
 acr_option acr_new_alternative_parameter(const char* alternative_name,
                                          const char* parameter_to_swap,
-                                         long int replacement_value,
-                                        size_t pragma_position) {
+                                         intmax_t replacement_value,
+                                         size_t pragma_position) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
 
@@ -66,7 +66,7 @@ acr_option acr_new_destroy(size_t pragma_position){
   return option;
 }
 
-acr_option acr_new_grid(unsigned long int grid_size,
+acr_option acr_new_grid(size_t grid_size,
     size_t pragma_position) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
@@ -79,7 +79,7 @@ acr_option acr_new_grid(unsigned long int grid_size,
 
 acr_option acr_new_init(const char* function_name,
                         size_t pragma_position,
-                        unsigned long int num_parameters,
+                        size_t num_parameters,
                         acr_parameter_declaration* parameters_list) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
@@ -93,7 +93,7 @@ acr_option acr_new_init(const char* function_name,
 }
 
 acr_parameter_declaration* acr_new_parameter_declaration_list(
-    unsigned long int list_size) {
+    size_t list_size) {
   if (list_size == 0)
     return NULL;
   acr_parameter_declaration* list = malloc(list_size * sizeof(*list));
@@ -103,7 +103,7 @@ acr_parameter_declaration* acr_new_parameter_declaration_list(
 
 
 acr_parameter_specifier* acr_new_parameter_specifier_list(
-    unsigned long int list_size) {
+    size_t list_size) {
   if (list_size == 0)
     return NULL;
   acr_parameter_specifier* list = malloc(list_size * sizeof(*list));
@@ -128,7 +128,7 @@ acr_option acr_new_monitor(
 }
 
 acr_option acr_new_strategy_direct_int(const char* strategy_name,
-                                       long int matching_value,
+                                       intmax_t matching_value,
                                        size_t pragma_position) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
@@ -144,7 +144,7 @@ acr_option acr_new_strategy_direct_int(const char* strategy_name,
 }
 
 acr_option acr_new_strategy_range_int(const char* strategy_name,
-                                      long int matching_value[2],
+                                      intmax_t matching_value[2],
                                       size_t pragma_position) {
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
@@ -197,7 +197,7 @@ acr_option acr_new_strategy_range_float(const char* strategy_name,
   return option;
 }
 
-acr_option_list acr_new_option_list(unsigned long int size) {
+acr_option_list acr_new_option_list(size_t size) {
   acr_option_list list = malloc(size * sizeof(*list));
   acr_try_or_die(list == NULL, "Malloc");
   return list;
@@ -212,21 +212,21 @@ static void acr_free_alternative(acr_alternative* alternative) {
   free(alternative->name_of_object_to_swap);
 }
 
-static void acr_free_parameter_specifier_list(unsigned long int num_specifiers,
+static void acr_free_parameter_specifier_list(size_t num_specifiers,
     acr_parameter_specifier* parameter_specifiers_list) {
   if (!parameter_specifiers_list)
     return;
-  for(unsigned long int i = 0; i < num_specifiers; ++i) {
+  for(size_t i = 0; i < num_specifiers; ++i) {
     free(parameter_specifiers_list[i].specifier);
   }
   free(parameter_specifiers_list);
 }
 
-static void acr_free_parameter_declaration_list(unsigned long int num_parameters,
+static void acr_free_parameter_declaration_list(size_t num_parameters,
     acr_parameter_declaration* parameter_list) {
   if (!parameter_list)
     return;
-  for(unsigned long int i = 0; i < num_parameters; ++i) {
+  for(size_t i = 0; i < num_parameters; ++i) {
     free(parameter_list[i].parameter_name);
     acr_free_parameter_specifier_list(parameter_list[i].num_specifiers,
         parameter_list[i].parameter_specifiers_list);
@@ -292,16 +292,16 @@ void acr_free_option(acr_option opt) {
   free(opt);
 }
 
-void acr_free_option_list(acr_option_list option_list, unsigned long int size) {
+void acr_free_option_list(acr_option_list option_list, size_t size) {
   if (!option_list)
     return;
-  for (unsigned long int i = 0; i < size; ++i) {
+  for (size_t i = 0; i < size; ++i) {
     acr_free_option(acr_option_list_get_option(i, option_list));
   }
   free(option_list);
 }
 
-acr_compute_node acr_new_compute_node(unsigned long int list_size,
+acr_compute_node acr_new_compute_node(size_t list_size,
     acr_option_list list) {
   acr_compute_node node = malloc(sizeof(*node));
   acr_try_or_die(node == NULL, "Malloc");
@@ -317,13 +317,13 @@ void acr_free_compute_node(acr_compute_node node) {
   free(node);
 }
 
-acr_array_dimensions_list acr_new_array_dimensions_list(unsigned long int size) {
+acr_array_dimensions_list acr_new_array_dimensions_list(size_t size) {
   acr_array_dimensions_list dim = malloc(size * sizeof(*dim));
   acr_try_or_die(dim == NULL, "Malloc");
   return dim;
 }
 
-acr_compute_node_list acr_new_compute_node_list(unsigned long list_size) {
+acr_compute_node_list acr_new_compute_node_list(size_t list_size) {
   if (list_size == 0)
     return NULL;
   acr_compute_node_list list = malloc(sizeof(*list));
@@ -339,17 +339,17 @@ acr_compute_node_list acr_new_compute_node_list(unsigned long list_size) {
 }
 
 void acr_compute_node_delete_option_from_position(
-    unsigned long position,
+    size_t position,
     acr_compute_node node) {
   acr_option_list option_list = acr_compute_node_get_option_list(node);
-  unsigned long option_list_size = acr_compute_node_get_option_list_size(node);
+  size_t option_list_size = acr_compute_node_get_option_list_size(node);
 
   if (position < option_list_size) {
     acr_free_option(option_list[position]);
-    for (unsigned long i = position; i + 1ul < option_list_size; ++i) {
-      option_list[i] = option_list[i + 1ul];
+    for (size_t i = position; i + 1< option_list_size; ++i) {
+      option_list[i] = option_list[i + 1];
     }
-    option_list_size -= 1ul;
+    option_list_size -= 1;
     node->option_list = realloc(node->option_list, option_list_size *
                                                    sizeof(*node->option_list));
     node->list_size = option_list_size;
@@ -371,9 +371,9 @@ static bool acr_strategy_first_included_in_second(const acr_option strategy1,
                                                   const acr_option strategy2) {
   if (acr_option_get_type(strategy1) == acr_type_strategy &&
       acr_option_get_type(strategy2) == acr_type_strategy) {
-    long val_int1[2];
+    intmax_t val_int1[2];
     float val_float1[2];
-    long val_int2[2];
+    intmax_t val_int2[2];
     float val_float2[2];
     switch (acr_strategy_get_strategy_type(strategy1)) {
       case acr_strategy_direct:
@@ -489,8 +489,8 @@ bool acr_alternative_has_no_strategy_in_node(const acr_option alternative,
   const char* alternative_name =
     acr_alternative_get_alternative_name(alternative);
   acr_option_list option_list = acr_compute_node_get_option_list(node);
-  unsigned long list_size = acr_compute_node_get_option_list_size(node);
-  for (unsigned int i = 0; i < list_size; ++i) {
+  size_t list_size = acr_compute_node_get_option_list_size(node);
+  for (size_t i = 0; i < list_size; ++i) {
     acr_option current_option = acr_option_list_get_option(i, option_list);
     if (acr_option_get_type(current_option) == acr_type_strategy) {
       int diff = strcmp(acr_strategy_get_name(current_option), alternative_name);
@@ -511,8 +511,8 @@ bool acr_strategy_has_no_alternative_in_node(const acr_option strategy,
   const char* strategy_name =
     acr_strategy_get_name(strategy);
   acr_option_list option_list = acr_compute_node_get_option_list(node);
-  unsigned long list_size = acr_compute_node_get_option_list_size(node);
-  for (unsigned int i = 0; i < list_size; ++i) {
+  size_t list_size = acr_compute_node_get_option_list_size(node);
+  for (size_t i = 0; i < list_size; ++i) {
     acr_option current_option = acr_option_list_get_option(i, option_list);
     if (acr_option_get_type(current_option) == acr_type_alternative) {
       int diff = strcmp(acr_alternative_get_alternative_name(current_option),
@@ -532,7 +532,7 @@ bool acr_strategy_has_no_alternative_in_node(const acr_option strategy,
 bool acr_simplify_compute_node(acr_compute_node node) {
   bool simplified = false;
   acr_option_list option_list;
-  for (unsigned long i = 0; i < acr_compute_node_get_option_list_size(node); ++i) {
+  for (size_t i = 0; i < acr_compute_node_get_option_list_size(node); ++i) {
     option_list = acr_compute_node_get_option_list(node);
     switch (acr_option_get_type(acr_option_list_get_option(i, option_list))) {
       case acr_type_init:
@@ -541,11 +541,11 @@ bool acr_simplify_compute_node(acr_compute_node node) {
         if(acr_alternative_has_no_strategy_in_node(
               acr_option_list_get_option(i, option_list), node)) {
           acr_compute_node_delete_option_from_position(i, node);
-          i -= 1ul;
+          i -= 1;
           simplified = true;
           break;
         }
-        for (unsigned int j = 1; j < i; ++j) {
+        for (size_t j = 1; j < i; ++j) {
           option_list = acr_compute_node_get_option_list(node);
           acr_option to_compare = acr_option_list_get_option(j, option_list);
           if (acr_option_are_same_alternative(
@@ -555,8 +555,8 @@ bool acr_simplify_compute_node(acr_compute_node node) {
                 "               The following alternative will be ignored:\n");
             pprint_acr_option(stderr, to_compare, 0);
             acr_compute_node_delete_option_from_position(j, node);
-            i -= 1ul;
-            j -= 1ul;
+            i -= 1;
+            j -= 1;
             simplified = true;
           }
         }
@@ -564,14 +564,14 @@ bool acr_simplify_compute_node(acr_compute_node node) {
       case acr_type_grid:
       case acr_type_monitor:
       case acr_type_destroy:
-        for (unsigned int j = 1; j < i; ++j) {
+        for (size_t j = 1; j < i; ++j) {
           option_list = acr_compute_node_get_option_list(node);
           acr_option to_compare = acr_option_list_get_option(j, option_list);
           if (acr_option_get_type(to_compare) ==
               acr_option_get_type(acr_option_list_get_option(i, option_list))) {
             acr_compute_node_delete_option_from_position(j, node);
-            i -= 1ul;
-            j -= 1ul;
+            i -= 1;
+            j -= 1;
             simplified = true;
           }
         }
@@ -581,11 +581,11 @@ bool acr_simplify_compute_node(acr_compute_node node) {
               acr_option_list_get_option(i, option_list), node)) {
           pprint_acr_option(stderr, acr_option_list_get_option(i, option_list), 0);
           acr_compute_node_delete_option_from_position(i, node);
-          i -= 1ul;
+          i -= 1;
           simplified = true;
           break;
         }
-        for (unsigned int j = 1; j < i; ++j) {
+        for (size_t j = 1; j < i; ++j) {
             option_list = acr_compute_node_get_option_list(node);
             acr_option to_compare = acr_option_list_get_option(j, option_list);
           if (acr_strategy_first_included_in_second(to_compare,
@@ -595,8 +595,8 @@ bool acr_simplify_compute_node(acr_compute_node node) {
                 "               The following strategy will be ignored:\n");
             pprint_acr_option(stderr, to_compare, 0);
             acr_compute_node_delete_option_from_position(j, node);
-            i -= 1ul;
-            j -= 1ul;
+            i -= 1;
+            j -= 1;
             simplified = true;
           } else {
             if (acr_strategy_first_included_in_second(
@@ -606,7 +606,7 @@ bool acr_simplify_compute_node(acr_compute_node node) {
                   "               The following strategy will be ignored:\n");
               pprint_acr_option(stderr, acr_option_list_get_option(i, option_list), 0);
               acr_compute_node_delete_option_from_position(i, node);
-              i -= 1ul;
+              i -= 1;
               simplified = true;
               break;
             }
@@ -620,39 +620,40 @@ bool acr_simplify_compute_node(acr_compute_node node) {
   return simplified;
 }
 
-static unsigned long acr_compute_node_count_num_type(
+static size_t acr_compute_node_count_num_type(
     const acr_compute_node node,
     enum acr_type type) {
-  unsigned long num_type = 0ul;
-  unsigned long list_size = acr_compute_node_get_option_list_size(node);
+  size_t num_type = 0;
+  size_t list_size = acr_compute_node_get_option_list_size(node);
   const acr_option_list option_list = acr_compute_node_get_option_list(node);
-  for (unsigned long i = 0; i < list_size; ++i) {
+  for (size_t i = 0; i < list_size; ++i) {
     if (acr_option_get_type(acr_option_list_get_option(i, option_list))
         == type) {
-      num_type += 1ul;
+      num_type += 1;
     }
   }
   return num_type;
 }
 
-static inline long acr_option_list_position_of_next_type(
+static inline size_t acr_option_list_position_of_next_type(
     const acr_option_list option_list,
-    unsigned long list_size,
-    unsigned long actual_position,
+    size_t list_size,
+    size_t actual_position,
     enum acr_type type) {
-  for (unsigned long i = actual_position; i < list_size; ++i) {
+  size_t i;
+  for (i = actual_position; i < list_size; ++i) {
     if (acr_option_get_type(acr_option_list_get_option(i, option_list)) == type)
       return i;
   }
-  return -1;
+  return i;
 }
 
 acr_compute_node_list acr_new_compute_node_list_split_node(
     acr_compute_node node) {
-  unsigned long num_init = acr_compute_node_count_num_type(node, acr_type_init);
-  unsigned long num_dest =
+  size_t num_init = acr_compute_node_count_num_type(node, acr_type_init);
+  size_t num_dest =
     acr_compute_node_count_num_type(node, acr_type_destroy);
-  if (num_init != num_dest || num_init == 0ul) {
+  if (num_init != num_dest || num_init == 0) {
     fprintf(stderr, "[ACR] Error: The number of init and destroy construct do"
         " not match or are equal to zero\n");
     acr_free_compute_node(node);
@@ -660,20 +661,20 @@ acr_compute_node_list acr_new_compute_node_list_split_node(
   }
   acr_compute_node_list new_list = acr_new_compute_node_list(num_init);
 
-  unsigned long list_size = acr_compute_node_get_option_list_size(node);
+  size_t list_size = acr_compute_node_get_option_list_size(node);
   const acr_option_list option_list = acr_compute_node_get_option_list(node);
 
-  long next_destroy = 0l;
-  unsigned long actual_position = 0;
-  for (unsigned long i = 0; i < num_init; ++i) {
-    long next_init = acr_option_list_position_of_next_type(
+  size_t next_destroy = 0;
+  size_t actual_position = 0;
+  for (size_t i = 0; i < num_init; ++i) {
+    size_t next_init = acr_option_list_position_of_next_type(
         option_list, list_size, next_destroy, acr_type_init);
     next_destroy = acr_option_list_position_of_next_type(
         option_list, list_size, next_init, acr_type_destroy);
-    if (next_init == -1l || next_destroy == -1l) {
+    if (next_init == list_size || next_destroy == list_size) {
       fprintf(stderr, "[ACR] Error: pragmas acr should be between only one"
           " init and one destroy\n");
-      for (unsigned int j = 0; j < num_init; ++j) {
+      for (size_t j = 0; j < num_init; ++j) {
         if (j < i)
           acr_free_compute_node(acr_compute_node_list_get_node(j,new_list));
         acr_compute_node_list_set_node(j, NULL, new_list);
@@ -683,13 +684,13 @@ acr_compute_node_list acr_new_compute_node_list_split_node(
       return NULL;
     }
     // Free bad positionned options
-    for (unsigned int j = actual_position; j < next_init; ++j) {
+    for (size_t j = actual_position; j < next_init; ++j) {
       acr_free_option(acr_option_list_get_option(j, option_list));
       acr_option_list_set_option(NULL, j, option_list);
     }
-    unsigned long new_size = next_destroy - next_init + 1;
+    size_t new_size = next_destroy - next_init + 1;
     acr_option_list new_options = acr_new_option_list(new_size);
-    for (unsigned int j = next_init; j <= next_destroy; ++j) {
+    for (size_t j = next_init; j <= next_destroy; ++j) {
       acr_option_list_set_option(acr_option_list_get_option(j, option_list),
           j - next_init, new_options);
       acr_option_list_set_option(NULL, j, option_list);
@@ -707,7 +708,7 @@ acr_compute_node_list acr_new_compute_node_list_split_node(
 void acr_free_compute_node_list(acr_compute_node_list list) {
   if (!list)
     return;
-  for (unsigned int i = 0; i < list->list_size; ++i) {
+  for (size_t i = 0; i < list->list_size; ++i) {
     acr_free_compute_node(list->compute_node_list[i]);
   }
   free(list->compute_node_list);
@@ -744,12 +745,12 @@ acr_option acr_copy_grid(const acr_option grid) {
 
 acr_parameter_specifier_list acr_copy_parameter_specifier_list(
     const acr_parameter_specifier_list specifier_list,
-    unsigned long list_size) {
+    size_t list_size) {
 
   acr_parameter_specifier_list new_list =
     acr_new_parameter_specifier_list(list_size);
 
-  for (unsigned long nspec = 0ul; nspec < list_size; ++nspec) {
+  for (size_t nspec = 0; nspec < list_size; ++nspec) {
     acr_set_parameter_specifier(specifier_list[nspec].specifier,
         specifier_list[nspec].pointer_depth,
         &new_list[nspec]);
@@ -759,12 +760,12 @@ acr_parameter_specifier_list acr_copy_parameter_specifier_list(
 
 acr_parameter_declaration_list acr_copy_parameter_declaration_list(
     const acr_parameter_declaration_list parameter_list,
-    unsigned long list_size) {
+    size_t list_size) {
 
   acr_parameter_declaration_list new_parameter_list =
     acr_new_parameter_declaration_list(list_size);
 
-  for (unsigned long nparam = 0ul; nparam < list_size; ++nparam) {
+  for (size_t nparam = 0; nparam < list_size; ++nparam) {
     acr_parameter_specifier_list new_specifier_list =
       acr_copy_parameter_specifier_list(
           parameter_list[nparam].parameter_specifiers_list,
@@ -795,7 +796,7 @@ void acr_copy_array_declaration(
   new_array_dec->array_dimensions_list =
     acr_new_array_dimensions_list(array_declaration->num_dimensions);
   new_array_dec->num_dimensions = array_declaration->num_dimensions;
-  for (unsigned long i = 0 ; i< new_array_dec->num_dimensions; ++i) {
+  for (size_t i = 0 ; i< new_array_dec->num_dimensions; ++i) {
     new_array_dec->array_dimensions_list[i] = acr_copy_array_dimensions(array_declaration->array_dimensions_list[i]);
   }
 }
@@ -850,7 +851,7 @@ acr_compute_node acr_copy_compute_node(const acr_compute_node node) {
   acr_compute_node newnode = malloc(sizeof(*newnode));
   newnode->list_size = node->list_size;
   newnode->option_list = acr_new_option_list(node->list_size);
-  for (unsigned long i = 0; i < node->list_size; ++i) {
+  for (size_t i = 0; i < node->list_size; ++i) {
     newnode->option_list[i] = acr_copy_option(node->option_list[i]);
   }
   return newnode;
@@ -860,7 +861,7 @@ acr_compute_node_list acr_copy_compute_node_list(
     const acr_compute_node_list list) {
   acr_compute_node_list newlist =
     acr_new_compute_node_list(list->list_size);
-  for (unsigned long i = 0; i < list->list_size; ++i) {
+  for (size_t i = 0; i < list->list_size; ++i) {
     newlist->compute_node_list[i] =
       acr_copy_compute_node(list->compute_node_list[i]);
   }
@@ -894,12 +895,12 @@ size_t acr_option_get_pragma_position(const acr_option option) {
 }
 
 acr_option acr_compute_node_get_option_of_type(enum acr_type search_type,
-    const acr_compute_node node, unsigned long which_one) {
+    const acr_compute_node node, size_t which_one) {
   acr_option_list list = acr_compute_node_get_option_list(node);
-  unsigned long list_size = acr_compute_node_get_option_list_size(node);
+  size_t list_size = acr_compute_node_get_option_list_size(node);
 
-  unsigned long how_many_found = 0;
-  for (unsigned long i = 0; i < list_size; ++i) {
+  size_t how_many_found = 0;
+  for (size_t i = 0; i < list_size; ++i) {
     acr_option current_option = acr_option_list_get_option(i, list);
     if (acr_option_get_type(current_option) == search_type) {
       how_many_found += 1;

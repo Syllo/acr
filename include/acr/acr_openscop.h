@@ -31,8 +31,8 @@ enum acr_dimension_type {
 };
 
 typedef struct dimensions_upper_lower_bounds {
-  unsigned long num_dimensions;
-  unsigned long num_parameters;
+  size_t num_dimensions;
+  size_t num_parameters;
   bool **lower_bound;
   bool **upper_bound;
   isl_set *bound_lexmin;
@@ -42,7 +42,7 @@ typedef struct dimensions_upper_lower_bounds {
 } dimensions_upper_lower_bounds;
 
 typedef struct dimensions_upper_lower_bounds_all_statements {
-  unsigned long num_statements;
+  size_t num_statements;
   dimensions_upper_lower_bounds **statements_bounds;
 } dimensions_upper_lower_bounds_all_statements;
 
@@ -51,7 +51,7 @@ void acr_print_scop_to_buffer(osl_scop_p scop, char** buffer,
 
 osl_scop_p acr_openscop_gen_monitor_loop(const acr_option monitor,
     const osl_scop_p scop,
-    unsigned long grid_size,
+    size_t grid_size,
     const dimensions_upper_lower_bounds_all_statements *dims,
     dimensions_upper_lower_bounds **bound_used,
     const char *prefix);
@@ -65,17 +65,17 @@ void osl_relation_swap_column(osl_relation_p relation,
 void acr_openscop_set_tiled_to_do_min_max(
     const acr_option monitor,
     const char* filter_function,
-    unsigned long grid_size,
+    size_t grid_size,
     bool max,
-    const unsigned long *monitor_dim,
+    const size_t *monitor_dim,
     osl_scop_p scop,
     const char *prefix);
 
 void acr_openscop_set_tiled_to_do_avg(
     const acr_option monitor,
     const char* filter_function,
-    unsigned long grid_size,
-    const unsigned long *monitor_dim,
+    size_t grid_size,
+    const size_t *monitor_dim,
     osl_scop_p scop,
     const char *prefix);
 
@@ -97,12 +97,12 @@ bool acr_osl_find_and_verify_free_dims_position(
     dimensions_upper_lower_bounds_all_statements *bounds_all);
 
 bool acr_osl_dim_has_constraints_with_dim(
-    unsigned long dim1,
-    unsigned long dim2,
+    size_t dim1,
+    size_t dim2,
     const dimensions_upper_lower_bounds *bounds);
 
 bool acr_osl_dim_has_constraints_with_previous_dims(
-    unsigned long dim1,
+    size_t dim1,
     const dimensions_upper_lower_bounds *bounds);
 
 osl_strings_p acr_openscop_get_monitor_identifiers(const acr_option monitor);

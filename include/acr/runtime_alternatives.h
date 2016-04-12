@@ -19,6 +19,7 @@
 #ifndef __ACR_RUNTIME_ALTERNATIVES__H
 #define __ACR_RUNTIME_ALTERNATIVES__H
 
+#include <stdint.h>
 #include <isl/set.h>
 
 enum acr_runtime_alternative_type {
@@ -27,18 +28,18 @@ enum acr_runtime_alternative_type {
 };
 
 struct runtime_alternative {
-  unsigned long alternative_number;
+  size_t alternative_number;
   struct {
     union {
       char *function_to_swap;
       struct {
-        unsigned long parameter_position;
-        long parameter_value;
-        unsigned long num_domains;
+        unsigned int parameter_position;
+        intmax_t parameter_value;
+        size_t num_domains;
         isl_set **parameter_constraints;
         struct {
-          unsigned long num_free_dim;
-          unsigned long *free_dim_position;
+          size_t num_free_dim;
+          size_t *free_dim_position;
         } free_dims;
       } parameter;
     } alt;

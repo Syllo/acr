@@ -59,7 +59,7 @@ struct parameter_declaration {
   struct parameter_declaration* next;
   struct parameter_declaration* previous;
   char* name;
-  unsigned long int pointer_depth;
+  size_t pointer_depth;
 };
 
 struct parameter_declaration_list {
@@ -70,17 +70,17 @@ struct parameter_declaration_list {
 
 struct parameter_declaration* add_param_declaration(
     struct parameter_declaration* current, char* name,
-    unsigned long int pointer_depth);
+    size_t pointer_depth);
 
 struct parameter_declaration_list* add_declaration_to_list(
     struct parameter_declaration_list* current,
     struct parameter_declaration* declaration);
 
-unsigned long int translate_and_free_param_declaration_list(
+size_t translate_and_free_param_declaration_list(
     struct parameter_declaration_list* list,
     acr_parameter_declaration** list_to_initialize);
 
-unsigned long int get_name_and_specifiers_and_free_parameter_declaration(
+size_t get_name_and_specifiers_and_free_parameter_declaration(
     struct parameter_declaration* declaration,
     char** parameter_name,
     acr_parameter_specifier** specifier_list);
@@ -117,21 +117,21 @@ static inline struct parser_option_list* parser_option_list_add(
   return list;
 }
 
-static inline unsigned long int parser_translate_option_list_and_free(
+static inline size_t parser_translate_option_list_and_free(
     struct parser_option_list* old_list,
     acr_option_list* new_list) {
   if(!old_list) {
     *new_list = NULL;
     return 0;
   }
-  unsigned long int size_list = 1ul;
+  size_t size_list = 1ul;
   while (old_list->next) {
     old_list = old_list->next;
     ++size_list;
   }
 
   *new_list = acr_new_option_list(size_list);
-  for (unsigned long i = 0; i < size_list; ++i) {
+  for (size_t i = 0; i < size_list; ++i) {
     acr_option_list_set_option(old_list->option, i, *new_list);
     if (old_list->previous) {
       old_list = old_list->previous;
@@ -174,7 +174,7 @@ static inline void free_array_dim_list(struct array_dimensions_list* list) {
   }while (list);
 }
 
-unsigned long array_dim_list_size_free_convert(
+size_t array_dim_list_size_free_convert(
     struct array_dimensions_list* constructed_list,
     acr_array_dimensions_list* list);
 

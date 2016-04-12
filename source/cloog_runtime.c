@@ -77,7 +77,7 @@ void acr_cloog_init_scop_to_match_alternatives(
   osl_body_p initial_body;
   while (statement) {
     initial_body = NULL;
-    for (unsigned long i = 0; i < data->num_alternatives; ++i) {
+    for (size_t i = 0; i < data->num_alternatives; ++i) {
       if (data->alternatives[i].type == acr_runtime_alternative_function) {
         if (!initial_body)
           initial_body = osl_generic_lookup(statement->extension, OSL_URI_BODY);
@@ -102,13 +102,13 @@ void acr_cloog_init_scop_to_match_alternatives(
 void acr_cloog_init_alternative_constraint_from_cloog_union_domain(
     struct acr_runtime_data *data) {
   CloogNamedDomainList *named_domain = data->cloog_input->ud->domain;
-  unsigned long num_domains = 0ul;
+  size_t num_domains = 0ul;
   while(named_domain) {
     ++num_domains;
     named_domain = named_domain->next;
   }
 
-  for (unsigned long i = 0; i < data->num_alternatives; ++i) {
+  for (size_t i = 0; i < data->num_alternatives; ++i) {
     struct runtime_alternative *alt = &data->alternatives[i];
     if (alt->type == acr_runtime_alternative_parameter) {
       alt->value.alt.parameter.parameter_constraints =
@@ -116,11 +116,11 @@ void acr_cloog_init_alternative_constraint_from_cloog_union_domain(
             sizeof(*alt->value.alt.parameter.parameter_constraints));
       alt->value.alt.parameter.num_domains = num_domains;
       named_domain = data->cloog_input->ud->domain;
-      for (unsigned long j = 0; j < num_domains; ++j) {
+      for (size_t j = 0; j < num_domains; ++j) {
         CloogDomain *domain = named_domain->domain;
         isl_set *isl_temp_set = isl_set_from_cloog_domain(domain);
-        unsigned long num_dim = isl_set_n_dim(isl_temp_set);
-        unsigned long num_param = isl_set_n_param(isl_temp_set);
+        unsigned int num_dim = isl_set_n_dim(isl_temp_set);
+        unsigned int num_param = isl_set_n_param(isl_temp_set);
         isl_ctx *ctx = isl_set_get_ctx(isl_temp_set);
         alt->value.alt.parameter.parameter_constraints[j] =
           acr_isl_set_from_alternative_parameter_construct(ctx,
@@ -141,17 +141,17 @@ void acr_cloog_generate_alternative_code_from_input(
   CloogNamedDomainList *domain_list = data_info->cloog_input->ud->domain;
   CloogDomain *context = cloog_domain_copy(data_info->cloog_input->context);
   isl_set *isl_context = isl_set_from_cloog_domain(context);
-  unsigned long num_param = isl_set_n_param(isl_context);
-  CloogUnionDomain *new_udomain = cloog_union_domain_alloc(num_param);
+  unsigned int num_param = isl_set_n_param(isl_context);
+  CloogUnionDomain *new_udomain = cloog_union_domain_alloc((int)num_param);
 
   const osl_generic_p osl_parameters = data_info->osl_relation->parameters;
   if (osl_generic_has_URI(osl_parameters, OSL_URI_STRINGS)) {
-    for (size_t i = 0; i < osl_strings_size(osl_parameters->data); i++) {
+    for (int i = 0; i < (int)osl_strings_size(osl_parameters->data); i++) {
       new_udomain = cloog_union_domain_set_name(new_udomain, CLOOG_PARAM, i,
           ((osl_strings_p)(osl_parameters->data))->string[i]);
     }
   }
-  unsigned long statement_num = 0;
+  size_t statement_num = 0;
   while(domain_list) {
     CloogDomain *cloog_domain;
     CloogScattering *cloog_scatt;
@@ -170,9 +170,9 @@ void acr_cloog_generate_alternative_code_from_input(
         data_info->alternative_from_val);
 
     isl_set *alternative_set = NULL;
-    const unsigned long num_dims = data_info->dimensions_per_statements[statement_num];
-    for (unsigned long i = 0; i < data_info->num_alternatives; ++i) {
-      for(unsigned long j = 0; j < num_dims; ++j) {
+    const unsigned int num_dims = data_info->dimensions_per_statements[statement_num];
+    for (size_t i = 0; i < data_info->num_alternatives; ++i) {
+      for(unsigned int j = 0; j < num_dims; ++j) {
         switch (data_info->statement_dimension_types[statement_num][j]) {
           case acr_dimension_type_bound_to_alternative:
           case acr_dimension_type_free_dim:
