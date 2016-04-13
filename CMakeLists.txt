@@ -94,6 +94,11 @@ endif()
 find_package(TCC QUIET)
 if(TCC_FOUND)
   message(STATUS "Found TCC ${TCC_VERSION}")
+  add_library(tcc INTERFACE IMPORTED)
+  set_property(TARGET tcc PROPERTY INTERFACE_INCLUDE_DIRECTORIES
+    ${TCC_INCLUDE_DIRS})
+  set_property(TARGET tcc PROPERTY INTERFACE_LINK_LIBRARIES
+    ${TCC_LIBRARIES})
 else()
   message(WARNING "Tiny C Compiler not found, this may lower ACR performance")
 endif()
@@ -228,18 +233,21 @@ target_compile_definitions(acr
 add_library(acrrun
   SHARED
   ${ACR_RUNTIME_LIBRARY_C_FILES})
-message(STATUS "Add acr library (shared)"
+message(STATUS "Add acrrun library (shared)"
   " ${CMAKE_SHARED_LIBRARY_PREFIX}acrrun${CMAKE_SHARED_LIBRARY_SUFFIX}")
 target_link_libraries(acrrun
   PUBLIC
     cloog
     osl
     isl)
+if(TCC_FOUND)
+  target_link_libraries(acrrun PRIVATE tcc)
+endif()
 target_include_directories(acrrun
   PUBLIC
     include/
     "${CMAKE_CURRENT_BINARY_DIR}/autogen/include")
-target_compile_definitions(acr
+target_compile_definitions(acrrun
   PRIVATE
     _POSIX_C_SOURCE=200809L)
 
