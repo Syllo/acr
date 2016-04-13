@@ -121,4 +121,7 @@ void acr_openscop_get_identifiers_with_dependencies(
 dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
     const osl_statement_p statement);
 
+osl_strings_p acr_osl_get_alternative_parameters(
+    const acr_compute_node node);
+
 #endif // __ACR_OPENSCOP_H

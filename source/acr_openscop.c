@@ -1169,6 +1169,30 @@ static bool _acr_osl_test_and_set_dims_type(
   return true;
 }
 
+osl_strings_p acr_osl_get_alternative_parameters(
+    const acr_compute_node node) {
+
+  osl_strings_p pragma_alternative_parameters = osl_strings_malloc();
+  size_t string_size = 0;
+  acr_option_list opt_list = acr_compute_node_get_option_list(node);
+  size_t list_size = acr_compute_node_get_option_list_size(node);
+  for (size_t i = 0; i < list_size; ++i) {
+    acr_option current_option =
+      acr_option_list_get_option(i, opt_list);
+    if (acr_option_get_type(current_option) == acr_type_alternative &&
+        acr_alternative_get_type(current_option) == acr_alternative_parameter) {
+      const char *parameter_to_swap =
+        acr_alternative_get_object_to_swap_name(current_option);
+      if (osl_strings_find(pragma_alternative_parameters, parameter_to_swap)
+          == string_size) {
+        osl_strings_add(pragma_alternative_parameters, parameter_to_swap);
+        string_size += 1;
+      }
+    }
+  }
+  return pragma_alternative_parameters;
+}
+
 bool acr_osl_find_and_verify_free_dims_position(
     const acr_compute_node node,
     const osl_scop_p scop,

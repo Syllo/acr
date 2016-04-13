@@ -503,9 +503,26 @@ static void acr_print_monitor_max_dims(FILE *out,
   fprintf(out, "#undef __acr__min__\n");
 }
 
+static void acr_print_get_rid_of_parameters(
+    FILE *out, const char *prefix, const osl_scop_p scop,
+    const osl_strings_p alternative_parameters) {
+  osl_strings_p parameters = osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
+  size_t num_param= osl_strings_size(parameters);
+  size_t num_alt_param= osl_strings_size(alternative_parameters);
+  size_t parameters_skipped = 0;
+  for (size_t i = 0; i < num_param; ++i) {
+    if (osl_strings_find(alternative_parameters, parameters->string[i]) >= num_alt_param) {
+    fprintf(out,
+        "  acr_cloog_get_rid_of_parameter(&%s_runtime_data, %zu, %s);\n",
+        prefix, parameters_skipped, parameters->string[i]);
+    } else {
+      parameters_skipped += 1;
+    }
+  }
+}
+
 static void acr_print_acr_runtime_init(FILE* out,
     const acr_compute_node node,
-    size_t num_parameters,
     const dimensions_upper_lower_bounds_all_statements *dims,
     const dimensions_upper_lower_bounds *bounds,
     const osl_scop_p scop) {
@@ -527,6 +544,9 @@ static void acr_print_acr_runtime_init(FILE* out,
       num_monitor_dims++;
   }
 
+  osl_strings_p  alternative_params = acr_osl_get_alternative_parameters(node);
+  size_t alternative_parameters_num = osl_strings_size(alternative_params);
+
   acr_option grid = acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
   fprintf(out, "static void %s_monitoring_function(unsigned char*);\n", prefix);
   fprintf(out, "static struct acr_runtime_data %s_runtime_data = {\n"
@@ -538,7 +558,7 @@ static void acr_print_acr_runtime_init(FILE* out,
       "  .num_statements = %zu,\n"
       "  .dimensions_per_statements = (unsigned int [%zu]) {\n",
       prefix, num_alternatives, prefix,
-      num_parameters, num_monitor_dims, acr_grid_get_grid_size(grid),
+      alternative_parameters_num, num_monitor_dims, acr_grid_get_grid_size(grid),
       dims->num_statements, dims->num_statements);
   for (size_t i = 0; i < dims->num_statements; ++i) {
     const dimensions_upper_lower_bounds *current_bound =
@@ -602,6 +622,8 @@ static void acr_print_acr_runtime_init(FILE* out,
       "      %s_acr_scop,\n"
       "      %s_acr_scop_size);\n",
       prefix, prefix, prefix);
+
+  acr_print_get_rid_of_parameters(out, prefix, scop, alternative_params);
 
   fprintf(out,
       "  acr_cloog_init_alternative_constraint_from_cloog_union_domain(\n"
@@ -748,8 +770,7 @@ static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     fprintf(stderr, "It is not possible to find monitor data boundaries\n");
     return false;
   }
-  acr_print_acr_runtime_init(out, node,
-      (size_t)scop->context->nb_parameters, dims, *bound_used, scop);
+  acr_print_acr_runtime_init(out, node, dims, *bound_used, scop);
 
 
   fprintf(out,
