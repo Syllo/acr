@@ -80,7 +80,7 @@ isl_set** acr_isl_set_from_monitor(
 
     for (size_t j = 0; j < num_dimensions; ++j) {
       current_dimension[j] += 1;
-      if(current_dimension[j] == dimensions[j] + 1) {
+      if(current_dimension[j] == dimensions[j]) {
         current_dimension[j] = 0;
       } else {
         break;

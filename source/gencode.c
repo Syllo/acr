@@ -486,8 +486,14 @@ static void acr_print_monitor_max_dims(FILE *out,
   size_t current_dim = 0;
   for (size_t i = 0; i < bounds->num_dimensions; ++i) {
     if (bounds->dimensions_type[i] == acr_dimension_type_bound_to_monitor) {
-      fprintf(out, "  %s_runtime_data.monitor_dim_max[%zu] = (",
+      fprintf(out, "  %s_runtime_data.monitor_dim_max[%zu] = ((",
           prefix, current_dim++);
+      acr_print_isl_lex_min_max_bound(out,
+          false, bounds->bound_lexmax, i, parameters);
+      fprintf(out, ") %% %zu == 0) ? (", tiling_size);
+      acr_print_isl_lex_min_max_bound(out,
+          false, bounds->bound_lexmax, i, parameters);
+      fprintf(out, ") / %zu : (", tiling_size);
       acr_print_isl_lex_min_max_bound(out,
           false, bounds->bound_lexmax, i, parameters);
       fprintf(out, ") / %zu + 1;\n", tiling_size);

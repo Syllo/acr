@@ -146,7 +146,8 @@ void acr_cloog_generate_alternative_code_from_input(
 
   const osl_generic_p osl_parameters = data_info->osl_relation->parameters;
   if (osl_generic_has_URI(osl_parameters, OSL_URI_STRINGS)) {
-    for (int i = 0; i < (int)osl_strings_size(osl_parameters->data); i++) {
+    const int string_size = (int)osl_strings_size(osl_parameters->data);
+    for (int i = 0; i < string_size; i++) {
       new_udomain = cloog_union_domain_set_name(new_udomain, CLOOG_PARAM, i,
           ((osl_strings_p)(osl_parameters->data))->string[i]);
     }

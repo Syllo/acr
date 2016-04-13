@@ -153,7 +153,7 @@ void* acr_runtime_compile_thread(void* in_data) {
   size_t size_code;
 
   FILE* new_code = open_memstream(&generated_code, &size_code);
-  fprintf(new_code, "#include \"acr_required_definitions.h\"\n"
+  fprintf(new_code, //"#include \"acr_required_definitions.h\"\n"
       "void acr_alternative_function%s {\n",
       input_data->rdata->function_prototype);
   acr_cloog_generate_alternative_code_from_input(new_code, input_data->rdata,
