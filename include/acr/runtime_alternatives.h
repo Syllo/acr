@@ -37,10 +37,6 @@ struct runtime_alternative {
         intmax_t parameter_value;
         size_t num_domains;
         isl_set **parameter_constraints;
-        struct {
-          size_t num_free_dim;
-          size_t *free_dim_position;
-        } free_dims;
       } parameter;
     } alt;
     char *name_to_swap;
