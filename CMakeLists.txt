@@ -100,6 +100,19 @@ if(TCC_FOUND)
   set_property(TARGET tcc PROPERTY INTERFACE_LINK_LIBRARIES
     ${TCC_LIBRARIES})
 else()
+  #include(ExternalProject)
+  #ExternalProject_Add(tcc
+    #PREFIX "${CMAKE_CURRENT_BINARY_DIR}/tcc-prefix"
+    #URL http://download.savannah.gnu.org/releases/tinycc/tcc-0.9.26.tar.bz2
+    #URL_HASH
+    #SHA256=521e701ae436c302545c3f973a9c9b7e2694769c71d9be10f70a2460705b6d71
+    #CONFIGURE_COMMAND
+     #"${CMAKE_CURRENT_BINARY_DIR}/tcc-prefix/src/tcc/configure"
+     #"--cc=${CMAKE_C_COMPILER}"
+     #"--disable-static"
+     #"--extra-cflags=-O3 -g ${COMPILER_LTO_FLAG}"
+     #"--extra-ldlags=-O3 -g ${COMPILER_LTO_FLAG}"
+    #INSTALL_COMMAND "")
   message(WARNING "Tiny C Compiler not found, this may lower ACR performance")
 endif()
 
@@ -138,11 +151,14 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/autogen)
 
 set(CMAKE_C_STANDARD 11)
 
-set(CMAKE_C_FLAGS_RELEASE "-O3" "${OpenMP_C_FLAGS}")
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O3" "${OpenMP_C_FLAGS}" "-g"
-  "${COMPILER_ADDRESS_SANITIZER_FLAG}") # disable address sanitizer for release
-set(CMAKE_C_FLAGS_DEBUG ${COMPILER_AVALIABLE_WARNINGS} "-O0" "-g"
-  "${OpenMP_C_FLAGS}" "${COMPILER_ADDRESS_SANITIZER_FLAG}")
+list(APPEND CMAKE_C_FLAGS "${OpenMP_C_FLAGS}")
+set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS}
+  "-O3" "${COMPILER_LTO_FLAG}")
+set(CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELEASE} "-g" #)
+  "${COMPILER_ADDRESS_SANITIZER_FLAG}") # during tests
+set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS}
+  ${COMPILER_AVALIABLE_WARNINGS} "-O0" "-g"
+  "${COMPILER_ADDRESS_SANITIZER_FLAG}")
 
 string(REPLACE ";" " " CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
 string(REPLACE ";" " " CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
