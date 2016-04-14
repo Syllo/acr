@@ -37,6 +37,6 @@ void acr_cloog_init_scop_to_match_alternatives(
 void acr_cloog_get_rid_of_parameter(
     struct acr_runtime_data *data_info,
     unsigned int parameter,
-    int value);
+    long int value);
 
 #endif // __ACR_CLOOG_RUNTIME_H

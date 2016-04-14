@@ -637,6 +637,7 @@ static void acr_print_acr_runtime_init(FILE* out,
       "  pthread_create(&%s_runtime_data.monitor_thread, NULL,\n"
       "    acr_runtime_monitoring_function, &%s_runtime_data);\n", prefix, prefix);
   fprintf(out, "}\n\n");
+  osl_strings_free(alternative_params);
 }
 
 
