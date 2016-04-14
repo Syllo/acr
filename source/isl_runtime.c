@@ -94,27 +94,3 @@ isl_set** acr_isl_set_from_monitor(
   free(current_dimension);
   return sets;
 }
-
-isl_set* acr_isl_set_from_alternative_parameter_construct(
-    isl_ctx *ctx,
-    unsigned int num_parameters,
-    unsigned int num_dimensions,
-    struct runtime_alternative *alternative_list) {
-
-  isl_val *constraint_value =
-    isl_val_int_from_si(ctx,
-        alternative_list->value.alt.parameter.parameter_value);
-  isl_space *space = isl_space_set_alloc(ctx, num_parameters, num_dimensions);
-  isl_set *new_set = isl_set_universe(isl_space_copy(space));
-  isl_local_space *local_space = isl_local_space_from_space(space);
-  isl_constraint *parameter_constraint = isl_constraint_alloc_equality(
-      local_space);
-  parameter_constraint =
-    isl_constraint_set_constant_val(parameter_constraint, constraint_value);
-  parameter_constraint =
-    isl_constraint_set_coefficient_si(parameter_constraint, isl_dim_param,
-        (int)alternative_list->value.alt.parameter.parameter_position,
-        -1);
-  new_set = isl_set_add_constraint(new_set, parameter_constraint);
-  return new_set;
-}

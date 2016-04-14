@@ -28,15 +28,14 @@ enum acr_runtime_alternative_type {
 };
 
 struct runtime_alternative {
+  isl_set **restricted_domains;
   size_t alternative_number;
   struct {
     union {
       char *function_to_swap;
       struct {
-        unsigned int parameter_position;
+        int parameter_position;
         intmax_t parameter_value;
-        size_t num_domains;
-        isl_set **parameter_constraints;
       } parameter;
     } alt;
     char *name_to_swap;
