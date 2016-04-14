@@ -123,7 +123,7 @@ void acr_cloog_init_alternative_constraint_from_cloog_union_domain(
         isl_constraint *constraint = isl_constraint_alloc_equality(local_space);
         constraint = isl_constraint_set_constant_val(constraint, value);
         constraint = isl_constraint_set_coefficient_si(constraint,
-            isl_dim_param, (int)alt->value.alt.parameter.parameter_position, -1);
+            isl_dim_param, alt->value.alt.parameter.parameter_position, -1);
         /*isl_set_add_constraint()*/
       }
     }
