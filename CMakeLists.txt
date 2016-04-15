@@ -32,35 +32,21 @@ include(cmake/compiler-flags.cmake)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/")
 
-find_package(CLAN QUIET)
-if(NOT CLAN_FOUND OR NOT "${CLAN_VERSION}" GREATER "0.8.0")
-  if(NOT CLAN_FOUND)
-    message(WARNING "CLAN is not installed")
-  else()
-    message(WARNING "CLAN version ${CLAN_VERSION} is too old")
-  endif()
-  message (STATUS "Fallback by trying to clone the repository from source")
-  find_package(Git REQUIRED)
-  execute_process(COMMAND
-    ${GIT_EXECUTABLE} submodule update --init
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    RESULT_VARIABLE CLAN_SUBMODULE_UPDATE)
-  if (NOT CLAN_SUBMODULE_UPDATE EQUAL 0)
-    message(FATAL_ERROR "Unable to clone CLAN, dependency not met")
-  else()
-    message(STATUS "CLAN successfully cloned, configuring")
-    add_subdirectory(clan)
-  endif()
-elseif (NOT TARGET clan)
-  add_library(clan INTERFACE IMPORTED)
-  set_property(TARGET clan PROPERTY INTERFACE_INCLUDE_DIRECTORIES
-    ${CLAN_INCLUDE_DIRS})
-  set_property(TARGET clan PROPERTY INTERFACE_LINK_LIBRARIES
-    ${CLAN_LIBRARIES})
-endif()
+option(ALL_DEP_BUNDLED
+  "Download and install all dependencies if they are not present on the system")
+include(ExternalProject)
+set(DEP_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/dep-install/")
+set(DEP_INCLUDE_DIR "${DEP_INSTALL_DIR}/include")
+set(DEP_LIB_DIR "${DEP_INSTALL_DIR}/lib")
+file(MAKE_DIRECTORY ${DEP_INSTALL_DIR})
+file(MAKE_DIRECTORY ${DEP_INCLUDE_DIR})
+file(MAKE_DIRECTORY ${DEP_LIB_DIR})
 
 find_package(OSL QUIET)
-if (OSL_FOUND AND NOT TARGET osl)
+if(NOT OSL_FOUND)
+  include(cmake/dependencies/osl-bundle.cmake)
+else()
+  message(STATUS "Found OSL ${OSL_VERSION}")
   add_library(osl INTERFACE IMPORTED)
   set_property(TARGET osl PROPERTY INTERFACE_INCLUDE_DIRECTORIES
     ${OSL_INCLUDE_DIRS})
@@ -68,11 +54,24 @@ if (OSL_FOUND AND NOT TARGET osl)
     ${OSL_LIBRARIES})
 endif()
 
-find_package(ISL REQUIRED)
-if(ISL_VERSION AND "${ISL_VERSION}" LESS "0.16.0")
-  message(FATAL_ERROR "ISL version >= 0.16 required but found ${ISL_VERSION}")
+find_package(CLAN QUIET)
+if(NOT CLAN_FOUND OR NOT "${CLAN_VERSION}" GREATER "10.0.0")
+  include(cmake/dependencies/clan-bundle.cmake)
+else()
+  message(STATUS "Found CLAN ${CLAN_VERSION}")
+  add_library(clan INTERFACE IMPORTED)
+  set_property(TARGET clan PROPERTY INTERFACE_INCLUDE_DIRECTORIES
+    ${CLAN_INCLUDE_DIRS})
+  set_property(TARGET clan PROPERTY INTERFACE_LINK_LIBRARIES
+    ${CLAN_LIBRARIES})
 endif()
-if (NOT TARGET isl)
+
+find_package(ISL QUIET)
+if((NOT ISL_FOUND) OR
+   (ISL_FOUND AND ISL_VERSION AND "${ISL_VERSION}" LESS "0.16.0"))
+  include(cmake/dependencies/isl-bundle.cmake)
+else()
+  message(STATUS "Found ISL ${ISL_VERSION}")
   add_library(isl INTERFACE IMPORTED)
   set_property(TARGET isl PROPERTY INTERFACE_INCLUDE_DIRECTORIES
     ${ISL_INCLUDE_DIRS})
@@ -80,8 +79,11 @@ if (NOT TARGET isl)
     ${ISL_LIBRARIES})
 endif()
 
-find_package(CLOOG REQUIRED)
-if (NOT TARGET cloog)
+find_package(CLOOG QUIET)
+if(NOT CLOOG_FOUND)
+  include(cmake/dependencies/cloog-bundle.cmake)
+else()
+  message(STATUS "Found CLOOG ${CLOOG_VERSION}")
   add_library(cloog INTERFACE IMPORTED)
   set_property(TARGET cloog PROPERTY INTERFACE_INCLUDE_DIRECTORIES
     ${CLOOG_INCLUDE_DIRS})
@@ -100,20 +102,7 @@ if(TCC_FOUND)
   set_property(TARGET tcc PROPERTY INTERFACE_LINK_LIBRARIES
     ${TCC_LIBRARIES})
 else()
-  #include(ExternalProject)
-  #ExternalProject_Add(tcc
-    #PREFIX "${CMAKE_CURRENT_BINARY_DIR}/tcc-prefix"
-    #URL http://download.savannah.gnu.org/releases/tinycc/tcc-0.9.26.tar.bz2
-    #URL_HASH
-    #SHA256=521e701ae436c302545c3f973a9c9b7e2694769c71d9be10f70a2460705b6d71
-    #CONFIGURE_COMMAND
-     #"${CMAKE_CURRENT_BINARY_DIR}/tcc-prefix/src/tcc/configure"
-     #"--cc=${CMAKE_C_COMPILER}"
-     #"--disable-static"
-     #"--extra-cflags=-O3 -g ${COMPILER_LTO_FLAG}"
-     #"--extra-ldlags=-O3 -g ${COMPILER_LTO_FLAG}"
-    #INSTALL_COMMAND "")
-  message(WARNING "Tiny C Compiler not found, this may lower ACR performance")
+  include(cmake/dependencies/tcc-bundle.cmake)
 endif()
 
 find_package(DL REQUIRED)
@@ -199,7 +188,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/acr/acr.h"
   IMMEDIATE @ONLY)
 
-if(TCC_FOUND)
+if(TCC_FOUND OR TCC_BUNDLED)
   set(TCC_PRESENT "#define TCC_PRESENT")
 endif()
 configure_file(
@@ -266,7 +255,7 @@ target_link_libraries(acrrun
   PRIVATE
     Threads::Threads
     dl)
-if(TCC_FOUND)
+if(TCC_FOUND OR TCC_BUNDLED)
   target_link_libraries(acrrun PRIVATE tcc)
 endif()
 target_include_directories(acrrun
