@@ -28,9 +28,6 @@ void acr_cloog_generate_alternative_code_from_input(
     struct acr_runtime_data *data_info,
     const unsigned char *data);
 
-void acr_cloog_init_alternative_constraint_from_cloog_union_domain(
-    struct acr_runtime_data *data);
-
 void acr_cloog_init_scop_to_match_alternatives(
     struct acr_runtime_data *data);
 

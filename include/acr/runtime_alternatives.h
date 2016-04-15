@@ -34,7 +34,7 @@ struct runtime_alternative {
     union {
       char *function_to_swap;
       struct {
-        int parameter_position;
+        unsigned int parameter_id;
         intmax_t parameter_value;
       } parameter;
     } alt;

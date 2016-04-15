@@ -22,20 +22,21 @@
 #include <acr/acr_openscop.h>
 #include <acr/runtime_alternatives.h>
 #include <cloog/cloog.h>
+#include <isl/map.h>
 #include <pthread.h>
 
 struct acr_runtime_data {
-  CloogInput* cloog_input;
   CloogState* state;
   struct osl_scop* osl_relation;
   size_t num_alternatives;
   struct runtime_alternative *alternatives;
-  unsigned int num_parameters;
   unsigned int num_monitor_dims;
   size_t *monitor_dim_max;
   size_t monitor_total_size;
   size_t grid_size;
   size_t num_statements;
+  isl_set *context;
+  isl_map **statement_maps;
   unsigned int *dimensions_per_statements;
   enum acr_dimension_type **statement_dimension_types;
   char* function_prototype;

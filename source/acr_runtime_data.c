@@ -20,7 +20,9 @@
 #include "acr/cloog_runtime.h"
 #include "acr/osl_runtime.h"
 
+#include <cloog/isl/domain.h>
 #include <isl/set.h>
+#include <isl/map.h>
 #include <pthread.h>
 
 void free_acr_runtime_data(struct acr_runtime_data* data) {
@@ -28,23 +30,25 @@ void free_acr_runtime_data(struct acr_runtime_data* data) {
   pthread_join(data->monitor_thread, NULL);
   for (size_t i = 0; i < data->num_alternatives; ++i) {
     struct runtime_alternative *alt = &data->alternatives[i];
-    if (alt->type == acr_runtime_alternative_parameter) {
-      for (size_t j = 0; j < data->num_statements; ++j) {
-        isl_set_free(alt->restricted_domains[j]);
-      }
-      free(alt->restricted_domains);
+    for (size_t j = 0; j < data->num_statements; ++j) {
+      isl_set_free(alt->restricted_domains[j]);
     }
+    free(alt->restricted_domains);
   }
-  cloog_union_domain_free(data->cloog_input->ud);
-  cloog_domain_free(data->cloog_input->context);
-  free(data->cloog_input);
-  data->cloog_input = NULL;
+  for (size_t i = 0; i < data->num_statements; ++i) {
+    isl_map_free(data->statement_maps[i]);
+  }
+  free(data->statement_maps);
+  isl_set_free(data->context);
   cloog_state_free(data->state);
   data->state = NULL;
   osl_scop_free(data->osl_relation);
   data->osl_relation = NULL;
   pthread_spin_destroy(&data->alternative_lock);
+  free(data->monitor_dim_max);
 }
+
+isl_map* isl_map_from_cloog_scattering(CloogScattering *scat);
 
 void init_acr_runtime_data(
     struct acr_runtime_data* data,
@@ -52,13 +56,34 @@ void init_acr_runtime_data(
     size_t scop_size) {
   data->osl_relation = acr_read_scop_from_buffer(scop, scop_size);
   data->state = cloog_state_malloc();
-  data->cloog_input = cloog_input_from_osl_scop(data->state,
-      data->osl_relation);
-  acr_cloog_init_scop_to_match_alternatives(data);
   data->monitor_total_size = 1;
   for (size_t i = 0; i < data->num_monitor_dims; ++i) {
     data->monitor_total_size *= data->monitor_dim_max[i];
   }
   pthread_spin_init(&data->alternative_lock, PTHREAD_PROCESS_PRIVATE);
   data->usability_inital_value = 3;
+
+  CloogInput *cloog_input = cloog_input_from_osl_scop(data->state,
+      data->osl_relation);
+  acr_cloog_init_scop_to_match_alternatives(data);
+  data->statement_maps =
+    malloc(data->num_statements * sizeof(*data->statement_maps));
+  CloogNamedDomainList *domain_list = cloog_input->ud->domain;
+  for (size_t i = 0; i < data->num_statements; ++i, domain_list = domain_list->next) {
+    data->statement_maps[i] = isl_map_copy(
+        isl_map_from_cloog_scattering(domain_list->scattering));
+  }
+  for (size_t i = 0; i < data->num_alternatives; ++i) {
+    struct runtime_alternative *alt = &data->alternatives[i];
+    alt->restricted_domains =
+      malloc(data->num_statements * sizeof(*alt->restricted_domains));
+    domain_list = cloog_input->ud->domain;
+    for(size_t j = 0; j < data->num_statements; ++j, domain_list = domain_list->next) {
+      alt->restricted_domains[j] =
+        isl_set_copy(isl_set_from_cloog_domain(domain_list->domain));
+    }
+  }
+  data->context = isl_set_from_cloog_domain(cloog_input->context);
+  cloog_union_domain_free(cloog_input->ud);
+  free(cloog_input);
 }

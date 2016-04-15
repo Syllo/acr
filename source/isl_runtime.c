@@ -27,17 +27,17 @@
 
 isl_set** acr_isl_set_from_monitor(
     isl_ctx *ctx,
-    const unsigned char *data,
-    size_t num_alternatives,
-    unsigned int num_param,
-    unsigned int num_dimensions,
-    const size_t *dimensions,
-    size_t dimensions_total_size,
-    size_t tiling_size,
+    struct acr_runtime_data *data_info,
+    const unsigned char *data) {
+    size_t num_alternatives = data_info->num_alternatives;
+    unsigned int num_dimensions = data_info->num_monitor_dims;
+    const size_t *dimensions = data_info->monitor_dim_max;
+    size_t dimensions_total_size = data_info->monitor_total_size;
+    size_t tiling_size = data_info->grid_size;
     struct runtime_alternative*
-        (*get_alternative_from_val)(unsigned char data)) {
+        (*const get_alternative_from_val)(unsigned char data) = data_info->alternative_from_val;
 
-  isl_space *space = isl_space_set_alloc(ctx, num_param, num_dimensions);
+  isl_space *space = isl_space_set_alloc(ctx, 0, num_dimensions);
   isl_val *tiling_size_val = isl_val_int_from_ui(ctx, tiling_size);
 
   isl_set **sets = malloc(num_alternatives * sizeof(*sets));

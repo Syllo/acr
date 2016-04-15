@@ -26,14 +26,7 @@
 
 isl_set** acr_isl_set_from_monitor(
     isl_ctx *ctx,
-    const unsigned char *data,
-    size_t num_strategies,
-    unsigned int num_param,
-    unsigned int num_dimensions,
-    const size_t *dimensions,
-    size_t dimensions_total_size,
-    size_t tiling_size,
-    struct runtime_alternative*
-        (*get_alternative_from_val)(unsigned char data));
+    struct acr_runtime_data *data_info,
+    const unsigned char *data);
 
 #endif // __ACR_ISL_RUNTIME_H
