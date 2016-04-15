@@ -4,7 +4,7 @@
 
 #/////////////////////////////////////////////////////////////////////////////#
 #                                                                             #
-# Search for the Chunky Loop Analyser Library on the system                   #
+# Search for the Chunky Loop ANalyser                                         #
 # Call with find_package(CLAN)                                                #
 # The module defines:                                                         #
 #   - CLAN_FOUND        - If CLAN was found                                   #

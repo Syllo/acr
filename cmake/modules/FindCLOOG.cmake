@@ -4,7 +4,7 @@
 
 #/////////////////////////////////////////////////////////////////////////////#
 #                                                                             #
-# Search for the Chunky Loop Analyser Library on the system                   #
+# Search for the Chunky Loop Generator Library on the system                  #
 # Call with find_package(CLOOG)                                               #
 # The module defines:                                                         #
 #   - CLOOG_FOUND        - If CLOOG was found                                 #

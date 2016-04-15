@@ -4,7 +4,7 @@
 
 #/////////////////////////////////////////////////////////////////////////////#
 #                                                                             #
-# Search for the OpenScop Library on the system                               #
+# Search for the Tiny C Compiler                                              #
 # Call with find_package(TCC)                                                 #
 # The module defines:                                                         #
 #   - TCC_FOUND        - If TCC was found                                     #

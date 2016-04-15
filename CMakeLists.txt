@@ -116,6 +116,13 @@ else()
   message(WARNING "Tiny C Compiler not found, this may lower ACR performance")
 endif()
 
+find_package(DL REQUIRED)
+add_library(dl INTERFACE IMPORTED)
+set_property(TARGET dl PROPERTY INTERFACE_INCLUDE_DIRECTORIES
+  ${DL_INCLUDE_DIRS})
+set_property(TARGET dl PROPERTY INTERFACE_LINK_LIBRARIES
+  ${DL_LIBRARIES})
+
 #find_package(OpenMP QUIET)
 if(OPENMP_FOUND)
   message(STATUS "Found OpenMP")
@@ -142,8 +149,8 @@ FLEX_TARGET(acr_scanner
 ADD_FLEX_BISON_DEPENDENCY(acr_scanner acr_parser)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/autogen)
 
-#set(CMAKE_THREAD_PREFER_PTHREAD_FLAG)
-#find_package(Threads)
+set(CMAKE_THREAD_PREFER_PTHREAD_FLAG)
+find_package(Threads REQUIRED)
 
 #///////////////////////////////////////////////////////////////////#
 #                        COMPILATION OPTIONS                        #
@@ -235,8 +242,8 @@ target_link_libraries(acr
   PUBLIC
     cloog
     osl
-  PRIVATE
     isl
+  PRIVATE
     clan)
 target_include_directories(acr
   PUBLIC
@@ -255,7 +262,10 @@ target_link_libraries(acrrun
   PUBLIC
     cloog
     osl
-    isl)
+    isl
+  PRIVATE
+    Threads::Threads
+    dl)
 if(TCC_FOUND)
   target_link_libraries(acrrun PRIVATE tcc)
 endif()
@@ -273,7 +283,7 @@ target_compile_definitions(acrrun
 
 add_executable(acr_exe ${ACR_EXECUTABLE_C_FILES})
 set_target_properties(acr_exe PROPERTIES OUTPUT_NAME "acr")
-target_link_libraries(acr_exe acr clan isl)
+target_link_libraries(acr_exe acr clan)
 target_compile_definitions(acr_exe
   PRIVATE
     _POSIX_C_SOURCE=200809L)
