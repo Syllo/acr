@@ -149,7 +149,7 @@ set(CMAKE_C_STANDARD 11)
 
 list(APPEND CMAKE_C_FLAGS "${OpenMP_C_FLAGS}")
 set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS}
-  "-O3" "${COMPILER_LTO_FLAG}")
+  "-O3" "-NDEBUG" "${COMPILER_LTO_FLAG}")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO ${CMAKE_C_FLAGS_RELEASE} "-g" #)
   "${COMPILER_ADDRESS_SANITIZER_FLAG}") # during tests
 set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS}
@@ -188,7 +188,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/acr/acr.h"
   IMMEDIATE @ONLY)
 
-if(TCC_FOUND OR TCC_BUNDLED)
+if(TCC_FOUND OR TARGET tcc_external)
   set(TCC_PRESENT "#define TCC_PRESENT")
 endif()
 configure_file(
@@ -255,7 +255,7 @@ target_link_libraries(acrrun
   PRIVATE
     Threads::Threads
     dl)
-if(TCC_FOUND OR TCC_BUNDLED)
+  if(TCC_FOUND OR TARGET tcc_external)
   target_link_libraries(acrrun PRIVATE tcc)
 endif()
 target_include_directories(acrrun

@@ -1,5 +1,11 @@
 option(CLOOG_BUNDLED "Download and use CLOOG internaly")
 if(CLOOG_BUNDLED OR ALL_DEP_BUNDLED)
+  if(TARGET osl_external)
+    set(CLOOG_OSL_PREFIX "--with-osl-prefix=${DEP_INSTALL_DIR}")
+  endif()
+  if(TARGET isl_external)
+    set(CLOOG_ISL_PREFIX "--with-isl-prefix=${DEP_INSTALL_DIR}")
+  endif()
   ExternalProject_Add(cloog_external
     PREFIX "${CMAKE_CURRENT_BINARY_DIR}/cloog"
     GIT_REPOSITORY https://github.com/periscop/cloog.git
@@ -11,9 +17,9 @@ if(CLOOG_BUNDLED OR ALL_DEP_BUNDLED)
     "CC=${CMAKE_C_COMPILER}"
     "./configure"
     "--with-isl=system"
-    "--with-isl-prefix=${DEP_INSTALL_DIR}"
+    "${CLOOG_ISL_PREFIX}"
     "--with-osl=system"
-    "--with-osl-prefix=${DEP_INSTALL_DIR}"
+    "${CLOOG_OSL_PREFIX}"
     "--with-gmp=system"
     "--prefix=${DEP_INSTALL_DIR}"
     UPDATE_COMMAND ""
@@ -22,11 +28,11 @@ if(CLOOG_BUNDLED OR ALL_DEP_BUNDLED)
     INSTALL_COMMAND
     "make"
     "install")
-  if(NOT OSL_FOUND)
-    add_dependencies(cloog_external osl)
+  if(TARGET osl_external)
+    add_dependencies(cloog_external osl_external)
   endif()
-  if(NOT ISL_FOUND)
-    add_dependencies(cloog_external isl)
+  if(TARGET isl_external)
+    add_dependencies(cloog_external isl_external)
   endif()
   add_library(cloog INTERFACE IMPORTED)
   add_dependencies(cloog cloog_external)

@@ -8,8 +8,8 @@ if(CLAN_BUNDLED OR ALL_DEP_BUNDLED)
     CMAKE_ARGS "-DCMAKE_INSTALL_PREFIX=${DEP_INSTALL_DIR}"
                "-DCMAKE_LIBRARY_PATH=${DEP_INSTALL_DIR}"
                "-DCMAKE_SKIP_RPATH=TRUE")
-  if(NOT OSL_FOUND)
-    add_dependencies(clan_external osl)
+  if(TARGET osl_external)
+    add_dependencies(clan_external osl_external)
   endif()
   add_library(clan INTERFACE IMPORTED)
   add_dependencies(clan clan_external)
