@@ -21,6 +21,7 @@
 #include "acr/osl_runtime.h"
 
 #include <cloog/isl/domain.h>
+#include <isl/constraint.h>
 #include <isl/set.h>
 #include <isl/map.h>
 #include <pthread.h>
@@ -38,6 +39,11 @@ void free_acr_runtime_data(struct acr_runtime_data* data) {
   for (size_t i = 0; i < data->num_statements; ++i) {
     isl_map_free(data->statement_maps[i]);
   }
+  for (unsigned long i = 0; i < data->monitor_total_size; ++i) {
+    isl_set_free(data->tiles_domains[i]);
+  }
+  free(data->tiles_domains);
+  isl_set_free(data->empty_monitor_set);
   free(data->statement_maps);
   isl_set_free(data->context);
   cloog_state_free(data->state);
@@ -49,6 +55,67 @@ void free_acr_runtime_data(struct acr_runtime_data* data) {
 }
 
 isl_map* isl_map_from_cloog_scattering(CloogScattering *scat);
+
+static void init_isl_tiling_domain(struct acr_runtime_data *data) {
+  data->tiles_domains =
+    malloc(data->monitor_total_size * sizeof(*data->tiles_domains));
+
+  isl_ctx *ctx = isl_set_get_ctx(data->context);
+  isl_space *space = isl_space_set_alloc(ctx, 0, data->num_monitor_dims);
+  isl_val *tiling_size_val = isl_val_int_from_ui(ctx, data->grid_size);
+
+  isl_set *empty_domain = isl_set_empty(isl_space_copy(space));
+  data->empty_monitor_set = empty_domain;
+
+  isl_set *universe_domain = isl_set_universe(space);
+
+  unsigned long *current_dimension =
+    calloc(data->num_monitor_dims, sizeof(*current_dimension));
+  for(size_t i = 0; i < data->monitor_total_size; ++i) {
+    data->tiles_domains[i] = isl_set_copy(universe_domain);
+    for (unsigned long j = 0; j < data->num_monitor_dims; ++j) {
+      unsigned long dimensions_pos = current_dimension[data->num_monitor_dims- 1 - j];
+      isl_local_space *local_space =
+        isl_local_space_from_space(isl_set_get_space(data->tiles_domains[i]));
+      isl_constraint *c_lower = isl_constraint_alloc_inequality(
+          local_space);
+      isl_constraint *c_upper = isl_constraint_copy(c_lower);
+
+      isl_val *lower_bound =
+        isl_val_mul_ui(isl_val_copy(tiling_size_val), dimensions_pos);
+      lower_bound = isl_val_neg(lower_bound);
+      c_lower =
+        isl_constraint_set_constant_val(c_lower, lower_bound);
+      c_lower =
+        isl_constraint_set_coefficient_si(c_lower, isl_dim_set, (int)j, 1);
+      data->tiles_domains[i] =
+        isl_set_add_constraint(data->tiles_domains[i], c_lower);
+
+      isl_val *upper_bound =
+        isl_val_mul_ui(isl_val_copy(tiling_size_val), dimensions_pos);
+      upper_bound = isl_val_add(upper_bound, isl_val_copy(tiling_size_val));
+      upper_bound = isl_val_sub_ui(upper_bound, 1);
+      c_upper =
+        isl_constraint_set_constant_val(c_upper, upper_bound);
+      c_upper =
+        isl_constraint_set_coefficient_si(c_upper, isl_dim_set, (int)j, -1);
+      data->tiles_domains[i] =
+        isl_set_add_constraint(data->tiles_domains[i], c_upper);
+    }
+
+    for (unsigned long j = 0; j < data->num_monitor_dims; ++j) {
+      current_dimension[j] += 1;
+      if(current_dimension[j] == data->monitor_dim_max[j]) {
+        current_dimension[j] = 0;
+      } else {
+        break;
+      }
+    }
+  }
+  isl_set_free(universe_domain);
+  isl_val_free(tiling_size_val);
+  free(current_dimension);
+}
 
 void init_acr_runtime_data(
     struct acr_runtime_data* data,
@@ -86,4 +153,5 @@ void init_acr_runtime_data(
   data->context = isl_set_from_cloog_domain(cloog_input->context);
   cloog_union_domain_free(cloog_input->ud);
   free(cloog_input);
+  init_isl_tiling_domain(data);
 }

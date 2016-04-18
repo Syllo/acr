@@ -20,8 +20,6 @@
 
 #include <strings.h>
 
-#include <acr/isl_runtime.h>
-
 #include <cloog/domain.h>
 #include <cloog/isl/domain.h>
 #include <cloog/isl/backend.h>
@@ -142,6 +140,26 @@ void acr_cloog_get_rid_of_parameter(
   }
 }
 
+static isl_set** acr_isl_set_from_monitor(
+    const struct acr_runtime_data *data_info,
+    const unsigned char*data) {
+
+  isl_set **sets = malloc(data_info->num_alternatives * sizeof(*sets));
+  for (size_t i = 0; i < data_info->num_alternatives; ++i) {
+    sets[i] = isl_set_copy(data_info->empty_monitor_set);
+  }
+
+  for(size_t i = 0; i < data_info->monitor_total_size; ++i) {
+    struct runtime_alternative *alternative = data_info->alternative_from_val(data[i]);
+    assert(alternative != NULL);
+
+    sets[alternative->alternative_number] =
+      isl_set_union(sets[alternative->alternative_number],
+          isl_set_copy(data_info->tiles_domains[i]));
+  }
+  return sets;
+}
+
 void acr_cloog_generate_alternative_code_from_input(
     FILE* output,
     struct acr_runtime_data *data_info,
@@ -159,8 +177,7 @@ void acr_cloog_generate_alternative_code_from_input(
     CloogNamedDomainList * pragma_parameter_domain = new_udomain->domain;
     isl_map *statement_map_copy = isl_map_copy(data_info->statement_maps[i]);
 
-    isl_ctx *ctx = isl_map_get_ctx(statement_map_copy);
-    isl_set **alternative_domains = acr_isl_set_from_monitor(ctx,
+    isl_set **alternative_domains = acr_isl_set_from_monitor(
         data_info, data);
     isl_set *alternative_set = NULL;
     const unsigned int num_dims = data_info->dimensions_per_statements[i];

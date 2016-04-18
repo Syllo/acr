@@ -31,7 +31,9 @@ struct acr_runtime_data {
   size_t num_alternatives;
   struct runtime_alternative *alternatives;
   unsigned int num_monitor_dims;
-  size_t *monitor_dim_max;
+  unsigned long *monitor_dim_max;
+  isl_set **tiles_domains;
+  isl_set *empty_monitor_set;
   size_t monitor_total_size;
   size_t grid_size;
   size_t num_statements;

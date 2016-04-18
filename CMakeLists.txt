@@ -202,7 +202,6 @@ list(APPEND ACR_RUNTIME_LIBRARY_C_FILES
   source/acr_runtime_threads.c
   source/acr_runtime_verify.c
   source/cloog_runtime.c
-  source/isl_runtime.c
   source/osl_runtime.c)
 
 list(APPEND ACR_LIBRARY_C_FILES
