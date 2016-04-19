@@ -112,7 +112,7 @@ set_property(TARGET dl PROPERTY INTERFACE_INCLUDE_DIRECTORIES
 set_property(TARGET dl PROPERTY INTERFACE_LINK_LIBRARIES
   ${DL_LIBRARIES})
 
-#find_package(OpenMP QUIET)
+find_package(OpenMP QUIET)
 if(OPENMP_FOUND)
   message(STATUS "Found OpenMP")
 else()
@@ -194,6 +194,10 @@ endif()
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr_runtime_build.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/acr/acr_runtime_build.h"
+  IMMEDIATE @ONLY)
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/acr/compiler_name.h.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/acr/compiler_name.h"
   IMMEDIATE @ONLY)
 
 list(APPEND ACR_RUNTIME_LIBRARY_C_FILES

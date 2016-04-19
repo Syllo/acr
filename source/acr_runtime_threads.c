@@ -149,7 +149,6 @@ void* acr_runtime_compile_thread(void* in_data) {
   struct acr_runtime_threads_compile_data * input_data =
     (struct acr_runtime_threads_compile_data *) in_data;
 
-
   char* generated_code;
   size_t size_code;
 
@@ -161,7 +160,6 @@ void* acr_runtime_compile_thread(void* in_data) {
       input_data->monitor_result);
   fprintf(new_code, "}\n");
   fclose(new_code);
-  fprintf(stderr, "%s\n", generated_code);
 
 #ifdef TCC_PRESENT
   input_data->functions->value[input_data->where_to_add].type =
@@ -173,10 +171,10 @@ void* acr_runtime_compile_thread(void* in_data) {
         compiler_specific.tcc.state, "acr_alternative_function");
   input_data->functions->value[input_data->where_to_add].function = function;
 #else
-  char** options = NULL;
-  size_t num_options = 0;
-  acr_append_necessary_compile_flags(&num_options, &options);
-  char* file = acr_compile_with_system_compiler(generated_code, options);
+  char* file =
+    acr_compile_with_system_compiler(generated_code,
+        input_data->rdata->num_compiler_flags,
+        input_data->rdata->compiler_flags);
   if(!file) {
     fprintf(stderr, "Compiler error\n");
     exit(EXIT_FAILURE);
@@ -203,6 +201,13 @@ void* acr_runtime_compile_thread(void* in_data) {
   pthread_spin_unlock(&input_data->functions->value[input_data->where_to_add].lock);
   free(in_data);
   free(generated_code);
+  if (file) {
+    if(unlink(file) == -1) {
+      perror("unlink");
+      exit(EXIT_FAILURE);
+    }
+    free(file);
+  }
 
   pthread_exit(NULL);
 }

@@ -44,6 +44,8 @@ struct acr_runtime_data {
   char* function_prototype;
   struct runtime_alternative* (*alternative_from_val)(unsigned char);
   void (*monitoring_function)(unsigned char*);
+  size_t num_compiler_flags;
+  char **compiler_flags;
 
   pthread_spinlock_t alternative_lock;
   void *alternative_function;

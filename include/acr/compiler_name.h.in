@@ -16,28 +16,9 @@
  *
  */
 
-#ifndef __ACR_RUNTIME_BUILD_H
-#define __ACR_RUNTIME_BUILD_H
+#ifndef __COMPILER_NAME_H
+#define __COMPILER_NAME_H
 
-#include <stdlib.h>
+static char acr_system_compiler_path[] = "@CMAKE_C_COMPILER@";
 
-@TCC_PRESENT@
-#ifdef TCC_PRESENT
-
-#include <libtcc.h>
-
-TCCState* acr_compile_with_tcc(
-    const char *string_to_compile);
-
-#endif
-
-char* acr_compile_with_system_compiler(
-    const char *string_to_compile,
-    size_t num_options,
-    char** options);
-
-void acr_append_necessary_compile_flags(
-    size_t *num_options,
-    char ***options);
-
-#endif // __ACR_RUNTIME_BUILD_H
+#endif // __COMPILER_NAME_H

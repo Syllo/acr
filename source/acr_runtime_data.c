@@ -19,6 +19,7 @@
 #include "acr/acr_runtime_data.h"
 #include "acr/cloog_runtime.h"
 #include "acr/osl_runtime.h"
+#include "acr/acr_runtime_build.h"
 
 #include <cloog/isl/domain.h>
 #include <isl/constraint.h>
@@ -52,6 +53,8 @@ void free_acr_runtime_data(struct acr_runtime_data* data) {
   data->osl_relation = NULL;
   pthread_spin_destroy(&data->alternative_lock);
   free(data->monitor_dim_max);
+  free(data->compiler_flags[1]);
+  free(data->compiler_flags);
 }
 
 isl_map* isl_map_from_cloog_scattering(CloogScattering *scat);
@@ -117,6 +120,60 @@ static void init_isl_tiling_domain(struct acr_runtime_data *data) {
   free(current_dimension);
 }
 
+static void init_compile_flags(struct acr_runtime_data *data) {
+
+  char *env_val = getenv("ACR_EXTRA_CFLAGS");
+  char **options = NULL;
+  size_t num_options = 0;
+  if (env_val != NULL) {
+    size_t env_lenght = strlen(env_val);
+    char* env_val_copy = malloc((env_lenght+1) * sizeof(*env_val_copy));
+    memcpy(env_val_copy, env_val, (env_lenght+1) * sizeof(char));
+
+    char *current_option_start_pos = NULL;
+
+    if (env_lenght > 0) {
+      for (size_t i = 0; i < env_lenght; ++i) {
+        if (current_option_start_pos == NULL) {
+          if (env_val_copy[i] == ':') {
+            fprintf(stderr, "Malformed ACR_EXTRA_CFLAGS, usign default one\n");
+            free(options);
+            free(env_val_copy);
+            options = NULL;
+            num_options = 0;
+            goto default_flags;
+          }
+          current_option_start_pos = &env_val_copy[i];
+        }
+        if(env_val_copy[i] == ':') {
+          num_options += 1;
+          options = realloc(options, num_options * sizeof(*options));
+          options[num_options-1] = current_option_start_pos;
+          current_option_start_pos = NULL;
+          env_val_copy[i] = '\0';
+        }
+      }
+      if (current_option_start_pos) {
+        num_options += 1;
+        options = realloc(options, num_options * sizeof(*options));
+        options[num_options-1] = current_option_start_pos;
+      }
+    } else {
+      free(env_val_copy);
+      goto default_flags;
+    }
+  } else {
+default_flags:
+    num_options = 1;
+    options = malloc(sizeof(*options));
+    options[0] = malloc(4*sizeof(char));
+    memcpy(options[0], "-O2", 4*sizeof(char));
+  }
+  acr_append_necessary_compile_flags(&num_options, &options);
+  data->compiler_flags = options;
+  data->num_compiler_flags = num_options;
+}
+
 void init_acr_runtime_data(
     struct acr_runtime_data* data,
     char *scop,
@@ -154,4 +211,5 @@ void init_acr_runtime_data(
   cloog_union_domain_free(cloog_input->ud);
   free(cloog_input);
   init_isl_tiling_domain(data);
+  init_compile_flags(data);
 }

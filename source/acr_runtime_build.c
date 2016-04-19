@@ -17,6 +17,7 @@
  */
 
 #include "acr/acr_runtime_build.h"
+#include "acr/compiler_name.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -26,40 +27,39 @@
 static const size_t acr_temporary_file_length = 29;
 static const char acr_temporary_file_prefix[] = "/tmp/acr-runtime-temp-XXXXXX";
 
-static const size_t num_additional_flags = 4;
-static const char* acr_compiler_shared_lib_flags[] = {
+static const size_t num_additional_flags = 6;
+static char* acr_compiler_shared_lib_flags[] = {
   [0] = "-fPIC",
   [1] = "-shared",
-  [2] = "-I",
-  [3] = ".",
+  [2] = "-I.",
+  [3] = "-xc",
   [4] = "-",
-};
-static const size_t acr_compiler_shared_lib_flags_size[] = {
-  [0] = 6,
-  [1] = 8,
-  [2] = 3,
-  [3] = 2,
-  [4] = 2,
+  [5] = "-o",
 };
 
 void acr_append_necessary_compile_flags(
     size_t *num_options,
     char ***options) {
-  char** new_pos = &(*options)[*num_options];
-  *num_options += num_additional_flags + 1;
+  const size_t old_size = *num_options;
+  *num_options += num_additional_flags + 3;
   *options = realloc(*options, *num_options * sizeof(**options));
-  for (size_t i = 0; i < num_additional_flags - 1; ++i) {
-    new_pos[i] =
-      malloc(acr_compiler_shared_lib_flags_size[i] * sizeof(*new_pos[i]));
-    memcpy(new_pos[i], acr_compiler_shared_lib_flags[i],
-        acr_compiler_shared_lib_flags_size[i]);
+  char** new_pos = &((*options)[old_size+1]);
+  for (size_t i = old_size; i > 0; --i) {
+    (*options)[i] = (*options)[i-1];
   }
-  new_pos[num_additional_flags - 1] = NULL;
+  (*options)[0] = acr_system_compiler_path;
+  for (size_t i = 0; i < num_additional_flags; ++i) {
+    new_pos[i] = acr_compiler_shared_lib_flags[i];
+  }
+  (*options)[*num_options-2] = NULL;
+  (*options)[*num_options-1] = NULL;
 }
 
 char* acr_compile_with_system_compiler(
     const char *string_to_compile,
+    size_t num_options,
     char** options) {
+
   char *output_filename =
     malloc(acr_temporary_file_length * sizeof(*output_filename));
   memcpy(output_filename, acr_temporary_file_prefix, acr_temporary_file_length);
@@ -68,6 +68,9 @@ char* acr_compile_with_system_compiler(
     perror("mkstemp");
     exit(EXIT_FAILURE);
   }
+
+  options[num_options-2] = output_filename;
+
   close(fd);
   int pipedescriptor[2];
   if (pipe(pipedescriptor) != 0) {
@@ -77,7 +80,7 @@ char* acr_compile_with_system_compiler(
   pid_t pid = fork();
   if (pid == 0) { // child
     close(pipedescriptor[1]);
-    if(dup2(pipedescriptor[0], STDIN_FILENO) != pipedescriptor[0]) {
+    if(dup2(pipedescriptor[0], STDIN_FILENO) == -1) {
       perror("dup2");
       exit(EXIT_FAILURE);
     }
@@ -93,6 +96,7 @@ char* acr_compile_with_system_compiler(
     exit(EXIT_FAILURE);
   }
   fprintf(pipe_to_child_stdin, "%s", string_to_compile);
+  fclose(pipe_to_child_stdin);
   int exit_status;
   pid_t waited = waitpid(pid, &exit_status, 0);
   if (waited != pid || !WIFEXITED(exit_status) ||
