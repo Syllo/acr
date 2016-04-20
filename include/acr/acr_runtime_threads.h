@@ -27,11 +27,12 @@
 #include "acr/acr_runtime_data.h"
 
 enum acr_avaliable_function_type {
-  acr_function_shared_object_lib,
+  acr_function_empty = 0,
+  acr_function_shared_object_lib = 2,
 #ifdef TCC_PRESENT
-  acr_tcc_in_memory,
+  acr_function_tcc_in_memory = 1,
+  acr_function_tcc_and_shared = 3,
 #endif
-  acr_function_empty,
 };
 
 struct acr_avaliable_functions {
@@ -39,10 +40,12 @@ struct acr_avaliable_functions {
   size_t function_in_use;
   struct {
     pthread_spinlock_t lock;
-    bool is_ready;
+#ifdef TCC_PRESENT
+    void *tcc_function;
+#endif
+    void *cc_function;
     unsigned char *monitor_result;
-    void *function;
-    union {
+    struct {
       struct {
         void *dlhandle;
       } shared_obj_lib;
@@ -69,6 +72,15 @@ struct acr_runtime_threads_data {
   pthread_mutex_t monitoring_has_finished;
   bool monitor_waiting;
 };
+
+#ifdef TCC_PRESENT
+struct acr_runtime_threads_compile_tcc {
+  char *generated_code;
+  struct acr_avaliable_functions *functions;
+  size_t where_to_add;
+  bool using_data;
+};
+#endif
 
 void* acr_runtime_monitoring_function(void* monitoring_function);
 
