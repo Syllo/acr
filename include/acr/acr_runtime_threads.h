@@ -27,17 +27,18 @@
 #include "acr/acr_runtime_data.h"
 
 enum acr_avaliable_function_type {
-  acr_function_empty = 0,
-  acr_function_shared_object_lib = 2,
+  acr_function_empty,
+  acr_function_finished_cloog_gen,
+  acr_function_started_compilation,
+  acr_function_shared_object_lib,
 #ifdef TCC_PRESENT
-  acr_function_tcc_in_memory = 1,
-  acr_function_tcc_and_shared = 3,
+  acr_function_tcc_in_memory,
+  acr_function_tcc_and_shared,
 #endif
 };
 
 struct acr_avaliable_functions {
   size_t total_functions;
-  size_t function_in_use;
   struct {
     pthread_spinlock_t lock;
 #ifdef TCC_PRESENT
@@ -45,6 +46,7 @@ struct acr_avaliable_functions {
 #endif
     void *cc_function;
     unsigned char *monitor_result;
+    char *generated_code;
     struct {
       struct {
         void *dlhandle;
@@ -59,31 +61,56 @@ struct acr_avaliable_functions {
   } *value;
 };
 
-struct acr_runtime_threads_compile_data {
-  unsigned char* monitor_result;
-  struct acr_runtime_data *rdata;
-  struct acr_avaliable_functions *functions;
-  size_t where_to_add;
+struct acr_monitoring_computation {
+  void (*monitoring_function)(unsigned char*);
+  unsigned char *current_valid_computation;
+  unsigned char *scrap_values;
+  size_t monitor_result_size;
+  pthread_spinlock_t spinlock;
+  bool end_yourself;
 };
 
-struct acr_runtime_threads_data {
-  pthread_t monitoring_thread;
-  pthread_cond_t monitoring_cond;
-  pthread_mutex_t monitoring_has_finished;
-  bool monitor_waiting;
+struct acr_runtime_threads_cloog_gencode {
+  struct acr_runtime_data *rdata;
+  unsigned char* monitor_result;
+  size_t where_to_add;
+  size_t monitor_total_size;
+  struct acr_avaliable_functions *functions;
+  pthread_mutex_t mutex;
+  pthread_cond_t waking_up;
+  bool generate_function;
+  bool end_yourself;
+};
+
+struct acr_runtime_threads_compile_data {
+  size_t num_cflags;
+  char **cflags;
+  size_t where_to_add;
+  struct acr_avaliable_functions *functions;
+  pthread_mutex_t mutex;
+  pthread_cond_t waking_up;
+  bool compile_something;
+  bool end_yourself;
 };
 
 #ifdef TCC_PRESENT
 struct acr_runtime_threads_compile_tcc {
   char *generated_code;
-  struct acr_avaliable_functions *functions;
   size_t where_to_add;
-  bool using_data;
+  struct acr_avaliable_functions *functions;
+  pthread_mutex_t mutex;
+  pthread_cond_t waking_up;
+  bool compile_something;
+  bool end_yourself;
 };
 #endif
 
-void* acr_runtime_monitoring_function(void* monitoring_function);
+void* acr_runtime_monitoring_function(void* in_data);
 
 void* acr_runtime_compile_thread(void* in_data);
+
+void* acr_cloog_generate_code_from_alt(void* in_data);
+
+void* acr_verification_and_coordinator_function(void *in_data);
 
 #endif // __ACR_RUNTIME_THREADS_H
