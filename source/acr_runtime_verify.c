@@ -25,7 +25,7 @@ bool acr_verify_me(size_t size_buffers,
   bool same = true;
 #pragma omp simd reduction(&&:same)
   for(i = 0; i < size_buffers; i++) {
-    same = same && (current[i] >= more_recent[i]);
+    same = same && (current[i] <= more_recent[i]);
   }
   return same;
 }

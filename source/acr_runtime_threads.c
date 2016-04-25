@@ -85,7 +85,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
 
   // Monitoring thread
   pthread_t monitoring_thread;
-  struct acr_monitoring_computation monitor_data=
+  struct acr_monitoring_computation monitor_data =
       { .monitoring_function = init_data->monitoring_function,
         .current_valid_computation = NULL,
         .monitor_result_size = init_data->monitor_total_size,
@@ -184,8 +184,11 @@ void* acr_verification_and_coordinator_function(void *in_data) {
       monitor_data.scrap_values = valid_monitor_result;
       valid_monitor_result = monitor_data.current_valid_computation;
       monitor_data.current_valid_computation = NULL;
+      pthread_spin_unlock(&monitor_data.spinlock);
+    } else {
+      pthread_spin_unlock(&monitor_data.spinlock);
+      continue;
     }
-    pthread_spin_unlock(&monitor_data.spinlock);
 
     // Test current function validity
     if (acr_verify_me(init_data->monitor_total_size,
@@ -209,8 +212,6 @@ void* acr_verification_and_coordinator_function(void *in_data) {
             functions.function_priority[function_in_use];
           pthread_cond_signal(&compile_threads_data.compiler_thread_sleep);
           pthread_mutex_unlock(&compile_threads_data.mutex);
-          init_data->current_monitoring_data =
-            functions.function_priority[function_in_use]->monitor_result;
           break;
         case acr_function_started_compilation: // - Waiting compilation
           break;
@@ -222,6 +223,8 @@ void* acr_verification_and_coordinator_function(void *in_data) {
           init_data->alternative_still_usable =
             init_data->usability_inital_value;
           pthread_spin_unlock(&init_data->alternative_lock);
+          init_data->current_monitoring_data =
+            functions.function_priority[function_in_use]->monitor_result;
           break;
         case acr_function_tcc_and_shared:
 #endif
@@ -232,6 +235,8 @@ void* acr_verification_and_coordinator_function(void *in_data) {
           init_data->alternative_still_usable =
             init_data->usability_inital_value;
           pthread_spin_unlock(&init_data->alternative_lock);
+          init_data->current_monitoring_data =
+            functions.function_priority[function_in_use]->monitor_result;
           break;
         case acr_function_empty: // Cloog has not finished
           break;
@@ -240,8 +245,8 @@ void* acr_verification_and_coordinator_function(void *in_data) {
       // Function no more suitable
       pthread_spin_lock(&init_data->alternative_lock);
       init_data->alternative_still_usable = 0;
-      init_data->current_monitoring_data = NULL;
       pthread_spin_unlock(&init_data->alternative_lock);
+      init_data->current_monitoring_data = NULL;
 
       // Round robin function
       function_in_use = (function_in_use + 1) % num_functions;
@@ -303,9 +308,9 @@ void* acr_verification_and_coordinator_function(void *in_data) {
                 }
                 init_data->alternative_still_usable =
                   init_data->usability_inital_value;
+                pthread_spin_unlock(&init_data->alternative_lock);
                 init_data->current_monitoring_data =
                   functions.function_priority[function_in_use]->monitor_result;
-                pthread_spin_unlock(&init_data->alternative_lock);
                 function_in_use = (function_in_use + 1) % num_functions;
                 struct func_value *temp = functions.function_priority[considered_old_function];
                 functions.function_priority[considered_old_function] =
