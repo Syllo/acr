@@ -213,3 +213,8 @@ void init_acr_runtime_data(
   init_isl_tiling_domain(data);
   init_compile_flags(data);
 }
+
+unsigned char* acr_runtime_get_runtime_data(struct acr_runtime_data* data) {
+  return data->current_monitoring_data;
+}
+

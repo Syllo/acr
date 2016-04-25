@@ -651,6 +651,9 @@ bool acr_print_node_initialization(FILE* in, FILE* out,
     const acr_compute_node node,
     size_t kernel_start, size_t kernel_end) {
 
+  char *prefix = acr_get_scop_prefix(node);
+  fprintf(out, "#define %s_acr &%s_runtime_data\n", prefix, prefix);
+
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   if (init == NULL) {
     fprintf(stderr, "Error no initialization in current node\n");

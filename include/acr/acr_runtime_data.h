@@ -47,6 +47,7 @@ struct acr_runtime_data {
   size_t num_compiler_flags;
   char **compiler_flags;
 
+  unsigned char *current_monitoring_data;
   pthread_spinlock_t alternative_lock;
   void *alternative_function;
   uint_fast8_t alternative_still_usable;
@@ -61,5 +62,7 @@ void init_acr_runtime_data(
     size_t scop_size);
 
 void free_acr_runtime_data(struct acr_runtime_data* data);
+
+unsigned char* acr_runtime_get_runtime_data(struct acr_runtime_data* data);
 
 #endif // __ACR_RUNTIME_DATA_H

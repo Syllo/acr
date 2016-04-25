@@ -20,12 +20,12 @@
 
 bool acr_verify_me(size_t size_buffers,
     const unsigned char *current,
-    const unsigned char *more_precise) {
+    const unsigned char *more_recent) {
   size_t i;
   bool same = true;
 #pragma omp simd reduction(&&:same)
   for(i = 0; i < size_buffers; i++) {
-    same = same && (current[i] >= more_precise[i]);
+    same = same && (current[i] >= more_recent[i]);
   }
   return same;
 }

@@ -130,6 +130,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   cloog_thread_data.num_threads = num_cloog_threads;
   cloog_thread_data.num_threads_compiling = num_cloog_threads;
   cloog_thread_data.rdata = init_data;
+  cloog_thread_data.monitor_total_size = init_data->monitor_total_size;
   for (size_t i = 0; i < num_cloog_threads; ++i) {
     pthread_create(&cloog_threads[i], NULL, acr_cloog_generate_code_from_alt,
         (void*)&cloog_thread_data);
@@ -208,6 +209,8 @@ void* acr_verification_and_coordinator_function(void *in_data) {
             functions.function_priority[function_in_use];
           pthread_cond_signal(&compile_threads_data.compiler_thread_sleep);
           pthread_mutex_unlock(&compile_threads_data.mutex);
+          init_data->current_monitoring_data =
+            functions.function_priority[function_in_use]->monitor_result;
           break;
         case acr_function_started_compilation: // - Waiting compilation
           break;
@@ -237,6 +240,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
       // Function no more suitable
       pthread_spin_lock(&init_data->alternative_lock);
       init_data->alternative_still_usable = 0;
+      init_data->current_monitoring_data = NULL;
       pthread_spin_unlock(&init_data->alternative_lock);
 
       // Round robin function
@@ -264,28 +268,28 @@ void* acr_verification_and_coordinator_function(void *in_data) {
       pthread_cond_signal(&cloog_thread_data.compiler_thread_sleep);
       pthread_mutex_unlock(&cloog_thread_data.mutex);
       size_t considered_old_function = function_in_use == 0 ?
-        num_functions - 2 : function_in_use - 1;
+        num_functions - 1 : function_in_use - 1;
       do {
         pthread_spin_lock(&functions.function_priority[function_in_use]->lock);
         type = functions.function_priority[function_in_use]->type;
         pthread_spin_unlock(&functions.function_priority[function_in_use]->lock);
-        if (type == acr_function_finished_cloog_gen)
+        if (type == acr_function_finished_cloog_gen) {
           break;
+        }
         else {
-          if (considered_old_function == function_in_use)
-            break;
-          unsigned char* mon_result;
+          unsigned char* monitor_result;
           pthread_spin_lock(&functions.function_priority[considered_old_function]->lock);
           type = functions.function_priority[considered_old_function]->type;
-          mon_result = functions.function_priority[considered_old_function]->monitor_result;
+          monitor_result = functions.function_priority[considered_old_function]->monitor_result;
           pthread_spin_unlock(&functions.function_priority[considered_old_function]->lock);
           switch (type) {
             case acr_function_shared_object_lib:
 #ifdef TCC_PRESENT
             case acr_function_tcc_and_shared:
 #endif
-              if (acr_verify_me(init_data->monitor_total_size, mon_result,
+              if (acr_verify_me(init_data->monitor_total_size, monitor_result,
                     valid_monitor_result)) { // Old one valid
+                fprintf(stderr, "old ok\n");
                 pthread_spin_lock(&init_data->alternative_lock);
 #ifdef TCC_PRESENT
                 if (type == acr_function_tcc_in_memory) {
@@ -297,11 +301,12 @@ void* acr_verification_and_coordinator_function(void *in_data) {
                   init_data->alternative_function =
                     functions.function_priority[considered_old_function]->cc_function;
                 }
-                fprintf(stderr, "old ok\n");
                 init_data->alternative_still_usable =
                   init_data->usability_inital_value;
-                function_in_use = (function_in_use + 1) % num_functions;
+                init_data->current_monitoring_data =
+                  functions.function_priority[function_in_use]->monitor_result;
                 pthread_spin_unlock(&init_data->alternative_lock);
+                function_in_use = (function_in_use + 1) % num_functions;
                 struct func_value *temp = functions.function_priority[considered_old_function];
                 functions.function_priority[considered_old_function] =
                   functions.function_priority[function_in_use];
@@ -316,9 +321,9 @@ void* acr_verification_and_coordinator_function(void *in_data) {
               break;
           }
         }
-        considered_old_function = function_in_use == 0 ?
+        considered_old_function = considered_old_function == 0 ?
           num_functions - 1 : considered_old_function - 1;
-      } while (1);
+      } while (considered_old_function != function_in_use);
     }
   }
 
@@ -389,8 +394,6 @@ void* acr_cloog_generate_code_from_alt(void* in_data) {
   const size_t monitor_total_size = input_data->monitor_total_size;
   struct acr_runtime_data *rdata = input_data->rdata;
 
-  fprintf(stderr, "cloog start \n");
-
   for (;;) {
     char* generated_code;
     size_t size_code;
@@ -406,7 +409,6 @@ void* acr_cloog_generate_code_from_alt(void* in_data) {
     }
     input_data->num_threads_compiling--;
     while(!input_data->generate_function && !input_data->end_yourself) {
-      fprintf(stderr, "cloog going to sleep\n");
       pthread_cond_wait(&input_data->compiler_thread_sleep, &input_data->mutex);
     }
     input_data->generate_function = false;
