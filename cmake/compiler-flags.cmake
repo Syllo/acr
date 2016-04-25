@@ -177,6 +177,11 @@ if(compiler_has_warning_conversion)
   list(APPEND COMPILER_AVALIABLE_WARNINGS
     "-Wconversion")
 endif()
+check_c_compiler_flag("-Wunused-result" compiler_has_warning_unused_result)
+if(compiler_has_warning_unused_result)
+  list(APPEND COMPILER_AVALIABLE_WARNINGS
+    "-Wunused-result")
+endif()
 #check_c_compiler_flag("-Wpadded" compiler_has_warning_padded)
 #if(compiler_has_warning_padded)
   #list(APPEND COMPILER_AVALIABLE_WARNINGS
