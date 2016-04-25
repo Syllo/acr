@@ -39,7 +39,7 @@ enum acr_avaliable_function_type {
 
 struct acr_avaliable_functions {
   size_t total_functions;
-  struct {
+  struct func_value{
     pthread_spinlock_t lock;
 #ifdef TCC_PRESENT
     void *tcc_function;
@@ -59,6 +59,7 @@ struct acr_avaliable_functions {
     } compiler_specific;
     enum acr_avaliable_function_type type;
   } *value;
+  struct func_value **function_priority;
 };
 
 struct acr_monitoring_computation {
@@ -71,24 +72,28 @@ struct acr_monitoring_computation {
 };
 
 struct acr_runtime_threads_cloog_gencode {
+  size_t num_threads;
+  size_t num_threads_compiling;
+  struct func_value *where_to_add;
   struct acr_runtime_data *rdata;
   unsigned char* monitor_result;
-  size_t where_to_add;
   size_t monitor_total_size;
-  struct acr_avaliable_functions *functions;
   pthread_mutex_t mutex;
-  pthread_cond_t waking_up;
+  pthread_cond_t compiler_thread_sleep;
+  pthread_cond_t coordinator_sleep;
   bool generate_function;
   bool end_yourself;
 };
 
 struct acr_runtime_threads_compile_data {
+  size_t num_threads;
+  size_t num_threads_compiling;
+  struct func_value *where_to_add;
   size_t num_cflags;
   char **cflags;
-  size_t where_to_add;
-  struct acr_avaliable_functions *functions;
   pthread_mutex_t mutex;
-  pthread_cond_t waking_up;
+  pthread_cond_t compiler_thread_sleep;
+  pthread_cond_t coordinator_sleep;
   bool compile_something;
   bool end_yourself;
 };
@@ -96,8 +101,7 @@ struct acr_runtime_threads_compile_data {
 #ifdef TCC_PRESENT
 struct acr_runtime_threads_compile_tcc {
   char *generated_code;
-  size_t where_to_add;
-  struct acr_avaliable_functions *functions;
+  struct func_value *where_to_add;
   pthread_mutex_t mutex;
   pthread_cond_t waking_up;
   bool compile_something;
