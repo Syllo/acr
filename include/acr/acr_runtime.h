@@ -20,7 +20,6 @@
 #define __ACR_RUNTIME_H
 
 #include <acr/acr_runtime_data.h>
-#include <acr/acr_runtime_build.h>
 #include <acr/acr_runtime_threads.h>
 #include <acr/cloog_runtime.h>
 #include <acr/osl_runtime.h>
