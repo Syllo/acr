@@ -36,6 +36,7 @@ struct runtime_alternative {
       struct {
         unsigned int parameter_id;
         intmax_t parameter_value;
+        void *function_matching_alternative;
       } parameter;
     } alt;
     char *name_to_swap;
