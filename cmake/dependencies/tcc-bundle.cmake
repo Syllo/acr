@@ -11,7 +11,7 @@ if(TCC_BUNDLED OR ALL_DEP_BUNDLED)
     "--cc=${CMAKE_C_COMPILER}"
     "--disable-static"
     "--extra-cflags=-O3 -g ${COMPILER_LTO_FLAG}"
-    "--extra-ldlags=-O3 -g ${COMPILER_LTO_FLAG}"
+    "--extra-ldflags=-O3 -g ${COMPILER_LTO_FLAG}"
     "--prefix=${DEP_INSTALL_DIR}"
     UPDATE_COMMAND ""
     BUILD_COMMAND

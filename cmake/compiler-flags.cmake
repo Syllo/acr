@@ -195,6 +195,13 @@ check_c_compiler_flag("-fsanitize=address" compiler_has_address_sanitizer)
 unset(CMAKE_REQUIRED_FLAGS)
 if(compiler_has_address_sanitizer)
   set(COMPILER_ADDRESS_SANITIZER_FLAG "-fsanitize=address")
+  # Nicer stack trace
+  check_c_compiler_flag("-fno-omit-frame-pointer"
+    compiler_has_no_omit_frame_pointer)
+  if(compiler_has_no_omit_frame_pointer)
+    set(COMPILER_ADDRESS_SANITIZER_FLAG
+      "${COMPILER_ADDRESS_SANITIZER_FLAG} -fno-omit-frame-pointer")
+  endif()
 endif()
 
 set(CMAKE_REQUIRED_FLAGS "-fsanitize=thread")
@@ -209,4 +216,9 @@ check_c_compiler_flag("-flto" compiler_has_lto)
 unset(CMAKE_REQUIRED_FLAGS)
 if(compiler_has_lto)
   set(COMPILER_LTO_FLAG "-flto")
+endif()
+
+check_c_compiler_flag("-march=native" compiler_has_march_native)
+if(compiler_has_march_native)
+  set(COMPILER_MARCH_NATIVE "-march=native")
 endif()
