@@ -1,0 +1,53 @@
+/*
+ * Copyright (C) 2016 Maxime Schmitt
+ *
+ * ACR is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#if @ACR_STAT@ // Build option ACR_STAT
+#ifndef __ACR_STATS_H
+#define __ACR_STATS_H
+
+#define ACR_STATS_ENABLED
+
+#include <stdlib.h>
+#include <stdio.h>
+#include "acr/acr_time.h"
+
+enum acr_thread_time_id {
+  acr_thread_time_monitor = 0,
+  acr_thread_time_cloog = 1,
+  acr_thread_time_cc = 2,
+  acr_thread_time_tcc = 3,
+  acr_thread_time_total = 4,
+};
+
+struct acr_threads_time_stats {
+  size_t num_mesurements[acr_thread_time_total];
+  double total_time[acr_thread_time_total];
+};
+
+struct acr_simulation_time_stats {
+  size_t num_simmulation_step;
+  double total_time;
+};
+
+void acr_print_stats(
+    FILE *out,
+    struct acr_simulation_time_stats *sim_stats,
+    struct acr_threads_time_stats *thread_stats);
+
+#endif // __ACR_STATS_H
+#endif // Build option ACR_STAT

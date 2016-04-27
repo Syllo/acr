@@ -22,6 +22,7 @@
 #include <acr/acr_runtime_data.h>
 #include <acr/acr_runtime_threads.h>
 #include <acr/cloog_runtime.h>
+#include <acr/acr_stats.h>
 #include <acr/osl_runtime.h>
 
 typedef unsigned char acr_monitored_data;

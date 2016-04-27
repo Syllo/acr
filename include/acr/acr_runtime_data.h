@@ -24,6 +24,7 @@
 #include <cloog/cloog.h>
 #include <isl/map.h>
 #include <pthread.h>
+#include "acr/acr_stats.h"
 
 struct acr_runtime_data {
   CloogState* state;
@@ -54,6 +55,10 @@ struct acr_runtime_data {
   uint_fast8_t usability_inital_value;
   pthread_t monitor_thread;
   bool monitor_thread_continue;
+#ifdef ACR_STATS_ENABLED
+  struct acr_threads_time_stats thread_stats;
+  struct acr_simulation_time_stats sim_stats;
+#endif
 };
 
 void init_acr_runtime_data(

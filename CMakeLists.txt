@@ -188,7 +188,9 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr.h.in"
   IMMEDIATE @ONLY)
 
 if(TCC_FOUND OR TARGET tcc_external)
-  set(TCC_PRESENT "#define TCC_PRESENT")
+  set(ACR_TCC "1")
+else()
+  set(ACR_TCC "0")
 endif()
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr_runtime_build.h.in"
@@ -198,12 +200,18 @@ configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/include/acr/compiler_name.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/acr/compiler_name.h"
   IMMEDIATE @ONLY)
+set(ACR_STAT "1")
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/acr/acr_stats.h.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/acr/acr_stats.h"
+  IMMEDIATE @ONLY)
 
 list(APPEND ACR_RUNTIME_LIBRARY_C_FILES
   source/acr_runtime_build.c
   source/acr_runtime_data.c
   source/acr_runtime_threads.c
   source/acr_runtime_verify.c
+  source/acr_stats.c
   source/cloog_runtime.c
   source/osl_runtime.c)
 

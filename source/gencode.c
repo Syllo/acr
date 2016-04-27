@@ -335,8 +335,6 @@ static void cloog_print_function_for_all_alternative_parameters(FILE *out,
     const char *prefix,
     size_t num_alternatives,
     const acr_option_list alternative_list,
-    size_t num_strategies,
-    const acr_option_list strategy_list,
     const size_t *strategy_to_alternative_index,
     const acr_compute_node node,
     const osl_scop_p scop) {
@@ -355,11 +353,9 @@ static void cloog_print_function_for_all_alternative_parameters(FILE *out,
     acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   osl_strings_p parameters =
     osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
-  size_t num_parameters = osl_strings_size(parameters);
 
   size_t num_function = 0;
-  for (size_t i = 0; i < num_strategies; ++i) {
-    acr_option strategy = acr_option_list_get_option(i, strategy_list);
+  for (size_t i = 0; i < num_alternatives; ++i) {
     acr_option alternative = acr_option_list_get_option(
         strategy_to_alternative_index[i], alternative_list);
     if (acr_alternative_get_type(alternative) == acr_alternative_parameter) {
@@ -377,7 +373,8 @@ static void cloog_print_function_for_all_alternative_parameters(FILE *out,
         isl_constraint_alloc_equality(
             isl_local_space_from_space(isl_set_get_space(context)));
       constraint = isl_constraint_set_constant_val(constraint, val);
-      constraint = isl_constraint_set_coefficient_si(constraint, isl_dim_param, parameter_position, -1);
+      constraint = isl_constraint_set_coefficient_si(constraint, isl_dim_param,
+          (int)parameter_position, -1);
       context = isl_set_add_constraint(context, constraint);
       cloog_input->context = cloog_domain_from_isl_set(context);
 
@@ -445,7 +442,6 @@ static bool acr_print_acr_alternative_and_strategy_init(FILE* out,
   cloog_print_function_for_all_alternative_parameters(
       out, prefix,
       num_alternatives, alternative_list,
-      num_strategy, strategy_list,
       strategy_to_alternative_index, node, scop);
 
   acr_print_acr_alternatives(out,
@@ -762,9 +758,22 @@ bool acr_print_node_initialization(FILE* in, FILE* out,
 
 void acr_print_node_init_function_call(FILE* out,
     const acr_compute_node node) {
+  char* prefix = acr_get_scop_prefix(node);
+  fprintf(out,
+      "#ifdef ACR_STATS_ENABLED\n"
+      "  acr_time t0;\n"
+      "  acr_get_current_time(&t0);\n"
+      "#endif\n");
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   acr_print_init_function_call(out, init);
-  char* prefix = acr_get_scop_prefix(node);
+  fprintf(out,
+      "#ifdef ACR_STATS_ENABLED\n"
+      "  acr_time t1;\n"
+      "  acr_get_current_time(&t1);\n"
+      "  %s_runtime_data.sim_stats.total_time += acr_difftime(t0, t1);\n"
+      "  %s_runtime_data.sim_stats.num_simmulation_step += 1;\n"
+      "#endif\n",
+      prefix, prefix);
   fprintf(out,
       "  pthread_spin_lock(&%s_runtime_data.alternative_lock);\n"
       "  if(%s_runtime_data.alternative_still_usable) {\n"
@@ -849,9 +858,14 @@ static void acr_print_scop_in_file(FILE* output,
 }
 
 static void acr_print_destroy(FILE* output, const acr_compute_node node) {
-  acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
-  fprintf(output, "  free_acr_runtime_data(&%s_runtime_data);\n",
-      acr_init_get_function_name(init));
+  const char* prefix = acr_get_scop_prefix(node);
+  fprintf(output,
+      "  free_acr_runtime_data(&%s_runtime_data);\n"
+      "#ifdef ACR_STATS_ENABLED\n"
+      "  acr_print_stats(stdout, &%s_runtime_data.sim_stats,\n"
+      "    &%s_runtime_data.thread_stats);\n"
+      "#endif\n",
+     prefix, prefix, prefix);
 }
 
 static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,

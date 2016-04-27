@@ -19,16 +19,6 @@
 #ifndef __ACR_RUNTIME_THREADS_H
 #define __ACR_RUNTIME_THREADS_H
 
-#include <stdbool.h>
-#include <stdlib.h>
-#include <pthread.h>
-
-void* acr_runtime_monitoring_function(void* in_data);
-
-void* acr_runtime_compile_thread(void* in_data);
-
-void* acr_cloog_generate_code_from_alt(void* in_data);
-
 void* acr_verification_and_coordinator_function(void *in_data);
 
 #endif // __ACR_RUNTIME_THREADS_H

@@ -26,7 +26,14 @@
 #include "acr/acr_runtime_build.h"
 #include "acr/acr_runtime_data.h"
 #include "acr/acr_runtime_verify.h"
+#include "acr/acr_stats.h"
 #include "acr/cloog_runtime.h"
+
+static void* acr_runtime_monitoring_function(void* in_data);
+
+static void* acr_runtime_compile_thread(void* in_data);
+
+static void* acr_cloog_generate_code_from_alt(void* in_data);
 
 enum acr_avaliable_function_type {
   acr_function_empty,
@@ -69,6 +76,10 @@ struct acr_monitoring_computation {
   unsigned char *current_valid_computation;
   unsigned char *scrap_values;
   size_t monitor_result_size;
+#ifdef ACR_STATS_ENABLED
+  size_t num_mesurement;
+  double total_time;
+#endif
   pthread_spinlock_t spinlock;
   bool end_yourself;
 };
@@ -80,6 +91,10 @@ struct acr_runtime_threads_cloog_gencode {
   struct acr_runtime_data *rdata;
   unsigned char* monitor_result;
   size_t monitor_total_size;
+#ifdef ACR_STATS_ENABLED
+  size_t num_mesurement;
+  double total_time;
+#endif
   pthread_mutex_t mutex;
   pthread_cond_t compiler_thread_sleep;
   pthread_cond_t coordinator_sleep;
@@ -93,6 +108,12 @@ struct acr_runtime_threads_compile_data {
   struct func_value *where_to_add;
   size_t num_cflags;
   char **cflags;
+#ifdef ACR_STATS_ENABLED
+  size_t num_mesurement;
+  double total_time;
+  size_t num_tcc_mesurement;
+  double total_tcc_time;
+#endif
   pthread_mutex_t mutex;
   pthread_cond_t compiler_thread_sleep;
   pthread_cond_t coordinator_sleep;
@@ -104,6 +125,10 @@ struct acr_runtime_threads_compile_data {
 struct acr_runtime_threads_compile_tcc {
   char *generated_code;
   struct func_value *where_to_add;
+#ifdef ACR_STATS_ENABLED
+  size_t num_mesurement;
+  double total_time;
+#endif
   pthread_mutex_t mutex;
   pthread_cond_t waking_up;
   bool compile_something;
@@ -111,9 +136,14 @@ struct acr_runtime_threads_compile_tcc {
 };
 #endif
 
-void* acr_runtime_monitoring_function(void *in_data) {
+static void* acr_runtime_monitoring_function(void *in_data) {
   struct acr_monitoring_computation *input_data =
     (struct acr_monitoring_computation*) in_data;
+
+#ifdef ACR_STATS_ENABLED
+  double total_time = 0.;
+  size_t num_mesurement = 0;
+#endif
 
   unsigned char *monitor_result =
     malloc(input_data->monitor_result_size * sizeof(*monitor_result));
@@ -121,8 +151,19 @@ void* acr_runtime_monitoring_function(void *in_data) {
   void (*const monitoring_function)(unsigned char*) =
     input_data->monitoring_function;
 
-  for(;!input_data->end_yourself;) {
+  bool end_myself;
+  while(1) {
+#ifdef ACR_STATS_ENABLED
+    acr_time tstart;
+    acr_get_current_time(&tstart);
+#endif
     monitoring_function(monitor_result);
+#ifdef ACR_STATS_ENABLED
+    acr_time tend;
+    acr_get_current_time(&tend);
+    total_time += acr_difftime(tstart, tend);
+    num_mesurement += 1;
+#endif
     pthread_spin_lock(&input_data->spinlock);
     if (input_data->current_valid_computation == NULL) {
       input_data->current_valid_computation = monitor_result;
@@ -132,7 +173,10 @@ void* acr_runtime_monitoring_function(void *in_data) {
       input_data->current_valid_computation = monitor_result;
       monitor_result = input_data->scrap_values;
     }
+    end_myself = input_data->end_yourself;
     pthread_spin_unlock(&input_data->spinlock);
+    if (end_myself)
+      break;
   }
 
   free(monitor_result);
@@ -142,6 +186,11 @@ void* acr_runtime_monitoring_function(void *in_data) {
     free(input_data->scrap_values);
   }
 
+#ifdef ACR_STATS_ENABLED
+  input_data->total_time = total_time;
+  input_data->num_mesurement = num_mesurement;
+#endif
+
   pthread_exit(NULL);
 }
 
@@ -149,9 +198,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   struct acr_runtime_data *init_data =
     (struct acr_runtime_data*) in_data;
 
-  fprintf(stderr, "Coordinator start\n");
   const size_t num_functions = 10;
-
   struct acr_avaliable_functions functions = {
     .total_functions = num_functions,
   };
@@ -173,12 +220,16 @@ void* acr_verification_and_coordinator_function(void *in_data) {
 
   // Monitoring thread
   pthread_t monitoring_thread;
-  struct acr_monitoring_computation monitor_data =
-      { .monitoring_function = init_data->monitoring_function,
-        .current_valid_computation = NULL,
-        .monitor_result_size = init_data->monitor_total_size,
-        .end_yourself = false,
-      };
+  struct acr_monitoring_computation monitor_data = {
+    .monitoring_function = init_data->monitoring_function,
+    .current_valid_computation = NULL,
+    .monitor_result_size = init_data->monitor_total_size,
+    .end_yourself = false,
+#ifdef ACR_STATS_ENABLED
+    .num_mesurement = 0,
+    .total_time = 0.,
+#endif
+  };
   pthread_spin_init(&monitor_data.spinlock, PTHREAD_PROCESS_PRIVATE);
   monitor_data.scrap_values =
     malloc(init_data->monitor_total_size * sizeof(*monitor_data.scrap_values));
@@ -187,19 +238,26 @@ void* acr_verification_and_coordinator_function(void *in_data) {
 
   // Compile threads
   const size_t num_compilation_threads = 4;
-  struct acr_runtime_threads_compile_data compile_threads_data;
+  struct acr_runtime_threads_compile_data compile_threads_data = {
+    .cflags = init_data->compiler_flags,
+    .num_cflags = init_data->num_compiler_flags,
+    .end_yourself = false,
+    .compile_something = false,
+    .num_threads = num_compilation_threads,
+    .num_threads_compiling = num_compilation_threads,
+#ifdef ACR_STATS_ENABLED
+    .num_mesurement = 0,
+    .total_time = 0.,
+    .num_tcc_mesurement = 0,
+    .total_tcc_time = 0.,
+#endif
+  };
 
   pthread_t *compile_threads =
     malloc(num_compilation_threads * sizeof(*compile_threads));
   pthread_mutex_init(&compile_threads_data.mutex, NULL);
   pthread_cond_init(&compile_threads_data.compiler_thread_sleep, NULL);
   pthread_cond_init(&compile_threads_data.coordinator_sleep, NULL);
-  compile_threads_data.cflags = init_data->compiler_flags;
-  compile_threads_data.num_cflags = init_data->num_compiler_flags;
-  compile_threads_data.end_yourself = false;
-  compile_threads_data.compile_something = false;
-  compile_threads_data.num_threads = num_compilation_threads;
-  compile_threads_data.num_threads_compiling = num_compilation_threads;
   for (size_t i = 0; i < num_compilation_threads; ++i) {
     pthread_create(&compile_threads[i], NULL,
         acr_runtime_compile_thread, (void*)&compile_threads_data);
@@ -209,16 +267,21 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   const size_t num_cloog_threads = 1;
   pthread_t *cloog_threads =
     malloc(num_cloog_threads * sizeof(*compile_threads));
-  struct acr_runtime_threads_cloog_gencode cloog_thread_data;
+  struct acr_runtime_threads_cloog_gencode cloog_thread_data = {
+    .end_yourself = false,
+    .generate_function = false,
+    .num_threads = num_cloog_threads,
+    .num_threads_compiling = num_cloog_threads,
+    .rdata = init_data,
+    .monitor_total_size = init_data->monitor_total_size,
+#ifdef ACR_STATS_ENABLED
+    .num_mesurement = 0,
+    .total_time = 0.,
+#endif
+  };
   pthread_mutex_init(&cloog_thread_data.mutex, NULL);
   pthread_cond_init(&cloog_thread_data.coordinator_sleep, NULL);
   pthread_cond_init(&cloog_thread_data.compiler_thread_sleep, NULL);
-  cloog_thread_data.end_yourself = false;
-  cloog_thread_data.generate_function = false;
-  cloog_thread_data.num_threads = num_cloog_threads;
-  cloog_thread_data.num_threads_compiling = num_cloog_threads;
-  cloog_thread_data.rdata = init_data;
-  cloog_thread_data.monitor_total_size = init_data->monitor_total_size;
   for (size_t i = 0; i < num_cloog_threads; ++i) {
     pthread_create(&cloog_threads[i], NULL, acr_cloog_generate_code_from_alt,
         (void*)&cloog_thread_data);
@@ -420,18 +483,11 @@ void* acr_verification_and_coordinator_function(void *in_data) {
     }
   }
 
-  // Wait for compile thread to finish
+  // Quit compile threads
   pthread_mutex_lock(&compile_threads_data.mutex);
   compile_threads_data.end_yourself = true;
   pthread_mutex_unlock(&compile_threads_data.mutex);
   pthread_cond_broadcast(&compile_threads_data.compiler_thread_sleep);
-
-  pthread_mutex_lock(&cloog_thread_data.mutex);
-  cloog_thread_data.end_yourself = true;
-  pthread_mutex_unlock(&cloog_thread_data.mutex);
-  pthread_cond_broadcast(&cloog_thread_data.compiler_thread_sleep);
-  monitor_data.end_yourself = true;
-
   for (size_t i = 0; i < num_compilation_threads; ++i) {
     pthread_join(compile_threads[i], NULL);
   }
@@ -440,12 +496,20 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   pthread_cond_destroy(&compile_threads_data.coordinator_sleep);
   free(compile_threads);
 
+  // Quit cloog threads
+  pthread_mutex_lock(&cloog_thread_data.mutex);
+  cloog_thread_data.end_yourself = true;
+  pthread_mutex_unlock(&cloog_thread_data.mutex);
+  pthread_cond_broadcast(&cloog_thread_data.compiler_thread_sleep);
   for (size_t i = 0; i < num_cloog_threads; ++i) {
     pthread_join(cloog_threads[i], NULL);
   }
   pthread_mutex_destroy(&cloog_thread_data.mutex);
   pthread_cond_destroy(&cloog_thread_data.compiler_thread_sleep);
   pthread_cond_destroy(&cloog_thread_data.coordinator_sleep);
+
+  // Quit monitoring thread
+  monitor_data.end_yourself = true;
   pthread_join(monitoring_thread, NULL);
   pthread_spin_destroy(&monitor_data.spinlock);
   free(cloog_threads);
@@ -474,15 +538,40 @@ void* acr_verification_and_coordinator_function(void *in_data) {
         break;
     }
   }
+
+#ifdef ACR_STATS_ENABLED
+    init_data->thread_stats.num_mesurements[acr_thread_time_cloog] =
+      cloog_thread_data.num_mesurement;
+    init_data->thread_stats.total_time[acr_thread_time_cloog] =
+      cloog_thread_data.total_time;
+    init_data->thread_stats.num_mesurements[acr_thread_time_monitor] =
+      monitor_data.num_mesurement;
+    init_data->thread_stats.total_time[acr_thread_time_monitor] =
+      monitor_data.total_time;
+    init_data->thread_stats.num_mesurements[acr_thread_time_cc] =
+      compile_threads_data.num_mesurement;
+    init_data->thread_stats.total_time[acr_thread_time_cc] =
+      compile_threads_data.total_time;
+    init_data->thread_stats.num_mesurements[acr_thread_time_tcc] =
+      compile_threads_data.num_tcc_mesurement;
+    init_data->thread_stats.total_time[acr_thread_time_tcc] =
+      compile_threads_data.total_tcc_time;
+#endif
+
   free(functions.value);
   free(functions.function_priority);
   free(valid_monitor_result);
   pthread_exit(NULL);
 }
 
-void* acr_cloog_generate_code_from_alt(void* in_data) {
+static void* acr_cloog_generate_code_from_alt(void* in_data) {
   struct acr_runtime_threads_cloog_gencode * input_data =
     (struct acr_runtime_threads_cloog_gencode *) in_data;
+
+#ifdef ACR_STATS_ENABLED
+  double total_time = 0.;
+  size_t num_mesurement = 0;
+#endif
 
   const size_t monitor_total_size = input_data->monitor_total_size;
   struct acr_runtime_data *rdata = input_data->rdata;
@@ -515,6 +604,11 @@ void* acr_cloog_generate_code_from_alt(void* in_data) {
     if (has_to_stop)
       break;
 
+#ifdef ACR_STATS_ENABLED
+    acr_time tstart;
+    acr_get_current_time(&tstart);
+#endif
+
     FILE* new_code = open_memstream(&generated_code, &size_code);
     fprintf(new_code, //"#include \"acr_required_definitions.h\"\n"
         "void acr_alternative_function%s {\n",
@@ -532,7 +626,22 @@ void* acr_cloog_generate_code_from_alt(void* in_data) {
     where_to_add->generated_code =
       generated_code;
     pthread_spin_unlock(&where_to_add->lock);
+
+#ifdef ACR_STATS_ENABLED
+    acr_time tend;
+    acr_get_current_time(&tend);
+    total_time += acr_difftime(tstart, tend);
+    num_mesurement += 1;
+#endif
   }
+
+#ifdef ACR_STATS_ENABLED
+  pthread_mutex_lock(&input_data->mutex);
+  input_data->total_time += total_time;
+  input_data->num_mesurement += num_mesurement;
+  pthread_mutex_unlock(&input_data->mutex);
+#endif
+
   pthread_exit(NULL);
 }
 
@@ -540,6 +649,11 @@ void* acr_cloog_generate_code_from_alt(void* in_data) {
 static void* acr_runtime_compile_tcc(void* in_data) {
   struct acr_runtime_threads_compile_tcc *input_data =
     (struct acr_runtime_threads_compile_tcc *) in_data;
+
+#ifdef ACR_STATS_ENABLED
+  double total_time = 0.;
+  size_t num_mesurement = 0;
+#endif
 
   struct func_value *where_to_add;
 
@@ -559,6 +673,11 @@ static void* acr_runtime_compile_tcc(void* in_data) {
     if (has_to_stop)
       break;
 
+#ifdef ACR_STATS_ENABLED
+    acr_time tstart;
+    acr_get_current_time(&tstart);
+#endif
+
     TCCState *tccstate =
       acr_compile_with_tcc(input_data->generated_code);
     void *function =
@@ -576,14 +695,32 @@ static void* acr_runtime_compile_tcc(void* in_data) {
       acr_function_tcc_in_memory;
 
     pthread_spin_unlock(&where_to_add->lock);
+
+#ifdef ACR_STATS_ENABLED
+    acr_time tend;
+    acr_get_current_time(&tend);
+    total_time += acr_difftime(tstart, tend);
+    num_mesurement += 1;
+#endif
   }
+
+#ifdef ACR_STATS_ENABLED
+  input_data->total_time = total_time;
+  input_data->num_mesurement = num_mesurement;
+#endif
+
   pthread_exit(NULL);
 }
 #endif
 
-void* acr_runtime_compile_thread(void* in_data) {
+static void* acr_runtime_compile_thread(void* in_data) {
   struct acr_runtime_threads_compile_data * input_data =
     (struct acr_runtime_threads_compile_data *) in_data;
+
+#ifdef ACR_STATS_ENABLED
+  double total_time = 0.;
+  size_t num_mesurement = 0;
+#endif
 
   char* file;
   struct func_value *where_to_add;
@@ -620,6 +757,11 @@ void* acr_runtime_compile_thread(void* in_data) {
 
     if (has_to_stop)
       break;
+
+#ifdef ACR_STATS_ENABLED
+    acr_time tstart;
+    acr_get_current_time(&tstart);
+#endif
 
     code_to_compile = where_to_add->generated_code;
 
@@ -670,7 +812,15 @@ void* acr_runtime_compile_thread(void* in_data) {
       exit(EXIT_FAILURE);
     }
     free(file);
+
+#ifdef ACR_STATS_ENABLED
+    acr_time tend;
+    acr_get_current_time(&tend);
+    total_time += acr_difftime(tstart, tend);
+    num_mesurement += 1;
+#endif
   }
+
 #ifdef TCC_PRESENT
   pthread_mutex_lock(&tcc_data.mutex);
   tcc_data.end_yourself = true;
@@ -679,6 +829,17 @@ void* acr_runtime_compile_thread(void* in_data) {
   pthread_join(tcc_thread, NULL);
   pthread_mutex_destroy(&tcc_data.mutex);
   pthread_cond_destroy(&tcc_data.waking_up);
+#endif
+
+#ifdef ACR_STATS_ENABLED
+  pthread_mutex_lock(&input_data->mutex);
+  input_data->total_time += total_time;
+  input_data->num_mesurement += num_mesurement;
+#ifdef TCC_PRESENT
+  input_data->total_tcc_time += tcc_data.total_time;
+  input_data->num_tcc_mesurement += tcc_data.num_mesurement;
+#endif
+  pthread_mutex_unlock(&input_data->mutex);
 #endif
 
   pthread_exit(NULL);

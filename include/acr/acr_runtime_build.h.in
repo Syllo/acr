@@ -21,18 +21,14 @@
 
 #include <stdlib.h>
 
-@TCC_PRESENT@
-#ifdef TCC_PRESENT
+#if @ACR_TCC@ // Build option ACR_TCC
 
+#define TCC_PRESENT
 #include <libtcc.h>
-
-#define TCC_ONLY(a) a
 
 TCCState* acr_compile_with_tcc(
     const char *string_to_compile);
 
-#else
-#define TCC_ONLY(a)
 #endif
 
 char* acr_compile_with_system_compiler(
