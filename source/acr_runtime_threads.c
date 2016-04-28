@@ -37,6 +37,7 @@ static void* acr_cloog_generate_code_from_alt(void* in_data);
 
 enum acr_avaliable_function_type {
   acr_function_empty,
+  acr_function_started_cloog_gen,
   acr_function_finished_cloog_gen,
   acr_function_started_compilation,
   acr_function_shared_object_lib,
@@ -123,7 +124,6 @@ struct acr_runtime_threads_compile_data {
 
 #ifdef TCC_PRESENT
 struct acr_runtime_threads_compile_tcc {
-  char *generated_code;
   struct func_value *where_to_add;
 #ifdef ACR_STATS_ENABLED
   size_t num_mesurement;
@@ -198,7 +198,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   struct acr_runtime_data *init_data =
     (struct acr_runtime_data*) in_data;
 
-  const size_t num_functions = 10;
+  const size_t num_functions = 2;
   struct acr_avaliable_functions functions = {
     .total_functions = num_functions,
   };
@@ -237,7 +237,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
       (void*) &monitor_data);
 
   // Compile threads
-  const size_t num_compilation_threads = 4;
+  const size_t num_compilation_threads = num_functions;
   struct acr_runtime_threads_compile_data compile_threads_data = {
     .cflags = init_data->compiler_flags,
     .num_cflags = init_data->num_compiler_flags,
@@ -264,7 +264,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   }
 
   // Cloog thread
-  const size_t num_cloog_threads = 1;
+  const size_t num_cloog_threads = 1; // We need to fix that
   pthread_t *cloog_threads =
     malloc(num_cloog_threads * sizeof(*compile_threads));
   struct acr_runtime_threads_cloog_gencode cloog_thread_data = {
@@ -389,7 +389,11 @@ void* acr_verification_and_coordinator_function(void *in_data) {
           init_data->current_monitoring_data =
             functions.function_priority[function_in_use]->monitor_result;
           break;
+        case acr_function_started_cloog_gen: // Cloog has not finished
+          break;
         case acr_function_empty: // Cloog has not finished
+          fprintf(stderr, "Empty function in test\n");
+          exit(1);
           break;
       }
     } else {
@@ -421,8 +425,8 @@ void* acr_verification_and_coordinator_function(void *in_data) {
         functions.function_priority[function_in_use];
       cloog_thread_data.monitor_result = valid_monitor_result;
       cloog_thread_data.generate_function = true;
-      pthread_cond_signal(&cloog_thread_data.compiler_thread_sleep);
       pthread_mutex_unlock(&cloog_thread_data.mutex);
+      pthread_cond_signal(&cloog_thread_data.compiler_thread_sleep);
       size_t considered_old_function = function_in_use == 0 ?
         num_functions - 1 : function_in_use - 1;
       do {
@@ -439,10 +443,11 @@ void* acr_verification_and_coordinator_function(void *in_data) {
           monitor_result = functions.function_priority[considered_old_function]->monitor_result;
           pthread_spin_unlock(&functions.function_priority[considered_old_function]->lock);
           switch (type) {
-            case acr_function_shared_object_lib:
 #ifdef TCC_PRESENT
+            case acr_function_tcc_in_memory:
             case acr_function_tcc_and_shared:
 #endif
+            case acr_function_shared_object_lib:
               if (acr_verify_me(init_data->monitor_total_size, monitor_result,
                     valid_monitor_result)) { // Old one valid
                 fprintf(stderr, "old ok\n");
@@ -469,10 +474,6 @@ void* acr_verification_and_coordinator_function(void *in_data) {
                 functions.function_priority[function_in_use] = temp;
               }
               break;
-#ifdef TCC_PRESENT
-            case acr_function_tcc_in_memory:
-              break;
-#endif
             default:
               break;
           }
@@ -519,21 +520,20 @@ void* acr_verification_and_coordinator_function(void *in_data) {
     free(functions.value[i].monitor_result);
     pthread_spin_destroy(&functions.value[i].lock);
     switch(functions.value[i].type) {
+#ifdef TCC_PRESENT
+      case acr_function_tcc_in_memory:
+        tcc_delete(functions.value[i].compiler_specific.tcc.state);
+        break;
+      case acr_function_tcc_and_shared:
+        tcc_delete(functions.value[i].compiler_specific.tcc.state);
+#endif
       case acr_function_shared_object_lib:
         dlclose(functions.value[i].
             compiler_specific.shared_obj_lib.dlhandle);
         break;
-#ifdef TCC_PRESENT
-      case acr_function_tcc_in_memory:
-        break;
-      case acr_function_tcc_and_shared:
-        dlclose(functions.value[i].
-            compiler_specific.shared_obj_lib.dlhandle);
-        tcc_delete(functions.value[i].compiler_specific.tcc.state);
-        break;
-#endif
       case acr_function_finished_cloog_gen:
       case acr_function_started_compilation:
+      case acr_function_started_cloog_gen:
       case acr_function_empty:
         break;
     }
@@ -668,6 +668,7 @@ static void* acr_runtime_compile_tcc(void* in_data) {
     }
     has_to_stop = input_data->end_yourself;
     where_to_add = input_data->where_to_add;
+    input_data->compile_something = true;
     pthread_mutex_unlock(&input_data->mutex);
 
     if (has_to_stop)
@@ -679,7 +680,7 @@ static void* acr_runtime_compile_tcc(void* in_data) {
 #endif
 
     TCCState *tccstate =
-      acr_compile_with_tcc(input_data->generated_code);
+      acr_compile_with_tcc(where_to_add->generated_code);
     void *function =
       tcc_get_symbol(tccstate, "acr_alternative_function");
 
@@ -691,8 +692,6 @@ static void* acr_runtime_compile_tcc(void* in_data) {
     where_to_add->type =
      where_to_add->type == acr_function_shared_object_lib ?
      acr_function_tcc_and_shared : acr_function_tcc_in_memory;
-    where_to_add->type +=
-      acr_function_tcc_in_memory;
 
     pthread_spin_unlock(&where_to_add->lock);
 
@@ -736,7 +735,6 @@ static void* acr_runtime_compile_thread(void* in_data) {
 #endif
 
   for (;;) {
-    char *code_to_compile;
     bool has_to_stop;
 
     pthread_mutex_lock(&input_data->mutex);
@@ -763,12 +761,9 @@ static void* acr_runtime_compile_thread(void* in_data) {
     acr_get_current_time(&tstart);
 #endif
 
-    code_to_compile = where_to_add->generated_code;
-
 #ifdef TCC_PRESENT
-    tcc_data.generated_code = code_to_compile;
-    tcc_data.where_to_add = where_to_add;
     pthread_mutex_lock(&tcc_data.mutex);
+    tcc_data.where_to_add = where_to_add;
     while (tcc_data.compile_something == true) {
       pthread_cond_wait(&tcc_data.waking_up, &tcc_data.mutex);
     }
@@ -777,7 +772,7 @@ static void* acr_runtime_compile_thread(void* in_data) {
     pthread_mutex_unlock(&tcc_data.mutex);
 #endif
     file =
-      acr_compile_with_system_compiler(code_to_compile,
+      acr_compile_with_system_compiler(where_to_add->generated_code,
           input_data->num_cflags,
           input_data->cflags);
     if(!file) {
