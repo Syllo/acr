@@ -167,6 +167,10 @@ void acr_cloog_generate_alternative_code_from_input(
 
   CloogUnionDomain *new_udomain = cloog_union_domain_alloc(0);
 
+  isl_set **temporary_alt_domain =
+    malloc(data_info->num_alternatives * sizeof(*temporary_alt_domain));
+  isl_set **alternative_domains = acr_isl_set_from_monitor(
+      data_info, data);
   for (size_t i = 0; i < data_info->num_statements; ++i) {
     CloogDomain *cloog_domain;
     CloogScattering *cloog_scatt;
@@ -177,8 +181,6 @@ void acr_cloog_generate_alternative_code_from_input(
     CloogNamedDomainList * pragma_parameter_domain = new_udomain->domain;
     isl_map *statement_map_copy = isl_map_copy(data_info->statement_maps[i]);
 
-    isl_set **alternative_domains = acr_isl_set_from_monitor(
-        data_info, data);
     isl_set *alternative_set = NULL;
     const unsigned int num_dims = data_info->dimensions_per_statements[i];
     for (size_t j = 0; j < data_info->num_alternatives; ++j) {
@@ -187,8 +189,9 @@ void acr_cloog_generate_alternative_code_from_input(
         switch (data_info->statement_dimension_types[i][k]) {
           case acr_dimension_type_bound_to_alternative:
           case acr_dimension_type_free_dim:
-            alternative_domains[j] =
-              isl_set_insert_dims(alternative_domains[j], isl_dim_set, k, 1);
+            temporary_alt_domain[j] =
+              isl_set_insert_dims(isl_set_copy(alternative_domains[j]),
+                  isl_dim_set, k, 1);
             break;
           case acr_dimension_type_bound_to_monitor:
             break;
@@ -198,7 +201,7 @@ void acr_cloog_generate_alternative_code_from_input(
       }
 
       isl_set *alternative_real_domain =
-        isl_set_intersect(alternative_domains[j],
+        isl_set_intersect(temporary_alt_domain[j],
             isl_set_copy(data_info->alternatives[j].restricted_domains[i]));
       switch (data_info->alternatives[j].type) {
         case acr_runtime_alternative_parameter:
@@ -223,8 +226,12 @@ void acr_cloog_generate_alternative_code_from_input(
     pragma_parameter_domain->scattering = cloog_scatt;
     pragma_parameter_domain->domain = cloog_domain;
 
-    free(alternative_domains);
   }
+  for (size_t j = 0; j < data_info->num_alternatives; ++j) {
+    isl_set_free(alternative_domains[j]);
+  }
+  free(alternative_domains);
+  free(temporary_alt_domain);
 
   CloogOptions *cloog_option = cloog_options_malloc(data_info->state);
   cloog_option->quiet = 1;
