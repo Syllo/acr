@@ -18,7 +18,7 @@
 
 #include <acr/cloog_runtime.h>
 
-#include <strings.h>
+#include <string.h>
 
 #include <cloog/domain.h>
 #include <cloog/isl/domain.h>

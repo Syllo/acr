@@ -18,6 +18,8 @@
 
 #include "acr/acr_runtime_verify.h"
 
+#include <string.h>
+
 bool acr_verify_me(size_t size_buffers,
     const unsigned char *current,
     const unsigned char *more_recent) {

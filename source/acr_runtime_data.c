@@ -26,6 +26,7 @@
 #include <isl/set.h>
 #include <isl/map.h>
 #include <pthread.h>
+#include <string.h>
 
 void free_acr_runtime_data(struct acr_runtime_data* data) {
   data->monitor_thread_continue = false;

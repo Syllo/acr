@@ -21,6 +21,7 @@
 #include <dlfcn.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
 
 #include "acr/acr_runtime_build.h"
@@ -314,6 +315,8 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   cloog_thread_data.where_to_add = functions.function_priority[function_in_use];
   cloog_thread_data.monitor_result = valid_monitor_result;
   cloog_thread_data.generate_function = true;
+  functions.function_priority[function_in_use]->type =
+    acr_function_started_cloog_gen;
   pthread_mutex_unlock(&cloog_thread_data.mutex);
 
   // CLooG it's your time to shine
@@ -425,6 +428,8 @@ void* acr_verification_and_coordinator_function(void *in_data) {
         functions.function_priority[function_in_use];
       cloog_thread_data.monitor_result = valid_monitor_result;
       cloog_thread_data.generate_function = true;
+      functions.function_priority[function_in_use]->type =
+        acr_function_started_cloog_gen;
       pthread_mutex_unlock(&cloog_thread_data.mutex);
       pthread_cond_signal(&cloog_thread_data.compiler_thread_sleep);
       size_t considered_old_function = function_in_use == 0 ?
