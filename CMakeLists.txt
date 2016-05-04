@@ -89,8 +89,6 @@ else()
     ${CLOOG_INCLUDE_DIRS})
   set_property(TARGET cloog PROPERTY INTERFACE_LINK_LIBRARIES
     ${CLOOG_LIBRARIES})
-  set_property(TARGET cloog PROPERTY INTERFACE_COMPILE_DEFINITIONS
-    CLOOG_INT_GMP)
 endif()
 
 find_package(TCC QUIET)
