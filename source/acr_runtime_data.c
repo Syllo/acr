@@ -21,10 +21,13 @@
 #include "acr/osl_runtime.h"
 #include "acr/acr_runtime_build.h"
 
+#include <string.h>
+
 #include <cloog/isl/domain.h>
 #include <isl/constraint.h>
 #include <isl/set.h>
 #include <isl/map.h>
+#include <isl/ast_build.h>
 #include <pthread.h>
 #include <string.h>
 

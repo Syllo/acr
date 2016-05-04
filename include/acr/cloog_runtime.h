@@ -22,6 +22,13 @@
 #include <acr/acr_runtime_data.h>
 #include <acr/runtime_alternatives.h>
 #include <isl/set.h>
+#include <isl/ast_build.h>
+
+void acr_isl_generate_alternative_code_from_input(
+    struct acr_runtime_data *data_info,
+    const unsigned char *data,
+    isl_printer **printer_to_string,
+    isl_ast_build *ast_build);
 
 void acr_cloog_generate_alternative_code_from_input(
     FILE* output,

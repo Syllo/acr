@@ -88,7 +88,7 @@ struct acr_monitoring_computation {
   bool end_yourself;
 };
 
-struct acr_runtime_threads_cloog_gencode {
+struct acr_runtime_generator_data {
   size_t num_threads;
   size_t num_threads_compiling;
   struct func_value *where_to_add;
@@ -271,7 +271,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   const size_t num_cloog_threads = 1; // We need to fix that
   pthread_t *cloog_threads =
     malloc(num_cloog_threads * sizeof(*compile_threads));
-  struct acr_runtime_threads_cloog_gencode cloog_thread_data = {
+  struct acr_runtime_generator_data cloog_thread_data = {
     .end_yourself = false,
     .generate_function = false,
     .num_threads = num_cloog_threads,
@@ -522,13 +522,17 @@ void* acr_verification_and_coordinator_function(void *in_data) {
 }
 
 static void* acr_cloog_generate_code_from_alt(void* in_data) {
-  struct acr_runtime_threads_cloog_gencode * input_data =
-    (struct acr_runtime_threads_cloog_gencode *) in_data;
+  struct acr_runtime_generator_data * input_data =
+    (struct acr_runtime_generator_data *) in_data;
 
 #ifdef ACR_STATS_ENABLED
   double total_time = 0.;
+  double isl_total = 0.;
   size_t num_mesurement = 0;
 #endif
+
+  isl_ast_build *ast_build =
+    isl_ast_build_alloc(isl_set_get_ctx(input_data->rdata->context));
 
   struct acr_runtime_data *rdata = input_data->rdata;
   FILE* stream;
@@ -559,6 +563,28 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
 
     monitor_result = where_to_add->monitor_result;
     stream = where_to_add->memstream;
+
+    acr_time islstart;
+    acr_get_current_time(&islstart);
+
+    isl_printer *prto_str =
+      isl_printer_to_file(isl_set_get_ctx(input_data->rdata->context), stream);
+
+    fseek(stream, 0l, SEEK_SET);
+    fprintf(stream, //"#include \"acr_required_definitions.h\"\n"
+        "void acr_alternative_function%s {\n",
+        rdata->function_prototype);
+    acr_isl_generate_alternative_code_from_input(rdata, monitor_result,
+        &prto_str, ast_build);
+    prto_str = isl_printer_print_str(prto_str, "}\n");
+    isl_printer_free(prto_str);
+
+    fflush(stream);
+
+    acr_time islend;
+    acr_get_current_time(&islend);
+    isl_total += acr_difftime(islstart, islend);
+
 #ifdef ACR_STATS_ENABLED
     acr_time tstart;
     acr_get_current_time(&tstart);
@@ -575,17 +601,23 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
     // Now the pointers in function structure are up to date
     fflush(stream);
 
-    pthread_spin_lock(&where_to_add->lock);
-    where_to_add->type = acr_function_finished_cloog_gen;
-    pthread_spin_unlock(&where_to_add->lock);
-
 #ifdef ACR_STATS_ENABLED
     acr_time tend;
     acr_get_current_time(&tend);
     total_time += acr_difftime(tstart, tend);
     num_mesurement += 1;
 #endif
+
+    pthread_spin_lock(&where_to_add->lock);
+    where_to_add->type = acr_function_finished_cloog_gen;
+    pthread_spin_unlock(&where_to_add->lock);
+
   }
+
+  isl_ast_build_free(ast_build);
+
+  fprintf(stderr, "ISL total: %f\n", isl_total);
+  fprintf(stderr, "ISL mean: %f\n", isl_total / (double) num_mesurement);
 
 #ifdef ACR_STATS_ENABLED
   pthread_mutex_lock(&input_data->mutex);
@@ -596,6 +628,7 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
 
   pthread_exit(NULL);
 }
+
 
 #ifdef TCC_PRESENT
 static void* acr_runtime_compile_tcc(void* in_data) {

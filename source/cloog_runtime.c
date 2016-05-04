@@ -25,6 +25,7 @@
 #include <cloog/isl/backend.h>
 
 #include <isl/map.h>
+#include <isl/ast_build.h>
 
 #include <osl/body.h>
 #include <osl/strings.h>
@@ -160,6 +161,78 @@ static isl_set** acr_isl_set_from_monitor(
   return sets;
 }
 
+void acr_isl_generate_alternative_code_from_input(
+    struct acr_runtime_data *data_info,
+    const unsigned char *data,
+    isl_printer **printer_to_string,
+    isl_ast_build *ast_build) {
+  char name[30];
+
+  isl_union_map *union_map = NULL;
+
+  isl_set **temporary_alt_domain =
+    malloc(data_info->num_alternatives * sizeof(*temporary_alt_domain));
+  isl_set **alternative_domains = acr_isl_set_from_monitor(
+      data_info, data);
+  for (size_t i = 0; i < data_info->num_statements; ++i) {
+    isl_map *statement_map_copy = isl_map_copy(data_info->statement_maps[i]);
+    isl_set *alternative_set = NULL;
+    const unsigned int num_dims = data_info->dimensions_per_statements[i];
+    for (size_t j = 0; j < data_info->num_alternatives; ++j) {
+
+      for(unsigned int k = 0; k < num_dims; ++k) {
+        switch (data_info->statement_dimension_types[i][k]) {
+          case acr_dimension_type_bound_to_alternative:
+          case acr_dimension_type_free_dim:
+            temporary_alt_domain[j] =
+              isl_set_insert_dims(isl_set_copy(alternative_domains[j]),
+                  isl_dim_set, k, 1);
+            break;
+          case acr_dimension_type_bound_to_monitor:
+            break;
+          default:
+            break;
+        }
+      }
+
+      isl_set *alternative_real_domain =
+        isl_set_intersect(temporary_alt_domain[j],
+            isl_set_copy(data_info->alternatives[j].restricted_domains[i]));
+
+      switch (data_info->alternatives[j].type) {
+        case acr_runtime_alternative_parameter:
+          if (alternative_set)
+            alternative_set = isl_set_union(alternative_set,
+                alternative_real_domain);
+          else
+            alternative_set = alternative_real_domain;
+          break;
+        case acr_runtime_alternative_function:
+          break;
+      }
+    }
+    statement_map_copy = isl_map_intersect_domain(statement_map_copy, alternative_set);
+    snprintf(name, 30, "S%zu", i);
+    isl_id *islid = isl_id_alloc(isl_map_get_ctx(statement_map_copy), name, NULL);
+    statement_map_copy = isl_map_set_tuple_id(statement_map_copy, isl_dim_in, islid);
+    if (union_map)
+      union_map = isl_union_map_add_map(union_map, statement_map_copy);
+    else
+      union_map = isl_union_map_from_map(statement_map_copy);
+  }
+  for (size_t j = 0; j < data_info->num_alternatives; ++j) {
+    isl_set_free(alternative_domains[j]);
+  }
+  free(alternative_domains);
+  free(temporary_alt_domain);
+
+  isl_ast_node *node = isl_ast_build_node_from_schedule_map(ast_build, union_map);
+  isl_ast_print_options *ast_print_option =
+    isl_ast_print_options_alloc(isl_ast_node_get_ctx(node));
+  *printer_to_string = isl_ast_node_print(node, *printer_to_string, ast_print_option);
+  isl_ast_node_free(node);
+}
+
 void acr_cloog_generate_alternative_code_from_input(
     FILE* output,
     struct acr_runtime_data *data_info,
@@ -231,7 +304,6 @@ void acr_cloog_generate_alternative_code_from_input(
     cloog_scatt = cloog_scattering_from_isl_map(statement_map_copy);
     pragma_parameter_domain->scattering = cloog_scatt;
     pragma_parameter_domain->domain = cloog_domain;
-
   }
   for (size_t j = 0; j < data_info->num_alternatives; ++j) {
     isl_set_free(alternative_domains[j]);
