@@ -57,6 +57,8 @@ struct acr_avaliable_functions {
 #endif
     void *cc_function;
     unsigned char *monitor_result;
+    FILE *memstream;
+    size_t sizeof_string;
     char *generated_code;
     struct {
       struct {
@@ -91,8 +93,6 @@ struct acr_runtime_threads_cloog_gencode {
   size_t num_threads_compiling;
   struct func_value *where_to_add;
   struct acr_runtime_data *rdata;
-  unsigned char* monitor_result;
-  size_t monitor_total_size;
 #ifdef ACR_STATS_ENABLED
   size_t num_mesurement;
   double total_time;
@@ -217,6 +217,9 @@ void* acr_verification_and_coordinator_function(void *in_data) {
       malloc(init_data->monitor_total_size *
           sizeof(*functions.value[i].monitor_result));
     functions.function_priority[i] = &functions.value[i];
+    functions.value[i].memstream =
+      open_memstream(&functions.value[i].generated_code,
+          &functions.value[i].sizeof_string);
   }
 
   // Monitoring thread
@@ -274,7 +277,6 @@ void* acr_verification_and_coordinator_function(void *in_data) {
     .num_threads = num_cloog_threads,
     .num_threads_compiling = num_cloog_threads,
     .rdata = init_data,
-    .monitor_total_size = init_data->monitor_total_size,
 #ifdef ACR_STATS_ENABLED
     .num_mesurement = 0,
     .total_time = 0.,
@@ -289,23 +291,23 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   }
 
   unsigned char *valid_monitor_result = NULL;
+  unsigned char *invalid_monitor_result =
+    malloc(init_data->monitor_total_size * sizeof(*monitor_data.scrap_values));
   size_t function_in_use = 0;
 
   // Start gencode
 
   // Wait for one valid monitor data
-  do {
+  while (valid_monitor_result == NULL) {
     pthread_spin_lock(&monitor_data.spinlock);
-    valid_monitor_result = monitor_data.current_valid_computation;
+    if (monitor_data.current_valid_computation) {
+      valid_monitor_result = monitor_data.current_valid_computation;
+      monitor_data.current_valid_computation = NULL;
+      monitor_data.scrap_values = invalid_monitor_result;
+    }
     pthread_spin_unlock(&monitor_data.spinlock);
-  } while (valid_monitor_result == NULL);
-
-  pthread_spin_lock(&monitor_data.spinlock);
-  valid_monitor_result = monitor_data.current_valid_computation;
-  monitor_data.current_valid_computation = NULL;
-  monitor_data.scrap_values =
-    malloc(init_data->monitor_total_size * sizeof(*monitor_data.scrap_values));
-  pthread_spin_unlock(&monitor_data.spinlock);
+  }
+  invalid_monitor_result = NULL;
 
   // Gen with CLooG the first valid function
   pthread_mutex_lock(&cloog_thread_data.mutex);
@@ -313,37 +315,32 @@ void* acr_verification_and_coordinator_function(void *in_data) {
     pthread_cond_wait(&cloog_thread_data.coordinator_sleep, &cloog_thread_data.mutex);
   }
   cloog_thread_data.where_to_add = functions.function_priority[function_in_use];
-  cloog_thread_data.monitor_result = valid_monitor_result;
+  invalid_monitor_result = cloog_thread_data.where_to_add->monitor_result;
+  cloog_thread_data.where_to_add->monitor_result = valid_monitor_result;
   cloog_thread_data.generate_function = true;
   functions.function_priority[function_in_use]->type =
     acr_function_started_cloog_gen;
   pthread_mutex_unlock(&cloog_thread_data.mutex);
+  valid_monitor_result = NULL;
 
   // CLooG it's your time to shine
   pthread_cond_signal(&cloog_thread_data.compiler_thread_sleep);
 
-  enum acr_avaliable_function_type type;
-  do {
-    pthread_spin_lock(&functions.function_priority[function_in_use]->lock);
-    type = functions.function_priority[function_in_use]->type;
-    pthread_spin_unlock(&functions.function_priority[function_in_use]->lock);
-  } while (type != acr_function_finished_cloog_gen);
-
-  // From now on at least one function has a valid monitor result
-
   while (init_data->monitor_thread_continue) {
-    // Get last valid monitor result
-    pthread_spin_lock(&monitor_data.spinlock);
-    if (monitor_data.current_valid_computation != NULL) { // Get most recent update
-      monitor_data.scrap_values = valid_monitor_result;
-      valid_monitor_result = monitor_data.current_valid_computation;
-      monitor_data.current_valid_computation = NULL;
-      pthread_spin_unlock(&monitor_data.spinlock);
-    } else {
-      pthread_spin_unlock(&monitor_data.spinlock);
-      continue;
-    }
 
+    // Get last valid monitor result
+    while (valid_monitor_result == NULL) {
+      pthread_spin_lock(&monitor_data.spinlock);
+      if (monitor_data.current_valid_computation) {
+        valid_monitor_result = monitor_data.current_valid_computation;
+        monitor_data.current_valid_computation = NULL;
+        monitor_data.scrap_values = invalid_monitor_result;
+      }
+      pthread_spin_unlock(&monitor_data.spinlock);
+    }
+    invalid_monitor_result = NULL;
+
+    enum acr_avaliable_function_type type;
     // Test current function validity
     if (acr_verify_me(init_data->monitor_total_size,
           functions.function_priority[function_in_use]->monitor_result,
@@ -399,8 +396,11 @@ void* acr_verification_and_coordinator_function(void *in_data) {
           exit(1);
           break;
       }
+      invalid_monitor_result = valid_monitor_result;
+      valid_monitor_result = NULL;
     } else {
       // Function no more suitable
+
       pthread_spin_lock(&init_data->alternative_lock);
       init_data->alternative_still_usable = 0;
       pthread_spin_unlock(&init_data->alternative_lock);
@@ -411,10 +411,11 @@ void* acr_verification_and_coordinator_function(void *in_data) {
 
       pthread_mutex_lock(&cloog_thread_data.mutex);
       while(cloog_thread_data.num_threads ==
-          cloog_thread_data.num_threads_compiling) { // Previous CLooG not finished
+          cloog_thread_data.num_threads_compiling) { // All CLooGs are busy
         pthread_cond_wait(&cloog_thread_data.coordinator_sleep,
             &cloog_thread_data.mutex);
       }
+
       // CLooG with last valid result
       pthread_spin_lock(&monitor_data.spinlock);
       if (monitor_data.current_valid_computation != NULL) { // Most recent data
@@ -426,66 +427,14 @@ void* acr_verification_and_coordinator_function(void *in_data) {
 
       cloog_thread_data.where_to_add =
         functions.function_priority[function_in_use];
-      cloog_thread_data.monitor_result = valid_monitor_result;
+      invalid_monitor_result = cloog_thread_data.where_to_add->monitor_result;
+      cloog_thread_data.where_to_add->monitor_result = valid_monitor_result;
       cloog_thread_data.generate_function = true;
       functions.function_priority[function_in_use]->type =
         acr_function_started_cloog_gen;
       pthread_mutex_unlock(&cloog_thread_data.mutex);
       pthread_cond_signal(&cloog_thread_data.compiler_thread_sleep);
-      size_t considered_old_function = function_in_use == 0 ?
-        num_functions - 1 : function_in_use - 1;
-      do {
-        pthread_spin_lock(&functions.function_priority[function_in_use]->lock);
-        type = functions.function_priority[function_in_use]->type;
-        pthread_spin_unlock(&functions.function_priority[function_in_use]->lock);
-        if (type == acr_function_finished_cloog_gen) {
-          break;
-        }
-        else {
-          unsigned char* monitor_result;
-          pthread_spin_lock(&functions.function_priority[considered_old_function]->lock);
-          type = functions.function_priority[considered_old_function]->type;
-          monitor_result = functions.function_priority[considered_old_function]->monitor_result;
-          pthread_spin_unlock(&functions.function_priority[considered_old_function]->lock);
-          switch (type) {
-#ifdef TCC_PRESENT
-            case acr_function_tcc_in_memory:
-            case acr_function_tcc_and_shared:
-#endif
-            case acr_function_shared_object_lib:
-              if (acr_verify_me(init_data->monitor_total_size, monitor_result,
-                    valid_monitor_result)) { // Old one valid
-                fprintf(stderr, "old ok\n");
-                pthread_spin_lock(&init_data->alternative_lock);
-#ifdef TCC_PRESENT
-                if (type == acr_function_tcc_in_memory) {
-                  init_data->alternative_function =
-                    functions.function_priority[considered_old_function]->tcc_function;
-                } else
-#endif
-                {
-                  init_data->alternative_function =
-                    functions.function_priority[considered_old_function]->cc_function;
-                }
-                init_data->alternative_still_usable =
-                  init_data->usability_inital_value;
-                pthread_spin_unlock(&init_data->alternative_lock);
-                init_data->current_monitoring_data =
-                  functions.function_priority[function_in_use]->monitor_result;
-                function_in_use = (function_in_use + 1) % num_functions;
-                struct func_value *temp = functions.function_priority[considered_old_function];
-                functions.function_priority[considered_old_function] =
-                  functions.function_priority[function_in_use];
-                functions.function_priority[function_in_use] = temp;
-              }
-              break;
-            default:
-              break;
-          }
-        }
-        considered_old_function = considered_old_function == 0 ?
-          num_functions - 1 : considered_old_function - 1;
-      } while (considered_old_function != function_in_use);
+      valid_monitor_result = NULL;
     }
   }
 
@@ -522,6 +471,8 @@ void* acr_verification_and_coordinator_function(void *in_data) {
 
   // Clean all
   for (size_t i = 0; i < functions.total_functions; ++i) {
+    fclose(functions.value[i].memstream);
+    free(functions.value[i].generated_code);
     free(functions.value[i].monitor_result);
     pthread_spin_destroy(&functions.value[i].lock);
     switch(functions.value[i].type) {
@@ -566,6 +517,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   free(functions.value);
   free(functions.function_priority);
   free(valid_monitor_result);
+  free(invalid_monitor_result);
   pthread_exit(NULL);
 }
 
@@ -578,18 +530,15 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
   size_t num_mesurement = 0;
 #endif
 
-  const size_t monitor_total_size = input_data->monitor_total_size;
   struct acr_runtime_data *rdata = input_data->rdata;
+  FILE* stream;
 
   for (;;) {
-    char* generated_code;
-    size_t size_code;
     struct func_value *where_to_add;
     unsigned char *monitor_result;
     bool has_to_stop;
 
     pthread_mutex_lock(&input_data->mutex);
-
 
     if(input_data->num_threads_compiling == input_data->num_threads) {
       pthread_cond_signal(&input_data->coordinator_sleep);
@@ -601,7 +550,6 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
     input_data->generate_function = false;
     input_data->num_threads_compiling++;
     has_to_stop = input_data->end_yourself;
-    monitor_result = input_data->monitor_result;
     where_to_add = input_data->where_to_add;
 
     pthread_mutex_unlock(&input_data->mutex);
@@ -609,27 +557,26 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
     if (has_to_stop)
       break;
 
+    monitor_result = where_to_add->monitor_result;
+    stream = where_to_add->memstream;
 #ifdef ACR_STATS_ENABLED
     acr_time tstart;
     acr_get_current_time(&tstart);
 #endif
 
-    FILE* new_code = open_memstream(&generated_code, &size_code);
-    fprintf(new_code, //"#include \"acr_required_definitions.h\"\n"
+    fseek(stream, 0l, SEEK_SET);
+    fprintf(stream, //"#include \"acr_required_definitions.h\"\n"
         "void acr_alternative_function%s {\n",
         rdata->function_prototype);
-    acr_cloog_generate_alternative_code_from_input(new_code, rdata,
+    acr_cloog_generate_alternative_code_from_input(stream, rdata,
         monitor_result);
-    fprintf(new_code, "}\n");
-    fclose(new_code);
+    fprintf(stream, "}\n");
 
-    memcpy(where_to_add->monitor_result, monitor_result,
-        monitor_total_size);
+    // Now the pointers in function structure are up to date
+    fflush(stream);
+
     pthread_spin_lock(&where_to_add->lock);
-    where_to_add->type =
-      acr_function_finished_cloog_gen;
-    where_to_add->generated_code =
-      generated_code;
+    where_to_add->type = acr_function_finished_cloog_gen;
     pthread_spin_unlock(&where_to_add->lock);
 
 #ifdef ACR_STATS_ENABLED
