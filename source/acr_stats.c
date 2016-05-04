@@ -48,27 +48,28 @@ void acr_print_stats(
   }
   total_time_spent += sim_stats->total_time;
   fprintf(out,
-      "\n############## ACR STATISTICS ##############\n"
-      "%29s: %fs\n"
-      "%29s: %fs\n"
-      "%29s: %zu\n"
-      "%29s: %fs\n"
+      "\n############ ACR STATISTICS ############\n\n"
+      "%29s: %fs\n\n"
       "%29s: %fs\n"
       "%29s: %zu\n"
-      "%29s: %fs\n"
-      "%29s: %fs\n"
-      "%29s: %zu\n"
-      "%29s: %fs\n"
+      "%29s: %fs\n\n"
       "%29s: %fs\n"
       "%29s: %zu\n"
-      "%29s: %fs\n"
+      "%29s: %fs\n\n"
       "%29s: %fs\n"
       "%29s: %zu\n"
+      "%29s: %fs\n\n"
       "%29s: %fs\n"
+      "%29s: %zu\n"
+      "%29s: %fs\n\n"
       "%29s: %fs\n"
-      "%29s: %fs\n"
-      "%29s: %fs\n"
-      "%29s: %fs\n",
+      "%29s: %zu\n"
+      "%29s: %fs\n\n"
+      "%29s: %f\n"
+      "%29s: %f\n"
+      "%29s: %f\n"
+      "%29s: %f\n"
+      "\n########################################\n\n",
       "Total time spent",
       total_time_spent,
       "Total simulation time",
