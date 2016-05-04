@@ -171,6 +171,7 @@ void acr_cloog_generate_alternative_code_from_input(
     malloc(data_info->num_alternatives * sizeof(*temporary_alt_domain));
   isl_set **alternative_domains = acr_isl_set_from_monitor(
       data_info, data);
+  CloogNamedDomainList *current_domain = NULL;
   for (size_t i = 0; i < data_info->num_statements; ++i) {
     CloogDomain *cloog_domain;
     CloogScattering *cloog_scatt;
@@ -178,7 +179,11 @@ void acr_cloog_generate_alternative_code_from_input(
     new_udomain = cloog_union_domain_add_domain(new_udomain, NULL,
         (CloogDomain*)data_info->alternatives[0].restricted_domains[i],
         (CloogScattering*) data_info->statement_maps[i], NULL);
-    CloogNamedDomainList * pragma_parameter_domain = new_udomain->domain;
+    if (current_domain)
+      current_domain = current_domain->next;
+    else
+      current_domain = new_udomain->domain;
+    CloogNamedDomainList *pragma_parameter_domain = current_domain;
     isl_map *statement_map_copy = isl_map_copy(data_info->statement_maps[i]);
 
     isl_set *alternative_set = NULL;
@@ -217,6 +222,7 @@ void acr_cloog_generate_alternative_code_from_input(
           cloog_scatt = cloog_scattering_from_isl_map(isl_map_copy(statement_map_copy));
           new_udomain = cloog_union_domain_add_domain(new_udomain, NULL,
               cloog_domain, cloog_scatt, NULL);
+          current_domain = current_domain->next;
           break;
       }
     }
