@@ -188,8 +188,6 @@ endif()
     #"-Wpadded")
 #endif()
 
-endif(CMAKE_BUILD_TYPE MATCHES Debug)
-
 set(CMAKE_REQUIRED_FLAGS "-fsanitize=address")
 check_c_compiler_flag("-fsanitize=address" compiler_has_address_sanitizer)
 unset(CMAKE_REQUIRED_FLAGS)
@@ -210,6 +208,8 @@ unset(CMAKE_REQUIRED_FLAGS)
 if(compiler_has_thread_sanitizer)
   set(COMPILER_THREAD_SANITIZER_FLAG "-fsanitize=thread")
 endif()
+
+endif(CMAKE_BUILD_TYPE MATCHES Debug)
 
 set(CMAKE_REQUIRED_FLAGS "-flto")
 check_c_compiler_flag("-flto" compiler_has_lto)

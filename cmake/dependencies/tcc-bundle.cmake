@@ -10,8 +10,8 @@ if(TCC_BUNDLED OR ALL_DEP_BUNDLED)
     "./configure"
     "--cc=${CMAKE_C_COMPILER}"
     "--disable-static"
-    "--extra-cflags=-O3 -g ${COMPILER_LTO_FLAG}"
-    "--extra-ldflags=-O3 -g ${COMPILER_LTO_FLAG}"
+    "--extra-cflags=-O3 -g ${COMPILER_LTO_FLAG} ${COMPILER_MARCH_NATIVE}"
+    "--extra-ldflags=-O3 -g ${COMPILER_LTO_FLAG} ${COMPILER_MARCH_NATIVE}"
     "--prefix=${DEP_INSTALL_DIR}"
     UPDATE_COMMAND ""
     BUILD_COMMAND
