@@ -61,10 +61,14 @@ struct acr_runtime_data {
 #endif
 };
 
+void init_acr_runtime_data_thread_specific(struct acr_runtime_data *data);
+
 void init_acr_runtime_data(
     struct acr_runtime_data* data,
     char *scop,
     size_t scop_size);
+
+void free_acr_runtime_data_thread_specific(struct acr_runtime_data* data);
 
 void free_acr_runtime_data(struct acr_runtime_data* data);
 

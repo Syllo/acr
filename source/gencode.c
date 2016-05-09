@@ -593,7 +593,7 @@ static void acr_print_acr_runtime_init(FILE* out,
     const acr_compute_node node,
     const dimensions_upper_lower_bounds_all_statements *dims,
     const dimensions_upper_lower_bounds *bounds,
-    const osl_scop_p scop) {
+    const osl_scop_p scop, bool performance_build) {
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   const char* prefix = acr_init_get_function_name(init);
   size_t num_alternatives = 0;
@@ -680,6 +680,11 @@ static void acr_print_acr_runtime_init(FILE* out,
     acr_grid_get_grid_size(acr_compute_node_get_option_of_type(acr_type_grid, node, 1));
   acr_print_monitor_max_dims(out, prefix, bounds, tiling_size, scop);
 
+  if (!performance_build) {
+    fprintf(out,
+        "  init_acr_runtime_data_thread_specific(&%s_runtime_data);\n",
+        prefix);
+  }
   fprintf(out,
       "  init_acr_runtime_data(\n"
       "      &%s_runtime_data,\n"
@@ -709,11 +714,22 @@ static void acr_print_acr_runtime_init(FILE* out,
         prefix, prefix);
   }
   acr_print_init_function_call(out, init);
-  fprintf(out,
-      "  pthread_create(&%s_runtime_data.monitor_thread, NULL,\n"
-      "    acr_verification_and_coordinator_function, &%s_runtime_data);\n",
-      prefix, prefix);
+  if (!performance_build) {
+    fprintf(out,
+        "  pthread_create(&%s_runtime_data.monitor_thread, NULL,\n"
+        "    acr_verification_and_coordinator_function, &%s_runtime_data);\n",
+        prefix, prefix);
+  }
   fprintf(out, "}\n\n");
+
+  if (performance_build) {
+    fprintf(out,
+        "static struct acr_runtime_perf %s_runtime_perf = {\n"
+        "  .rdata = &%s_runtime_data,\n"
+        "  .list_head = NULL,\n"
+        "  .compilation_list = NULL\n"
+        "};\n", prefix, prefix);
+  }
 }
 
 
@@ -817,6 +833,16 @@ void acr_print_node_init_function_call(FILE* out,
   }
 }
 
+void acr_print_node_init_function_call_for_max_perf_run(FILE *out,
+    const acr_compute_node node) {
+  char* prefix = acr_get_scop_prefix(node);
+  acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
+  acr_print_init_function_call(out, init);
+  fprintf(out, "  %s = (void (*)", prefix);
+  acr_print_parameters(out, init);
+  fprintf(out, ") acr_runntime_perf_end_step(&%s_runtime_perf);", prefix);
+}
+
 static void acr_print_init_function_call(FILE* out, const acr_option init) {
   fprintf(out, "%s(", acr_init_get_function_name(init));
   size_t num_parameters = acr_init_get_num_parameters(init);
@@ -857,8 +883,13 @@ static void acr_print_scop_in_file(FILE* output,
   free(buffer);
 }
 
-static void acr_print_destroy(FILE* output, const acr_compute_node node) {
+static void acr_print_destroy(FILE* output, const acr_compute_node node,
+    bool performance_build) {
   const char* prefix = acr_get_scop_prefix(node);
+  if (!performance_build) {
+    fprintf(output,
+        "  free_acr_runtime_data_thread_specific(&%s_runtime_data);\n", prefix);
+  }
   fprintf(output,
       "  free_acr_runtime_data(&%s_runtime_data);\n"
       "#ifdef ACR_STATS_ENABLED\n"
@@ -871,7 +902,7 @@ static void acr_print_destroy(FILE* output, const acr_compute_node node) {
 static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     osl_scop_p scop,
     const dimensions_upper_lower_bounds_all_statements *dims,
-    dimensions_upper_lower_bounds **bound_used) {
+    dimensions_upper_lower_bounds **bound_used, bool performance_build) {
   osl_generic_remove(&scop->extension, OSL_URI_ARRAYS);
   acr_option monitor =
     acr_compute_node_get_option_of_type(acr_type_monitor, node, 1);
@@ -893,8 +924,8 @@ static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     fprintf(stderr, "It is not possible to find monitor data boundaries\n");
     return false;
   }
-  acr_print_acr_runtime_init(out, node, dims, *bound_used, scop);
-
+  acr_print_acr_runtime_init(out, node, dims, *bound_used, scop,
+      performance_build);
 
   fprintf(out,
       "static void %s_monitoring_function(unsigned char* monitor_result) {\n",
@@ -962,7 +993,7 @@ static void acr_delete_alternative_parameters_where_parameter_not_present_in_sco
   }
 }
 
-void acr_generate_code(const char* filename) {
+void acr_generate_code(const char* filename, bool performance_build) {
   FILE* current_file = fopen(filename, "r");
   if (current_file == NULL) {
     fprintf(stderr, "Unable to open file: %s\n", filename);
@@ -1052,7 +1083,7 @@ void acr_generate_code(const char* filename) {
 
         dimensions_upper_lower_bounds *bound_used;
         if (!acr_print_scanning_function(temp_buffer, node, scop, bounds_all,
-              &bound_used)) {
+              &bound_used, performance_build)) {
           fclose(temp_buffer);
           free(buffer);
           position_in_input = scop_start_position;
@@ -1067,7 +1098,10 @@ void acr_generate_code(const char* filename) {
             position_in_input, kernel_start,
             all_options);
 
-        acr_print_node_init_function_call(temp_buffer, node);
+        if (!performance_build)
+          acr_print_node_init_function_call(temp_buffer, node);
+        else
+          acr_print_node_init_function_call_for_max_perf_run(temp_buffer, node);
         position_in_input = kernel_end;
         fseek(current_file, (long)position_in_input, SEEK_SET);
         osl_scop_free(scop);
@@ -1080,7 +1114,7 @@ void acr_generate_code(const char* filename) {
             temp_buffer,
             position_in_input, destroy_pos,
             all_options);
-        acr_print_destroy(temp_buffer, node);
+        acr_print_destroy(temp_buffer, node, performance_build);
         fclose(temp_buffer);
         fprintf(new_file, "%s", buffer);
         free(buffer);

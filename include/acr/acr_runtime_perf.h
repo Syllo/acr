@@ -16,18 +16,25 @@
  *
  */
 
-#ifndef __ACR_RUNTIME_H
-#define __ACR_RUNTIME_H
+#ifndef __ACR_RUNTIME_PERF_H
+#define __ACR_RUNTIME_PERF_H
 
-#include <acr/acr_runtime_data.h>
-#include <acr/acr_runtime_perf.h>
-#include <acr/acr_runtime_threads.h>
-#include <acr/cloog_runtime.h>
-#include <acr/acr_stats.h>
-#include <acr/osl_runtime.h>
+#include <stdint.h>
 
-typedef unsigned char acr_monitored_data;
+#include "acr/acr_runtime_data.h"
 
-#define __ACR_PRESENT__
+struct acr_runtime_perf {
+  struct acr_runtime_data *rdata;
+  struct acr_performance_list *list_head;
+  struct acr_performance_list *compilation_list;
+};
 
-#endif // __ACR_RUNTIME_H
+void* acr_runntime_perf_end_step(struct acr_runtime_perf *perf);
+
+void acr_runtime_perf_clean(struct acr_runtime_perf *perf);
+
+void acr_runtime_print_perf_function_call(
+    FILE* output,
+    struct acr_runtime_perf *perf);
+
+#endif // __ACR_RUNTIME_PERF_H

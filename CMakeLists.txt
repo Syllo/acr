@@ -207,6 +207,7 @@ configure_file(
 list(APPEND ACR_RUNTIME_LIBRARY_C_FILES
   source/acr_runtime_build.c
   source/acr_runtime_data.c
+  source/acr_runtime_perf.c
   source/acr_runtime_threads.c
   source/acr_runtime_verify.c
   source/acr_stats.c

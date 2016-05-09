@@ -28,9 +28,13 @@
 #include <pthread.h>
 #include <string.h>
 
-void free_acr_runtime_data(struct acr_runtime_data* data) {
+void free_acr_runtime_data_thread_specific(struct acr_runtime_data* data) {
   data->monitor_thread_continue = false;
   pthread_join(data->monitor_thread, NULL);
+  pthread_spin_destroy(&data->alternative_lock);
+}
+
+void free_acr_runtime_data(struct acr_runtime_data* data) {
   for (size_t i = 0; i < data->num_alternatives; ++i) {
     struct runtime_alternative *alt = &data->alternatives[i];
     for (size_t j = 0; j < data->num_statements; ++j) {
@@ -52,7 +56,6 @@ void free_acr_runtime_data(struct acr_runtime_data* data) {
   data->state = NULL;
   osl_scop_free(data->osl_relation);
   data->osl_relation = NULL;
-  pthread_spin_destroy(&data->alternative_lock);
   free(data->monitor_dim_max);
   free(data->compiler_flags[1]);
   free(data->compiler_flags);
@@ -175,6 +178,10 @@ default_flags:
   data->num_compiler_flags = num_options;
 }
 
+void init_acr_runtime_data_thread_specific(struct acr_runtime_data *data) {
+  pthread_spin_init(&data->alternative_lock, PTHREAD_PROCESS_PRIVATE);
+}
+
 void init_acr_runtime_data(
     struct acr_runtime_data* data,
     char *scop,
@@ -185,7 +192,6 @@ void init_acr_runtime_data(
   for (size_t i = 0; i < data->num_monitor_dims; ++i) {
     data->monitor_total_size *= data->monitor_dim_max[i];
   }
-  pthread_spin_init(&data->alternative_lock, PTHREAD_PROCESS_PRIVATE);
   data->usability_inital_value = 3;
 
   CloogInput *cloog_input = cloog_input_from_osl_scop(data->state,

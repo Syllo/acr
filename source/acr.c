@@ -26,11 +26,12 @@
 
 #include "acr/gencode.h"
 
-static const char opt_options[] = "pvho:";
+static const char opt_options[] = "zpvh";
 
 int main(int argc, char** argv) {
 
   bool print = false;
+  bool performance_build = false;
 
   for (;;) {
     int c = getopt(argc, argv, opt_options);
@@ -38,7 +39,8 @@ int main(int argc, char** argv) {
       break;
 
     switch (c) {
-      case 'o':
+      case 'z':
+        performance_build = true;
         break;
       case 'h':
         fprintf(stdout, help);
@@ -65,7 +67,7 @@ int main(int argc, char** argv) {
       if (print)
         acr_print_structure_and_related_scop(stdout, argv[i]);
       else
-        acr_generate_code(argv[i]);
+        acr_generate_code(argv[i], performance_build);
     }
   } else {
     fprintf(stderr, "No input file\nType \"%s -h\" for help\n", argv[-optind]);

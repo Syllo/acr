@@ -34,7 +34,8 @@ TCCState* acr_compile_with_tcc(
 char* acr_compile_with_system_compiler(
     const char *string_to_compile,
     size_t num_options,
-    char** options);
+    char** options,
+    char *output_filename_required);
 
 void acr_append_necessary_compile_flags(
     size_t *num_options,

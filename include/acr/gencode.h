@@ -24,7 +24,7 @@
 #include "acr/acr_openscop.h"
 #include "acr/pragma_struct.h"
 
-void acr_generate_code(const char* filename);
+void acr_generate_code(const char* filename, bool performance_build);
 
 void acr_print_structure_and_related_scop(FILE* out, const char* filename);
 
@@ -53,6 +53,9 @@ void acr_scop_coord_to_acr_coord(
     size_t *end);
 
 void acr_print_node_init_function_call(FILE* out,
+    const acr_compute_node node);
+
+void acr_print_node_init_function_call_for_max_perf_run(FILE *out,
     const acr_compute_node node);
 
 bool acr_verify_bounds_and_node_options(
