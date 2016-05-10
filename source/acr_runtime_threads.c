@@ -726,7 +726,7 @@ static void* acr_runtime_compile_thread(void* in_data) {
     file =
       acr_compile_with_system_compiler(where_to_add->generated_code,
           input_data->num_cflags,
-          input_data->cflags, NULL);
+          input_data->cflags);
     if(!file) {
       fprintf(stderr, "Compiler error\n");
       exit(EXIT_FAILURE);

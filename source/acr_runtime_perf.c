@@ -32,6 +32,7 @@
 struct acr_perf_compilation {
   size_t starting_at, ending_at;
   char *compilation_file_name;
+  char *loop_body;
   unsigned char *monitor_result;
   void *handle;
   void *function;
@@ -75,42 +76,31 @@ static void perf_new_compilation(struct acr_runtime_perf *perf,
                                  unsigned char *monitor_result) {
 
   size_t perf_step = perf->list_head == NULL ? 0 : perf->list_head->element.ending_at + 1;
-  char *generated_function;
+  char *generated_function = NULL;
   size_t generated_function_size;
-  FILE *memstring = open_memstream(&generated_function, &generated_function_size);
-  fprintf(memstring, "void acr_function%s {\n", perf->rdata->function_prototype);
-  acr_cloog_generate_alternative_code_from_input(memstring, perf->rdata,
+  char *body = NULL;
+  FILE *bodystream = open_memstream(&body, &generated_function_size);
+  acr_cloog_generate_alternative_code_from_input(bodystream, perf->rdata,
       monitor_result);
-  fprintf(memstring, "}\n");
+  fclose(bodystream);
+  FILE *memstring = open_memstream(&generated_function, &generated_function_size);
+  fprintf(memstring, "void acr_function%s {\n%s}\n",
+      perf->rdata->function_prototype, body);
   fclose(memstring);
-  char *cwd;
-  size_t buffer_size;
-  acr_getcwd(&cwd, &buffer_size);
-  size_t path_size = strlen(cwd);
-  if (path_size + 16 > buffer_size) {
-    cwd = realloc(cwd, buffer_size + 16);
-  }
-  memcpy(&cwd[path_size], "/acr_perf/XXXXXX", 17);
-  int fd = mkstemp(cwd);
-  if (fd == -1) {
-    perror("mkstemp");
-    fprintf(stderr, "Did you create the acr_perf directory ?\n");
-    exit(EXIT_FAILURE);
-  }
-  close(fd);
 
-  (void) acr_compile_with_system_compiler(
+  char *filename = acr_compile_with_system_compiler(
       generated_function,
-      perf->rdata->num_compiler_flags, perf->rdata->compiler_flags,
-      cwd);
+      perf->rdata->num_compiler_flags, perf->rdata->compiler_flags);
+  free(generated_function);
 
   struct acr_perf_compilation comp;
-  comp.compilation_file_name = cwd;
-  comp.handle = dlopen(cwd, RTLD_NOW);
+  comp.compilation_file_name = filename;
+  comp.handle = dlopen(filename, RTLD_NOW);
   if (comp.handle == NULL) {
     perror("dlopen");
     exit(EXIT_FAILURE);
   }
+  unlink(filename);
   comp.function = dlsym(comp.handle, "acr_function");
   if (comp.function == NULL) {
     perror("dlsym");
@@ -119,10 +109,12 @@ static void perf_new_compilation(struct acr_runtime_perf *perf,
   comp.starting_at = perf_step;
   comp.ending_at = perf_step;
   comp.monitor_result = monitor_result;
+  comp.loop_body = body;
   acr_perf_add_compilation_to_list(perf, comp);
 }
 
 static void acr_perf_compilation_clean(struct acr_perf_compilation *comp) {
+  free(comp->loop_body);
   free(comp->compilation_file_name);
   free(comp->monitor_result);
   dlclose(comp->handle);
@@ -131,12 +123,30 @@ static void acr_perf_compilation_clean(struct acr_perf_compilation *comp) {
 void acr_runtime_perf_clean(struct acr_runtime_perf *perf) {
   struct acr_performance_list *plist = perf->compilation_list;
   struct acr_performance_list *plist_temp;
+  char *cwd;
+  size_t buffer_size;
+  acr_getcwd(&cwd, &buffer_size);
+  size_t path_size = strlen(cwd);
+  if (path_size + 17 > buffer_size) {
+    cwd = realloc(cwd, buffer_size + 17);
+  }
+  memcpy(&cwd[path_size], "/acr_perf_XXXXXX", 17);
+  int fd = mkstemp(cwd);
+  if (fd == -1) {
+    perror("mkstemp");
+    exit(EXIT_FAILURE);
+  }
+  FILE *output_file = fdopen(fd, "w");
+  acr_runtime_print_perf_function_call(output_file, perf);
+  fclose(output_file);
+  fprintf(stdout, "\nACR perf function written in file %s\n", cwd);
   while (plist) {
     plist_temp = plist->next;
     acr_perf_compilation_clean(&plist->element);
     free(plist);
     plist = plist_temp;
   }
+  free(cwd);
 }
 
 void* acr_runntime_perf_end_step(struct acr_runtime_perf *perf) {
@@ -144,14 +154,16 @@ void* acr_runntime_perf_end_step(struct acr_runtime_perf *perf) {
     malloc(perf->rdata->monitor_total_size * sizeof(*monitor_result));
   perf->rdata->monitoring_function(monitor_result);
   if (perf->list_head &&
-      acr_verify_me(perf->rdata->monitor_total_size, monitor_result,
-        perf->list_head->element.monitor_result)) {
+      acr_verify_me(perf->rdata->monitor_total_size,
+        perf->list_head->element.monitor_result,
+        monitor_result)) {
       free(monitor_result);
       perf->list_head->element.ending_at +=1;
       return perf->list_head->element.function;
   }
   // Generate new function
   perf_new_compilation(perf, monitor_result);
+  perf->rdata->current_monitoring_data = perf->list_head->element.monitor_result;
   return perf->list_head->element.function;
 }
 
@@ -164,14 +176,15 @@ void acr_runtime_print_perf_function_call(
     num_functions += 1;
     list_element = list_element->next;
   }
-  fprintf(output, "void acr_perf_function%s {\n",
+  fprintf(output, "#include <stdlib.h>\nvoid acr_perf_function%s {\n",
       perf->rdata->function_prototype);
   list_element = perf->compilation_list;
   while (list_element) {
     if (list_element->element.starting_at != list_element->element.ending_at) {
-      fprintf(output, "  for(size_t i = 0; i < %zu; ++i) {\n",
+      fprintf(output, "for(size_t i = 0; i < %zu; ++i) {\n",
           1+list_element->element.ending_at - list_element->element.starting_at);
     }
+    fprintf(output, "{%s}", list_element->element.loop_body);
     if (list_element->element.starting_at != list_element->element.ending_at)
       fprintf(output, "}\n");
     list_element = list_element->next;

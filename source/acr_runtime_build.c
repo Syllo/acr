@@ -58,24 +58,18 @@ void acr_append_necessary_compile_flags(
 char* acr_compile_with_system_compiler(
     const char *string_to_compile,
     size_t num_options,
-    char** options,
-    char *output_filename_required) {
+    char** options) {
 
-  char *output_filename;
-  if (output_filename_required != NULL) {
-    output_filename = output_filename_required;
-  } else {
-    output_filename =
-      malloc(acr_temporary_file_length * sizeof(*output_filename));
-    memcpy(output_filename, acr_temporary_file_prefix, acr_temporary_file_length);
-    int fd = mkstemp(output_filename);
-    if (fd == -1) {
-      perror("mkstemp");
-      exit(EXIT_FAILURE);
-    }
-
-    close(fd);
+  char *output_filename =
+    malloc(acr_temporary_file_length * sizeof(*output_filename));
+  memcpy(output_filename, acr_temporary_file_prefix, acr_temporary_file_length);
+  int fd = mkstemp(output_filename);
+  if (fd == -1) {
+    perror("mkstemp");
+    exit(EXIT_FAILURE);
   }
+
+  close(fd);
   options[num_options-2] = output_filename;
   int pipedescriptor[2];
   if (pipe(pipedescriptor) != 0) {
@@ -110,8 +104,6 @@ char* acr_compile_with_system_compiler(
       perror("unlink");
       exit(EXIT_FAILURE);
     }
-    if (!output_filename_required)
-      free(output_filename);
     return NULL;
   }
   return output_filename;
