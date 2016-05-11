@@ -119,7 +119,7 @@ static char* acr_new_file_name(const char* initial_name) {
 }
 
 static size_t acr_copy_from_file_avoiding_pragmas(FILE* input, FILE* output,
-    size_t start, size_t stop, acr_compute_node all_pragmas) {
+    size_t start, size_t stop, const acr_compute_node all_pragmas) {
   if (start > stop)
     return 0;
   acr_option_list list = acr_compute_node_get_option_list(all_pragmas);
@@ -665,8 +665,6 @@ static void acr_print_acr_runtime_init(FILE* out,
         case acr_dimension_type_free_dim:
           fprintf(out, "acr_dimension_type_free_dim");
           break;
-        default:
-          break;
       }
     }
     fprintf(out, "}");
@@ -889,6 +887,9 @@ static void acr_print_destroy(FILE* output, const acr_compute_node node,
   if (!performance_build) {
     fprintf(output,
         "  free_acr_runtime_data_thread_specific(&%s_runtime_data);\n", prefix);
+  } else {
+    fprintf(output,
+        "  acr_runtime_perf_clean(&%s_runtime_perf);\n", prefix);
   }
   fprintf(output,
       "  free_acr_runtime_data(&%s_runtime_data);\n"
@@ -963,7 +964,7 @@ static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
   return true;
 }
 
-static void acr_delete_alternative_parameters_where_parameter_not_present_in_scop(
+static void acr_delete_alternative_parameters_for_parameter_not_present_in_scop(
     acr_compute_node node,
     const osl_scop_p scop) {
 
@@ -993,6 +994,104 @@ static void acr_delete_alternative_parameters_where_parameter_not_present_in_sco
   }
 }
 
+static void acr_add_corresponding_deferred_destroy_to_do_in_future(
+    const acr_compute_node node,
+    const acr_option_list general_opt,
+    size_t num_general_opt,
+    acr_option **option_in_future,
+    size_t *num_option_in_future,
+    size_t current_position) {
+  for (size_t i = 0; i < num_general_opt; ++i) {
+    acr_option current_option = acr_option_list_get_option(i, general_opt);
+    size_t pragma_position = acr_option_get_pragma_position(current_option);
+    if (pragma_position < current_position)
+      continue;
+    if (acr_option_get_type(current_option) == acr_type_deferred_destroy) {
+      char *deferred_id = acr_deferred_destroy_get_ref_init_name(current_option);
+      acr_option init =
+        acr_compute_node_get_option_of_type(acr_type_init, node, 1);
+      char *fun_name = acr_init_get_function_name(init);
+      if (strcmp(fun_name, deferred_id) == 0) {
+        acr_option destroy =
+          acr_compute_node_get_option_of_type(acr_type_destroy, node, 1);
+        size_t init_pos = acr_option_get_pragma_position(init);
+        size_t destroy_pos = acr_option_get_pragma_position(destroy);
+        size_t def_destroy_pos = acr_option_get_pragma_position(current_option);
+        if (def_destroy_pos < destroy_pos || destroy_pos < init_pos) {
+          fprintf(stderr,
+              "[ACR] Warning: Deferred destroy construct must"
+              " appear *after* the *init* and *destroy* they refer to.\n"
+              "               The following deferred destroy will be ignored:\n");
+          pprint_acr_option(stderr, current_option, 0);
+        } else {
+          *num_option_in_future += 1;
+          *option_in_future = realloc(*option_in_future,
+              *num_option_in_future * sizeof(**option_in_future));
+          option_in_future[0][*num_option_in_future-1] = current_option;
+        }
+      }
+    }
+  }
+}
+
+static void acr_print_deferred_destroy(FILE * out, const acr_option def_destroy,
+    bool performance_build) {
+  const char *prefix = acr_deferred_destroy_get_ref_init_name(def_destroy);
+  if (!performance_build) {
+    fprintf(out,
+        "  free_acr_runtime_data_thread_specific(&%s_runtime_data);\n", prefix);
+  } else {
+    fprintf(out,
+        "  acr_runtime_perf_clean(&%s_runtime_perf);\n", prefix);
+  }
+  fprintf(out,
+      "  free_acr_runtime_data(&%s_runtime_data);\n"
+      "#ifdef ACR_STATS_ENABLED\n"
+      "  acr_print_stats(stdout, &%s_runtime_data.sim_stats,\n"
+      "    &%s_runtime_data.thread_stats);\n"
+      "#endif\n",
+     prefix, prefix, prefix);
+}
+
+static size_t check_and_apply_option_in_future(
+    FILE *input, FILE *output, const acr_compute_node all_pragmas,
+    size_t next_position,
+    size_t current_position,
+    acr_option const*const option_in_future,
+    size_t num_option_in_future,
+    bool performance_build) {
+  for (size_t i = 0; i < num_option_in_future; ++i) {
+    size_t option_position =
+      acr_option_get_pragma_position(option_in_future[i]);
+    if (option_position > next_position)
+      break;
+    else {
+      if (option_position > current_position) {
+        current_position = acr_copy_from_file_avoiding_pragmas(input, output,
+            current_position, option_position, all_pragmas);
+        acr_print_deferred_destroy(output, option_in_future[i],
+            performance_build);
+      }
+    }
+  }
+  return current_position;
+}
+static bool acr_deferred_destroy_for_node(
+    const acr_compute_node node,
+    acr_option const*const option_in_future,
+    size_t num_option_in_future) {
+  const char *fun_name =
+    acr_init_get_function_name(
+        acr_compute_node_get_option_of_type(acr_type_init, node, 1));
+  for (size_t i = 0; i < num_option_in_future; ++i) {
+    if (acr_option_get_type(option_in_future[i]) == acr_type_deferred_destroy) {
+      if (strcmp(fun_name, acr_deferred_destroy_get_ref_init_name(option_in_future[i])) == 0)
+        return true;
+    }
+  }
+  return false;
+}
+
 void acr_generate_code(const char* filename, bool performance_build) {
   FILE* current_file = fopen(filename, "r");
   if (current_file == NULL) {
@@ -1011,6 +1110,13 @@ void acr_generate_code(const char* filename, bool performance_build) {
   acr_compute_node all_options = acr_copy_compute_node(compute_node);
   acr_compute_node_list node_list =
     acr_new_compute_node_list_split_node(compute_node);
+
+  size_t num_general_options;
+  acr_option_list general_options = acr_get_general_option_list(all_options,
+      &num_general_options);
+
+  acr_option *option_to_apply_in_the_future = NULL;
+  size_t num_option_to_apply_in_future = 0;
 
   if (node_list) {
     char* new_file_name = acr_new_file_name(filename);
@@ -1034,7 +1140,7 @@ void acr_generate_code(const char* filename, bool performance_build) {
         }
         osl_generic_remove(&scop->extension, OSL_URI_SCATNAMES);
         osl_generic_remove(&scop->extension, OSL_URI_ARRAYS);
-        acr_delete_alternative_parameters_where_parameter_not_present_in_scop(
+        acr_delete_alternative_parameters_for_parameter_not_present_in_scop(
             node,
             scop);
         while(acr_simplify_compute_node(node));
@@ -1047,6 +1153,10 @@ void acr_generate_code(const char* filename, bool performance_build) {
           continue;
         }
 
+        acr_add_corresponding_deferred_destroy_to_do_in_future(node,
+            general_options, num_general_options,  &option_to_apply_in_the_future,
+            &num_option_to_apply_in_future, position_in_input);
+
         char *buffer;
         size_t size_buffer;
         FILE* temp_buffer = open_memstream(&buffer, &size_buffer);
@@ -1057,6 +1167,11 @@ void acr_generate_code(const char* filename, bool performance_build) {
             &kernel_start, &kernel_end);
 
         fseek(current_file, (long)position_in_input, SEEK_SET);
+        position_in_input = check_and_apply_option_in_future(
+            current_file, temp_buffer, all_options,
+            acr_position_of_init_in_node(node), position_in_input,
+            option_to_apply_in_the_future, num_option_to_apply_in_future,
+            performance_build);
         position_in_input = acr_copy_from_file_avoiding_pragmas(
             current_file, temp_buffer, position_in_input,
             acr_position_of_init_in_node(node), all_options);
@@ -1114,7 +1229,9 @@ void acr_generate_code(const char* filename, bool performance_build) {
             temp_buffer,
             position_in_input, destroy_pos,
             all_options);
-        acr_print_destroy(temp_buffer, node, performance_build);
+        if (!acr_deferred_destroy_for_node(node, option_to_apply_in_the_future,
+              num_option_to_apply_in_future))
+          acr_print_destroy(temp_buffer, node, performance_build);
         fclose(temp_buffer);
         fprintf(new_file, "%s", buffer);
         free(buffer);
@@ -1124,6 +1241,11 @@ void acr_generate_code(const char* filename, bool performance_build) {
     fseek(current_file, 0, SEEK_END);
     size_t end_file = (size_t) ftell(current_file);
     fseek(current_file, (long)position_in_input, SEEK_SET);
+    position_in_input = check_and_apply_option_in_future(
+        current_file, new_file, all_options,
+        end_file, position_in_input,
+        option_to_apply_in_the_future, num_option_to_apply_in_future,
+        performance_build);
     position_in_input = acr_copy_from_file_avoiding_pragmas(
         current_file, new_file, position_in_input,
         end_file, all_options);
@@ -1131,6 +1253,8 @@ void acr_generate_code(const char* filename, bool performance_build) {
     fclose(new_file);
   }
 
+  free(option_to_apply_in_the_future);
+  acr_free_option_list(general_options, num_general_options);
   acr_free_compute_node_list(node_list);
   acr_free_compute_node(all_options);
   fclose(current_file);
@@ -1162,6 +1286,12 @@ void acr_print_structure_and_related_scop(FILE* out, const char* filename) {
   if (compute_node == NULL) {
     fprintf(out, "No pragma ACR found in file: %s\n", filename);
   } else {
+    size_t num_general_options;
+    acr_option_list general_options = acr_get_general_option_list(compute_node,
+        &num_general_options);
+
+    fprintf(out, "##### GENERAL OPTIONS #####\n");
+    pprint_acr_option_list(out, general_options, num_general_options, 0);
 
     acr_compute_node_list node_list =
       acr_new_compute_node_list_split_node(compute_node);
@@ -1175,7 +1305,7 @@ void acr_print_structure_and_related_scop(FILE* out, const char* filename) {
             osl_scop_free(scop->next);
             scop->next = NULL;
           }
-          acr_delete_alternative_parameters_where_parameter_not_present_in_scop(
+          acr_delete_alternative_parameters_for_parameter_not_present_in_scop(
               node,
               scop);
           while(acr_simplify_compute_node(node));
@@ -1255,6 +1385,7 @@ void acr_get_start_and_stop_for_clan(const acr_compute_node node,
         break;
       case acr_type_destroy:
         *stop = acr_destroy_get_pragma_position(option);
+      case acr_type_deferred_destroy:
       case acr_type_unknown:
         break;
     }

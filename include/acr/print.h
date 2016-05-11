@@ -60,4 +60,12 @@ void pprint_acr_compute_node_list(FILE* out,
 void print_acr_array_dimensions(FILE* out,
     acr_array_dimension dim, bool print_braces);
 
+void pprint_acr_deffered_destroy(FILE *out, acr_option option,
+    size_t indent_level);
+
+void pprint_acr_option_list(FILE *out,
+                            acr_option_list opt_list,
+                            size_t list_size,
+                            size_t indent_level);
+
 #endif // __ACR_PRINT_H

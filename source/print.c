@@ -63,9 +63,26 @@ void pprint_acr_option(FILE* out, acr_option option, size_t indent_level) {
     case acr_type_strategy:
       pprint_acr_strategy(out, option, indent_level);
       break;
+    case acr_type_deferred_destroy:
+      pprint_acr_deffered_destroy(out, option, indent_level);
+      break;
     case acr_type_unknown:
       break;
   }
+}
+
+void pprint_acr_deffered_destroy(FILE *out, acr_option option,
+    size_t indent_level) {
+  pprint_acr_indent(out, indent_level);
+  fprintf(out, "|---| DEFERRED DESTROY\n");
+  pprint_acr_indent(out, indent_level + 1);
+  fprintf(out, "|---| Position: %zu\n",
+      acr_deferred_destroy_get_pragma_position(option));
+  pprint_acr_indent(out, indent_level + 1);
+  fprintf(out, "|---| Referenced init: %s\n",
+      acr_deferred_destroy_get_ref_init_name(option));
+  pprint_acr_indent(out, indent_level);
+  fprintf(out, "|\n");
 }
 
 void pprint_acr_alternative(FILE* out, acr_option option, size_t indent_level) {
@@ -295,4 +312,16 @@ void pprint_acr_compute_node_list(FILE* out,
         indent_level + 1);
   }
 
+}
+
+void pprint_acr_option_list(FILE *out,
+                            acr_option_list opt_list,
+                            size_t list_size,
+                            size_t indent_level) {
+  for (size_t i = 0; i < list_size; ++i) {
+    const acr_option opt = acr_option_list_get_option(i, opt_list);
+    pprint_acr_option(out, opt, indent_level + 1);
+  }
+  pprint_acr_indent(out, indent_level);
+  fprintf(out, "|\n");
 }

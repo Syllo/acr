@@ -29,13 +29,14 @@ struct acr_pragma_options_utils {
 
 static const struct acr_pragma_options_utils acr_pragma_options_name_list[] =
   {
-    [acr_type_alternative] = {"alternative", ACR_ALTERNATIVE},
-    [acr_type_destroy]     = {"destroy",     ACR_DESTROY},
-    [acr_type_grid]        = {"grid",        ACR_GRID},
-    [acr_type_init]        = {"init",        ACR_INIT},
-    [acr_type_monitor]     = {"monitor",     ACR_MONITOR},
-    [acr_type_strategy]    = {"strategy",    ACR_STRATEGY},
-    [acr_type_unknown]     = {"unknown",     ACR_UNKNOWN},
+    [acr_type_alternative]      = {"alternative",      ACR_ALTERNATIVE},
+    [acr_type_deferred_destroy] = {"deferred_destroy", ACR_DEF_DESTROY},
+    [acr_type_destroy]          = {"destroy",          ACR_DESTROY},
+    [acr_type_grid]             = {"grid",             ACR_GRID},
+    [acr_type_init]             = {"init",             ACR_INIT},
+    [acr_type_monitor]          = {"monitor",          ACR_MONITOR},
+    [acr_type_strategy]         = {"strategy",         ACR_STRATEGY},
+    [acr_type_unknown]          = {"unknown",          ACR_UNKNOWN},
   };
 
 #endif // __ACR_SCANNER_UTILS_H

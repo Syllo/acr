@@ -19,6 +19,7 @@
 #ifndef __ACR_PRAGMA_STRUCT_H
 #define __ACR_PRAGMA_STRUCT_H
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -116,6 +117,11 @@ typedef struct acr_strategy {
   char* strategy_name;
 } acr_strategy;
 
+typedef struct acr_deferred_destroy {
+  size_t pragma_position;
+  char *ref_init_name;
+} acr_deferred_destroy;
+
 enum acr_type {
   acr_type_alternative = 0,
   acr_type_destroy,
@@ -123,6 +129,7 @@ enum acr_type {
   acr_type_init,
   acr_type_monitor,
   acr_type_strategy,
+  acr_type_deferred_destroy,
   acr_type_unknown,
 };
 
@@ -130,6 +137,7 @@ typedef struct acr_option {
   union {
     acr_alternative alternative;
     acr_destroy destroy;
+    acr_deferred_destroy defered_destroy;
     acr_grid grid;
     acr_init init;
     acr_monitor monitor;
@@ -552,5 +560,23 @@ void acr_compute_node_delete_option_from_position(
     acr_compute_node node);
 
 bool acr_simplify_compute_node(acr_compute_node node);
+
+acr_option acr_new_deferred_destroy(size_t pragma_position,
+    const char *ref_init_name);
+
+static inline char* acr_deferred_destroy_get_ref_init_name(acr_option option) {
+  assert(acr_option_get_type(option) == acr_type_deferred_destroy);
+  return option->options.defered_destroy.ref_init_name;
+}
+
+static inline size_t acr_deferred_destroy_get_pragma_position(acr_option option) {
+  assert(acr_option_get_type(option) == acr_type_deferred_destroy);
+  return option->options.defered_destroy.pragma_position;
+}
+
+acr_option acr_copy_deferred_destroy(const acr_option def_dest);
+
+acr_option_list acr_get_general_option_list(const acr_compute_node node,
+    size_t *new_list_size);
 
 #endif // __ACR_PRAGMA_STRUCT_H

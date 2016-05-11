@@ -30,20 +30,22 @@
 
 static const char* acr_pragma_options_error_messages[] =
   {
-    [acr_type_alternative] = "[ACR] Hint: take a look at the"
-                             " alternative construct\n",
-    [acr_type_destroy]     = "[ACR] Hint: take a look at the"
-                             " destroy construct\n",
-    [acr_type_grid]        = "[ACR] Hint: take a look at the"
-                             " grid construct\n",
-    [acr_type_init]        = "[ACR] Hint: take a look at the"
-                             " init construct\n",
-    [acr_type_monitor]     = "[ACR] Hint: take a look at the"
-                             " monitor construct\n",
-    [acr_type_strategy]    = "[ACR] Hint: take a look at the"
-                             " strategy construct\n",
-    [acr_type_unknown]     = "[ACR] Warning: unrecognized or"
-                             " malformed pragma\n",
+    [acr_type_alternative]      = "[ACR] Hint: take a look at the"
+                                  " alternative construct\n",
+    [acr_type_destroy]          = "[ACR] Hint: take a look at the"
+                                  " destroy construct\n",
+    [acr_type_grid]             = "[ACR] Hint: take a look at the"
+                                  " grid construct\n",
+    [acr_type_init]             = "[ACR] Hint: take a look at the"
+                                  " init construct\n",
+    [acr_type_monitor]          = "[ACR] Hint: take a look at the"
+                                  " monitor construct\n",
+    [acr_type_strategy]         = "[ACR] Hint: take a look at the"
+                                  " strategy construct\n",
+    [acr_type_deferred_destroy] = "[ACR] Hint: take a look at the"
+                                  " deferred destroy construct\n",
+    [acr_type_unknown]          = "[ACR] Warning: unrecognized or"
+                                  " malformed pragma\n",
   };
 
 static const char* acr_pragma_processing_functions[] =
@@ -129,7 +131,7 @@ struct parser_option_list* option_list;
 %token  ALIGNAS ALIGNOF ATOMIC GENERIC NORETURN STATIC_ASSERT THREAD_LOCAL
 
 %token IGNORE
-%token PRAGMA_ACR
+%token PRAGMA_ACR ACR_DEF_DESTROY
 %token ACR_INIT ACR_DESTROY ACR_STRATEGY ACR_ALTERNATIVE ACR_MONITOR ACR_GRID
 %token ACR_UNKNOWN
 %token ACR_MIN ACR_MAX
@@ -207,6 +209,20 @@ acr_option
       $$ = NULL;
       fprintf(stderr, "%s",
         acr_pragma_options_error_messages[acr_type_alternative]);
+      error_print_last_pragma();
+      yyerrok;
+    }
+  | ACR_DEF_DESTROY IDENTIFIER CARRIAGE_RETURN
+    {
+      acr_print_debug(stdout, "Rule accepted acr_option destroy");
+      $$ = acr_new_deferred_destroy(last_pragma_start_line, $2);
+      free($2);
+    }
+  | ACR_DEF_DESTROY error CARRIAGE_RETURN
+    {
+      $$ = NULL;
+      fprintf(stderr, "%s",
+        acr_pragma_options_error_messages[acr_type_deferred_destroy]);
       error_print_last_pragma();
       yyerrok;
     }

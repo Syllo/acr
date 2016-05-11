@@ -203,9 +203,7 @@ acr_option_list acr_new_option_list(size_t size) {
   return list;
 }
 
-static void acr_free_alternative(acr_alternative* alternative) {
-  if (!alternative)
-    return;
+static inline void acr_free_alternative(acr_alternative* alternative) {
   if (alternative->type == acr_alternative_function)
     free(alternative->swapped_by.replacement_function);
   free(alternative->alternative_name);
@@ -234,9 +232,7 @@ static void acr_free_parameter_declaration_list(size_t num_parameters,
   free(parameter_list);
 }
 
-static void acr_free_init(acr_init* init) {
-  if (!init)
-    return;
+static inline void acr_free_init(acr_init* init) {
   free(init->function_name);
   acr_free_parameter_declaration_list(init->num_parameters,
       init->parameters_list);
@@ -253,17 +249,17 @@ void acr_free_acr_array_declaration(
       array_declaration->array_dimensions_list);
 }
 
-static void acr_free_monitor(acr_monitor* monitor) {
-  if (!monitor)
-    return;
+static inline void acr_free_monitor(acr_monitor* monitor) {
   free(monitor->filter_name);
   acr_free_acr_array_declaration(&monitor->data_monitored);
 }
 
-static void acr_free_strategy(acr_strategy* strategy) {
-  if (!strategy)
-    return;
+static inline void acr_free_strategy(acr_strategy* strategy) {
   free(strategy->strategy_name);
+}
+
+static inline void acr_free_deferred_destroy(acr_deferred_destroy* def_dest) {
+  free(def_dest->ref_init_name);
 }
 
 void acr_free_option(acr_option opt) {
@@ -284,6 +280,9 @@ void acr_free_option(acr_option opt) {
       break;
     case acr_type_strategy:
       acr_free_strategy(&opt->options.strategy);
+      break;
+    case acr_type_deferred_destroy:
+      acr_free_deferred_destroy(&opt->options.defered_destroy);
       break;
     case acr_type_unknown:
       break;
@@ -613,6 +612,7 @@ bool acr_simplify_compute_node(acr_compute_node node) {
           }
         }
         break;
+      case acr_type_deferred_destroy:
       case acr_type_unknown:
         break;
     }
@@ -827,6 +827,12 @@ acr_option acr_copy_strategy(const acr_option strategy) {
   return new_strategy;
 }
 
+acr_option acr_copy_deferred_destroy(const acr_option def_dest) {
+  return acr_new_deferred_destroy(
+      acr_deferred_destroy_get_pragma_position(def_dest),
+      acr_deferred_destroy_get_ref_init_name(def_dest));
+}
+
 acr_option acr_copy_option(const acr_option option) {
   switch (option->type) {
     case acr_type_alternative:
@@ -841,6 +847,8 @@ acr_option acr_copy_option(const acr_option option) {
       return acr_copy_monitor(option);
     case acr_type_strategy:
       return acr_copy_strategy(option);
+    case acr_type_deferred_destroy:
+      return acr_copy_deferred_destroy(option);
     case acr_type_unknown:
       return NULL;
   }
@@ -888,6 +896,8 @@ size_t acr_option_get_pragma_position(const acr_option option) {
     case acr_type_strategy:
       return acr_strategy_get_pragma_position(option);
       break;
+    case acr_type_deferred_destroy:
+      return acr_deferred_destroy_get_pragma_position(option);
     case acr_type_unknown:
       break;
   }
@@ -924,4 +934,58 @@ bool acr_strategy_correspond_to_alternative(
   const char *alternative_name =
     acr_alternative_get_alternative_name(alternative);
   return strcmp(strategy_name, alternative_name) == 0;
+}
+
+acr_option acr_new_deferred_destroy(size_t pragma_position,
+    const char *ref_init_name) {
+  acr_option option = malloc(sizeof(*option));
+  option->type = acr_type_deferred_destroy;
+  option->options.defered_destroy.pragma_position = pragma_position;
+  option->options.defered_destroy.ref_init_name = acr_strdup(ref_init_name);
+  return option;
+}
+
+acr_option_list acr_get_general_option_list(const acr_compute_node node,
+    size_t *new_list_size) {
+  *new_list_size = 0;
+  const acr_option_list option_list = acr_compute_node_get_option_list(node);
+  size_t list_size = acr_compute_node_get_option_list_size(node);
+  for (size_t i = 0; i < list_size; ++i) {
+    const acr_option opt = acr_option_list_get_option(i, option_list);
+    switch (acr_option_get_type(opt)) {
+      case acr_type_deferred_destroy:
+        *new_list_size += 1;
+        break;
+      case acr_type_alternative:
+      case acr_type_destroy:
+      case acr_type_grid:
+      case acr_type_init:
+      case acr_type_monitor:
+      case acr_type_strategy:
+      case acr_type_unknown:
+        break;
+    }
+  }
+  if (*new_list_size == 0)
+    return NULL;
+  acr_option_list general_options = acr_new_option_list(*new_list_size);
+  size_t option_number = 0;
+  for (size_t i = 0; i < list_size; ++i) {
+    const acr_option opt = acr_option_list_get_option(i, option_list);
+    switch (acr_option_get_type(opt)) {
+      case acr_type_deferred_destroy:
+        acr_option_list_set_option(acr_copy_option(opt), option_number++,
+            general_options);
+          break;
+      case acr_type_alternative:
+      case acr_type_destroy:
+      case acr_type_grid:
+      case acr_type_init:
+      case acr_type_monitor:
+      case acr_type_strategy:
+      case acr_type_unknown:
+        break;
+    }
+  }
+  return general_options;
 }
