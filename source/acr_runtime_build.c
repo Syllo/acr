@@ -27,14 +27,15 @@
 static const size_t acr_temporary_file_length = 29;
 static const char acr_temporary_file_prefix[] = "/tmp/acr-runtime-temp-XXXXXX";
 
-static const size_t num_additional_flags = 6;
+static const size_t num_additional_flags = 7;
 static char* acr_compiler_shared_lib_flags[] = {
-  [0] = "-fPIC",
-  [1] = "-shared",
-  [2] = "-I.",
-  [3] = "-xc",
-  [4] = "-",
-  [5] = "-o",
+  [0] = "-pipe",
+  [1] = "-fPIC",
+  [2] = "-shared",
+  [3] = "-I.",
+  [4] = "-xc",
+  [5] = "-",
+  [6] = "-o",
 };
 
 void acr_append_necessary_compile_flags(
