@@ -16,6 +16,18 @@
  *
  */
 
+/**
+ *
+ * \file acr_runtime_perf.h
+ * \brief ACR self performance analysis functions
+ *
+ * \defgroup runtime_perf
+ *
+ * @{
+ * \brief ACR self performance analysis tools
+ *
+ */
+
 #ifndef __ACR_RUNTIME_PERF_H
 #define __ACR_RUNTIME_PERF_H
 
@@ -38,3 +50,9 @@ void acr_runtime_print_perf_function_call(
     struct acr_runtime_perf *perf);
 
 #endif // __ACR_RUNTIME_PERF_H
+
+/**
+ *
+ * @}
+ *
+ */

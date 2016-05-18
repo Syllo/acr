@@ -16,6 +16,17 @@
  *
  */
 
+/**
+ *
+ * \file acr_openscop.h
+ *
+ * \defgroup openscop OpenScop helper functions
+ *
+ * @{
+ * \brief
+ *
+ */
+
 #ifndef __ACR_OPENSCOP_H
 #define __ACR_OPENSCOP_H
 
@@ -125,3 +136,9 @@ osl_strings_p acr_osl_get_alternative_parameters(
     const acr_compute_node node);
 
 #endif // __ACR_OPENSCOP_H
+
+/**
+ *
+ * @}
+ *
+ */

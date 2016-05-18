@@ -14,6 +14,7 @@ if(DOXYGEN_FOUND)
   set(ACR_DOXYGEN_INPUT_DIRS
     "${PROJECT_SOURCE_DIR}/source\
     ${PROJECT_SOURCE_DIR}/include\
+    ${PROJECT_BINARY_DIR}/autogen/include\
     ${PROJECT_SOURCE_DIR}/README.md")
   set(ACR_DOXYGEN_OUTPUT_FILES
     "${CMAKE_CURRENT_BINARY_DIR}/html/index.xhtml"

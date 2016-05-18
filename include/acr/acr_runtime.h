@@ -16,6 +16,31 @@
  *
  */
 
+/**
+ *
+ * \file acr_runtime.h
+ * \brief This is the master include file for runtime purpose
+ *
+ * Just include this file and you will have access to all ACR runtime
+ * declarations.
+ *
+ * \defgroup acr_runtime ACR runtime library
+ *
+ * @{
+ * \brief All the required functions and structures needed at runtime
+ *
+ * \defgroup runtime_data Runtime data structures
+ * \defgroup runtime_perf Runtime self performance tests
+ * \defgroup runtime_threads Runtime threads
+ * \defgroup runtime_generation Runtime code generation
+ * \defgroup runtime_stats Runtime kernel statistics
+ * \defgroup runtime_osl Runtime OpenScop helper functions
+ * \defgroup runtime_verify Runtime grid comparison function
+ *
+ * @}
+ *
+ */
+
 #ifndef __ACR_RUNTIME_H
 #define __ACR_RUNTIME_H
 

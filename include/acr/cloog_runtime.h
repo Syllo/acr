@@ -16,6 +16,18 @@
  *
  */
 
+/**
+ *
+ * \file cloog_runtime.h
+ * \brief Code generation using CLooG library
+ *
+ * \defgroup runtime_generation
+ *
+ * @{
+ * \brief Runtime code generation using the polyhedral model and CLooG
+ *
+ */
+
 #ifndef __ACR_CLOOG_RUNTIME_H
 #define __ACR_CLOOG_RUNTIME_H
 
@@ -37,3 +49,9 @@ void acr_cloog_get_rid_of_parameter(
     long int value);
 
 #endif // __ACR_CLOOG_RUNTIME_H
+
+/**
+ *
+ * @}
+ *
+ */

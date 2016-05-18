@@ -16,9 +16,28 @@
  *
  */
 
+/**
+ *
+ * \file acr_runtime_threads.h
+ * \brief Function to call with pthread in order to start the runtime threads.
+ *
+ * \defgroup runtime_threads
+ *
+ * @{
+ * \brief Pthread functions starting the runtime threads
+ *
+ */
+
+
 #ifndef __ACR_RUNTIME_THREADS_H
 #define __ACR_RUNTIME_THREADS_H
 
 void* acr_verification_and_coordinator_function(void *in_data);
 
 #endif // __ACR_RUNTIME_THREADS_H
+
+/**
+ *
+ * @}
+ *
+ */

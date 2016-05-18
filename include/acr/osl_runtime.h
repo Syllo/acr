@@ -16,6 +16,18 @@
  *
  */
 
+/**
+ *
+ * \file osl_runtime.h
+ * \brief OpenScop helper functions
+ *
+ * \defgroup runtime_osl
+ *
+ * @{
+ * \brief Openscop helper functions
+ *
+ */
+
 #ifndef __ACR_OSL_RUNTIME_H
 #define __ACR_OSL_RUNTIME_H
 
@@ -24,3 +36,9 @@
 osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer);
 
 #endif // __ACR_OSL_RUNTIME_H
+
+/**
+ *
+ * @}
+ *
+ */

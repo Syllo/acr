@@ -16,6 +16,21 @@
  *
  */
 
+/**
+ *
+ * \file acr.h
+ * \brief ACR main file for working with the compiler
+ *
+ * \defgroup acr_compiler ACR compiler library
+ *
+ * @{
+ * \brief The compiler part of ACR dealing with pragmas
+ *
+ *
+ * @}
+ *
+ */
+
 #ifndef __ACR_H
 #define __ACR_H
 

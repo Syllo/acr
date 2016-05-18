@@ -16,6 +16,18 @@
  *
  */
 
+/**
+ *
+ * \file acr_runtime_verify.h
+ * \brief Grid comparison functions
+ *
+ * \defgroup runtime_verify
+ *
+ * @{
+ * \brief Comparison between the current and previously used grid data
+ *
+ */
+
 #ifndef __ACR_RUNTIME_VERIFY_H
 #define __ACR_RUNTIME_VERIFY_H
 
@@ -27,3 +39,9 @@ bool acr_verify_me(size_t size_buffers,
     const unsigned char *more_precise);
 
 #endif // __ACR_RUNTIME_VERIFY_H
+
+/**
+ *
+ * @}
+ *
+ */

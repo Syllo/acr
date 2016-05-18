@@ -16,6 +16,18 @@
  *
  */
 
+/**
+ *
+ * \file acr_stats.h
+ * \brief Runtime statistics of threads behaviour
+ *
+ * \defgroup runtime_stats
+ *
+ * @{
+ * \brief Thread statistics collected during runtime
+ *
+ */
+
 #if @ACR_STAT@ // Build option ACR_STAT
 #ifndef __ACR_STATS_H
 #define __ACR_STATS_H
@@ -51,3 +63,9 @@ void acr_print_stats(
 
 #endif // __ACR_STATS_H
 #endif // Build option ACR_STAT
+
+/**
+ *
+ * @}
+ *
+ */

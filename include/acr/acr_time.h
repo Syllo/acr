@@ -16,6 +16,13 @@
  *
  */
 
+/**
+ *
+ * \file acr_time.h
+ * \brief Time functions for performance analysis purpose
+ *
+ */
+
 #ifndef __ACR_TIME_H
 #define __ACR_TIME_H
 
