@@ -26,8 +26,6 @@
 #include <acr/acr_stats.h>
 #include <acr/osl_runtime.h>
 
-typedef unsigned char acr_monitored_data;
-
 #define __ACR_PRESENT__
 
 #endif // __ACR_RUNTIME_H

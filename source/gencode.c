@@ -326,7 +326,7 @@ static void acr_print_get_alternetive_from_val(
   }
   fprintf(out, "\n};\n");
   fprintf(out, "static inline struct runtime_alternative* %s_get_alternative_from_val(\n"
-      "    acr_monitored_data data) {\n"
+      "    unsigned char data) {\n"
       "  return %s_alternative_fun[data];\n"
       "}\n", prefix, prefix);
 }
