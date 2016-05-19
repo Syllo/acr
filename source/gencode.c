@@ -593,7 +593,8 @@ static void acr_print_acr_runtime_init(FILE* out,
     const acr_compute_node node,
     const dimensions_upper_lower_bounds_all_statements *dims,
     const dimensions_upper_lower_bounds *bounds,
-    const osl_scop_p scop, bool performance_build) {
+    const osl_scop_p scop,
+    struct acr_build_options *build_options) {
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   const char* prefix = acr_init_get_function_name(init);
   size_t num_alternatives = 0;
@@ -615,13 +616,14 @@ static void acr_print_acr_runtime_init(FILE* out,
   acr_option grid = acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
   fprintf(out, "static void %s_monitoring_function(unsigned char*);\n", prefix);
   fprintf(out, "static struct acr_runtime_data %s_runtime_data = {\n"
+      "  .kernel_prefix = \"%s\",\n"
       "  .num_alternatives = %zu,\n"
       "  .alternatives = %s_alternatives,\n"
       "  .num_monitor_dims = %zu,\n"
       "  .grid_size = %zu,\n"
       "  .num_statements = %zu,\n"
       "  .dimensions_per_statements = (unsigned int [%zu]) {\n",
-      prefix, num_alternatives, prefix,
+      prefix, prefix, num_alternatives, prefix,
       num_monitor_dims, acr_grid_get_grid_size(grid),
       dims->num_statements, dims->num_statements);
   for (size_t i = 0; i < dims->num_statements; ++i) {
@@ -670,6 +672,43 @@ static void acr_print_acr_runtime_init(FILE* out,
     fprintf(out, "}");
   }
   fprintf(out, "\n  }\n};\n");
+
+  switch (build_options->type) {
+    case acr_regular_build:
+      break;
+    case acr_perf_compile_time_zero_run:
+      fprintf(out, "#include \"acr_perf_%s\"\n", prefix);
+    case acr_perf_kernel_only:
+    case acr_perf_compile_time_zero:
+      fprintf(out,
+          "static struct acr_runtime_perf %s_runtime_perf = {\n"
+          "  .rdata = &%s_runtime_data,\n"
+          "  .list_head = NULL,\n"
+          "  .compilation_list = NULL,\n"
+          "  .list_size = 0,\n"
+          , prefix, prefix);
+      break;
+  }
+  switch (build_options->type) {
+    case acr_regular_build:
+      break;
+    case acr_perf_kernel_only:
+      fprintf(out,
+          "  .type = acr_runtime_perf_kernel_only,\n"
+          "};\n");
+      break;
+    case acr_perf_compile_time_zero:
+      fprintf(out,
+          "  .type = acr_runtime_perf_compilation_time_zero,\n"
+          "};\n");
+      break;
+    case acr_perf_compile_time_zero_run:
+      fprintf(out,
+          "  .type = acr_runtime_perf_compilation_time_zero_run,\n"
+          "};\n");
+      break;
+  }
+
   fprintf(out, "static void %s_acr_runtime_init", prefix);
   acr_print_parameters(out, init);
   fprintf(out, " {\n");
@@ -678,10 +717,20 @@ static void acr_print_acr_runtime_init(FILE* out,
     acr_grid_get_grid_size(acr_compute_node_get_option_of_type(acr_type_grid, node, 1));
   acr_print_monitor_max_dims(out, prefix, bounds, tiling_size, scop);
 
-  if (!performance_build) {
+  switch (build_options->type) {
+    case acr_perf_compile_time_zero_run:
+      fprintf(out,
+          "  acr_recover_perf_%s(&%s_runtime_perf);\n",
+          prefix, prefix);
+    case acr_regular_build:
     fprintf(out,
         "  init_acr_runtime_data_thread_specific(&%s_runtime_data);\n",
         prefix);
+      break;
+    case acr_perf_kernel_only:
+      break;
+    case acr_perf_compile_time_zero:
+      break;
   }
   fprintf(out,
       "  init_acr_runtime_data(\n"
@@ -712,22 +761,26 @@ static void acr_print_acr_runtime_init(FILE* out,
         prefix, prefix);
   }
   acr_print_init_function_call(out, init);
-  if (!performance_build) {
+  switch (build_options->type) {
+    case acr_regular_build:
     fprintf(out,
         "  pthread_create(&%s_runtime_data.monitor_thread, NULL,\n"
         "    acr_verification_and_coordinator_function, &%s_runtime_data);\n",
         prefix, prefix);
+      break;
+    case acr_perf_kernel_only:
+    case acr_perf_compile_time_zero:
+      break;
+    case acr_perf_compile_time_zero_run:
+    fprintf(out,
+        "  %s_runtime_perf.rdata = &%s_runtime_data;\n"
+        "  pthread_create(&%s_runtime_data.monitor_thread, NULL,\n"
+        "    acr_runtime_perf_compile_time_zero, &%s_runtime_perf);\n",
+        prefix, prefix, prefix, prefix);
+      break;
   }
   fprintf(out, "}\n\n");
 
-  if (performance_build) {
-    fprintf(out,
-        "static struct acr_runtime_perf %s_runtime_perf = {\n"
-        "  .rdata = &%s_runtime_data,\n"
-        "  .list_head = NULL,\n"
-        "  .compilation_list = NULL\n"
-        "};\n", prefix, prefix);
-  }
 }
 
 
@@ -882,28 +935,38 @@ static void acr_print_scop_in_file(FILE* output,
 }
 
 static void acr_print_destroy(FILE* output, const acr_compute_node node,
-    bool performance_build) {
+    struct acr_build_options *build_options) {
   const char* prefix = acr_get_scop_prefix(node);
-  if (!performance_build) {
-    fprintf(output,
-        "  free_acr_runtime_data_thread_specific(&%s_runtime_data);\n", prefix);
-  } else {
-    fprintf(output,
-        "  acr_runtime_perf_clean(&%s_runtime_perf);\n", prefix);
+  switch (build_options->type) {
+    case acr_regular_build:
+      fprintf(output,
+          "  free_acr_runtime_data_thread_specific(&%s_runtime_data);\n", prefix);
+      break;
+    case acr_perf_kernel_only:
+    case acr_perf_compile_time_zero:
+      fprintf(output,
+          "  acr_runtime_perf_clean(&%s_runtime_perf);\n", prefix);
+      break;
+    case acr_perf_compile_time_zero_run:
+      fprintf(output,
+          "  free_acr_runtime_data_thread_specific(&%s_runtime_data);\n", prefix);
+      fprintf(output,
+          "  acr_runtime_clean_time_zero_run(&%s_runtime_perf);\n", prefix);
+      break;
   }
   fprintf(output,
       "  free_acr_runtime_data(&%s_runtime_data);\n"
       "#ifdef ACR_STATS_ENABLED\n"
-      "  acr_print_stats(stdout, &%s_runtime_data.sim_stats,\n"
-      "    &%s_runtime_data.thread_stats);\n"
+      "  acr_print_stats(stdout, %s_runtime_data.kernel_prefix,"
+      "  &%s_runtime_data.sim_stats,\n  &%s_runtime_data.thread_stats);\n"
       "#endif\n",
-     prefix, prefix, prefix);
+     prefix, prefix, prefix, prefix);
 }
 
 static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     osl_scop_p scop,
     const dimensions_upper_lower_bounds_all_statements *dims,
-    dimensions_upper_lower_bounds **bound_used, bool performance_build) {
+    struct acr_build_options *build_options) {
   osl_generic_remove(&scop->extension, OSL_URI_ARRAYS);
   acr_option monitor =
     acr_compute_node_get_option_of_type(acr_type_monitor, node, 1);
@@ -919,14 +982,15 @@ static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
   }
   uintmax_t grid_size = acr_grid_get_grid_size(grid);
   const char *prefix = acr_get_scop_prefix(node);
+  dimensions_upper_lower_bounds *bound_used;
   osl_scop_p new_scop = acr_openscop_gen_monitor_loop(monitor, scop,
-      grid_size, dims, bound_used, prefix);
+      grid_size, dims, &bound_used, prefix);
   if (new_scop == NULL) {
     fprintf(stderr, "It is not possible to find monitor data boundaries\n");
     return false;
   }
-  acr_print_acr_runtime_init(out, node, dims, *bound_used, scop,
-      performance_build);
+  acr_print_acr_runtime_init(out, node, dims, bound_used, scop,
+      build_options);
 
   fprintf(out,
       "static void %s_monitoring_function(unsigned char* monitor_result) {\n",
@@ -1035,22 +1099,26 @@ static void acr_add_corresponding_deferred_destroy_to_do_in_future(
 }
 
 static void acr_print_deferred_destroy(FILE * out, const acr_option def_destroy,
-    bool performance_build) {
+    struct acr_build_options *build_options) {
   const char *prefix = acr_deferred_destroy_get_ref_init_name(def_destroy);
-  if (!performance_build) {
-    fprintf(out,
-        "  free_acr_runtime_data_thread_specific(&%s_runtime_data);\n", prefix);
-  } else {
-    fprintf(out,
-        "  acr_runtime_perf_clean(&%s_runtime_perf);\n", prefix);
+  switch (build_options->type) {
+    case acr_regular_build:
+    case acr_perf_compile_time_zero_run:
+      fprintf(out,
+          "  free_acr_runtime_data_thread_specific(&%s_runtime_data);\n"
+          "#ifdef ACR_STATS_ENABLED\n"
+          "  acr_print_stats(stdout, %s_runtime_data.kernel_prefix,"
+          "  &%s_runtime_data.sim_stats,\n  &%s_runtime_data.thread_stats);\n"
+          "#endif\n",
+          prefix, prefix, prefix, prefix);
+      break;
+    case acr_perf_kernel_only:
+    case acr_perf_compile_time_zero:
+      fprintf(out,
+          "  acr_runtime_perf_clean(&%s_runtime_perf);\n", prefix);
+      break;
   }
-  fprintf(out,
-      "  free_acr_runtime_data(&%s_runtime_data);\n"
-      "#ifdef ACR_STATS_ENABLED\n"
-      "  acr_print_stats(stdout, &%s_runtime_data.sim_stats,\n"
-      "    &%s_runtime_data.thread_stats);\n"
-      "#endif\n",
-     prefix, prefix, prefix);
+  fprintf(out, "  free_acr_runtime_data(&%s_runtime_data);\n", prefix);
 }
 
 static size_t check_and_apply_option_in_future(
@@ -1059,7 +1127,7 @@ static size_t check_and_apply_option_in_future(
     size_t current_position,
     acr_option const*const option_in_future,
     size_t num_option_in_future,
-    bool performance_build) {
+    struct acr_build_options *build_options) {
   for (size_t i = 0; i < num_option_in_future; ++i) {
     size_t option_position =
       acr_option_get_pragma_position(option_in_future[i]);
@@ -1070,7 +1138,7 @@ static size_t check_and_apply_option_in_future(
         current_position = acr_copy_from_file_avoiding_pragmas(input, output,
             current_position, option_position, all_pragmas);
         acr_print_deferred_destroy(output, option_in_future[i],
-            performance_build);
+            build_options);
       }
     }
   }
@@ -1092,7 +1160,8 @@ static bool acr_deferred_destroy_for_node(
   return false;
 }
 
-void acr_generate_code(const char* filename, bool performance_build) {
+void acr_generate_code(const char* filename,
+    struct acr_build_options *build_options) {
   FILE* current_file = fopen(filename, "r");
   if (current_file == NULL) {
     fprintf(stderr, "Unable to open file: %s\n", filename);
@@ -1171,7 +1240,7 @@ void acr_generate_code(const char* filename, bool performance_build) {
             current_file, temp_buffer, all_options,
             acr_position_of_init_in_node(node), position_in_input,
             option_to_apply_in_the_future, num_option_to_apply_in_future,
-            performance_build);
+            build_options);
         position_in_input = acr_copy_from_file_avoiding_pragmas(
             current_file, temp_buffer, position_in_input,
             acr_position_of_init_in_node(node), all_options);
@@ -1196,9 +1265,8 @@ void acr_generate_code(const char* filename, bool performance_build) {
           continue;
         }
 
-        dimensions_upper_lower_bounds *bound_used;
         if (!acr_print_scanning_function(temp_buffer, node, scop, bounds_all,
-              &bound_used, performance_build)) {
+              build_options)) {
           fclose(temp_buffer);
           free(buffer);
           position_in_input = scop_start_position;
@@ -1213,10 +1281,16 @@ void acr_generate_code(const char* filename, bool performance_build) {
             position_in_input, kernel_start,
             all_options);
 
-        if (!performance_build)
-          acr_print_node_init_function_call(temp_buffer, node);
-        else
-          acr_print_node_init_function_call_for_max_perf_run(temp_buffer, node);
+        switch (build_options->type) {
+          case acr_regular_build:
+          case acr_perf_compile_time_zero_run:
+            acr_print_node_init_function_call(temp_buffer, node);
+            break;
+          case acr_perf_kernel_only:
+          case acr_perf_compile_time_zero:
+            acr_print_node_init_function_call_for_max_perf_run(temp_buffer, node);
+            break;
+        }
         position_in_input = kernel_end;
         fseek(current_file, (long)position_in_input, SEEK_SET);
         osl_scop_free(scop);
@@ -1231,7 +1305,7 @@ void acr_generate_code(const char* filename, bool performance_build) {
             all_options);
         if (!acr_deferred_destroy_for_node(node, option_to_apply_in_the_future,
               num_option_to_apply_in_future))
-          acr_print_destroy(temp_buffer, node, performance_build);
+          acr_print_destroy(temp_buffer, node, build_options);
         fclose(temp_buffer);
         fprintf(new_file, "%s", buffer);
         free(buffer);
@@ -1245,7 +1319,7 @@ void acr_generate_code(const char* filename, bool performance_build) {
         current_file, new_file, all_options,
         end_file, position_in_input,
         option_to_apply_in_the_future, num_option_to_apply_in_future,
-        performance_build);
+        build_options);
     position_in_input = acr_copy_from_file_avoiding_pragmas(
         current_file, new_file, position_in_input,
         end_file, all_options);

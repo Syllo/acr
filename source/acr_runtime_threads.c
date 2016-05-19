@@ -26,6 +26,7 @@
 
 #include "acr/acr_runtime_build.h"
 #include "acr/acr_runtime_data.h"
+#include "acr/acr_runtime_perf.h"
 #include "acr/acr_runtime_verify.h"
 #include "acr/acr_stats.h"
 #include "acr/cloog_runtime.h"
@@ -724,7 +725,9 @@ static void* acr_runtime_compile_thread(void* in_data) {
     pthread_mutex_unlock(&tcc_data.mutex);
 #endif
     file =
-      acr_compile_with_system_compiler(where_to_add->generated_code,
+      acr_compile_with_system_compiler(
+          NULL,
+          where_to_add->generated_code,
           input_data->num_cflags,
           input_data->cflags);
     if(!file) {
@@ -788,6 +791,75 @@ static void* acr_runtime_compile_thread(void* in_data) {
 #endif
   pthread_mutex_unlock(&input_data->mutex);
 #endif
+
+  pthread_exit(NULL);
+}
+
+void* acr_runtime_perf_compile_time_zero(void* in_data) {
+  struct acr_runtime_perf *perf = (struct acr_runtime_perf*) in_data;
+
+  struct acr_runtime_data * const rdata = perf->rdata;
+
+  // Monitoring thread
+  pthread_t monitoring_thread;
+  struct acr_monitoring_computation monitor_data = {
+    .monitoring_function = rdata->monitoring_function,
+    .current_valid_computation = NULL,
+    .monitor_result_size = rdata->monitor_total_size,
+    .end_yourself = false,
+#ifdef ACR_STATS_ENABLED
+    .num_mesurement = 0,
+    .total_time = 0.,
+#endif
+  };
+  pthread_spin_init(&monitor_data.spinlock, PTHREAD_PROCESS_PRIVATE);
+  monitor_data.scrap_values =
+    malloc(rdata->monitor_total_size * sizeof(*monitor_data.scrap_values));
+  pthread_create(&monitoring_thread, NULL, acr_runtime_monitoring_function,
+      (void*) &monitor_data);
+
+  unsigned char *invalid_monitor_result =
+    malloc(rdata->monitor_total_size * sizeof(*invalid_monitor_result));
+  unsigned char *valid_monitor_result = NULL;
+
+  const struct acr_performance_list *current_element = perf->compilation_list;
+
+  while (rdata->monitor_thread_continue && current_element != NULL) {
+    while (valid_monitor_result == NULL) {
+      pthread_spin_lock(&monitor_data.spinlock);
+      if (monitor_data.current_valid_computation) {
+        valid_monitor_result = monitor_data.current_valid_computation;
+        monitor_data.current_valid_computation = NULL;
+        monitor_data.scrap_values = invalid_monitor_result;
+      }
+      pthread_spin_unlock(&monitor_data.spinlock);
+    }
+    if (acr_verify_me(rdata->monitor_total_size,
+          current_element->element.monitor_result,
+          valid_monitor_result)) { // Valid function
+      continue;
+    } else {
+      fprintf(stderr, "Switch\n");
+      current_element = current_element->next;
+      if (current_element != NULL) {
+        pthread_spin_lock(&rdata->alternative_lock);
+        rdata->alternative_function =
+          current_element->element.function;
+        rdata->alternative_still_usable =
+          rdata->usability_inital_value;
+        pthread_spin_unlock(&rdata->alternative_lock);
+      }
+    }
+    invalid_monitor_result = valid_monitor_result;
+    valid_monitor_result = NULL;
+  }
+
+  pthread_spin_lock(&monitor_data.spinlock);
+  monitor_data.end_yourself = true;
+  pthread_spin_unlock(&monitor_data.spinlock);
+
+  pthread_join(monitoring_thread, NULL);
+  free(valid_monitor_result);
 
   pthread_exit(NULL);
 }

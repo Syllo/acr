@@ -35,19 +35,51 @@
 
 #include "acr/acr_runtime_data.h"
 
+enum acr_runtime_perf_type {
+  acr_runtime_perf_kernel_only,
+  acr_runtime_perf_compilation_time_zero,
+  acr_runtime_perf_compilation_time_zero_run,
+};
+
+struct acr_perf_compilation {
+  size_t starting_at, ending_at;
+  char *compilation_file_name;
+  char *loop_body;
+  unsigned char *monitor_result;
+  void *handle;
+  void *function;
+};
+
+struct acr_performance_list {
+  struct acr_performance_list *next;
+  struct acr_perf_compilation element;
+};
+
+
 struct acr_runtime_perf {
   struct acr_runtime_data *rdata;
   struct acr_performance_list *list_head;
   struct acr_performance_list *compilation_list;
+  size_t list_size;
+  enum acr_runtime_perf_type type;
 };
 
 void* acr_runntime_perf_end_step(struct acr_runtime_perf *perf);
 
 void acr_runtime_perf_clean(struct acr_runtime_perf *perf);
 
-void acr_runtime_print_perf_function_call(
+void acr_runtime_print_perf_kernel_function_call(
     FILE* output,
     struct acr_runtime_perf *perf);
+
+void acr_runtime_print_perf_compile_time_zero_function_list_init(
+    FILE* output,
+    struct acr_runtime_perf *perf);
+
+void acr_perf_add_compilation_to_list(struct acr_runtime_perf *perf,
+    struct acr_perf_compilation compilation);
+
+void acr_runtime_clean_time_zero_run(struct acr_runtime_perf *perf);
 
 #endif // __ACR_RUNTIME_PERF_H
 

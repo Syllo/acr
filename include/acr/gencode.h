@@ -22,9 +22,11 @@
 #include <stdio.h>
 
 #include "acr/acr_openscop.h"
+#include "acr/acr_options.h"
 #include "acr/pragma_struct.h"
 
-void acr_generate_code(const char* filename, bool performance_build);
+void acr_generate_code(const char* filename,
+    struct acr_build_options *build_options);
 
 void acr_print_structure_and_related_scop(FILE* out, const char* filename);
 

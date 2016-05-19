@@ -18,25 +18,31 @@
 
 /**
  *
- * \file acr_runtime_threads.h
- * \brief Function to call with pthread in order to start the runtime threads.
+ * \file acr_options.h
+ * \brief ACR compiler options
  *
- * \defgroup runtime_threads
+ * \defgroup compiler_options
  *
  * @{
- * \brief Pthread functions starting the runtime threads
+ * \brief Compiler options
  *
  */
 
+#ifndef __ACR_OPTIONS_H
+#define __ACR_OPTIONS_H
 
-#ifndef __ACR_RUNTIME_THREADS_H
-#define __ACR_RUNTIME_THREADS_H
+enum acr_build_type {
+  acr_regular_build,
+  acr_perf_kernel_only,
+  acr_perf_compile_time_zero,
+  acr_perf_compile_time_zero_run,
+};
 
-void* acr_verification_and_coordinator_function(void *in_data);
+struct acr_build_options {
+  enum acr_build_type type;
+};
 
-void* acr_runtime_perf_compile_time_zero(void* in_data);
-
-#endif // __ACR_RUNTIME_THREADS_H
+#endif // __ACR_OPTIONS_H
 
 /**
  *

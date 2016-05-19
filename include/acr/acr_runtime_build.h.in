@@ -32,6 +32,7 @@ TCCState* acr_compile_with_tcc(
 #endif
 
 char* acr_compile_with_system_compiler(
+    char *requested_filename,
     const char *string_to_compile,
     size_t num_options,
     char** options);

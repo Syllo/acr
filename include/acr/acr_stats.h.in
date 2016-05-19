@@ -58,6 +58,7 @@ struct acr_simulation_time_stats {
 
 void acr_print_stats(
     FILE *out,
+    const char *prefix,
     struct acr_simulation_time_stats *sim_stats,
     struct acr_threads_time_stats *thread_stats);
 

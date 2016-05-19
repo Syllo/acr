@@ -22,6 +22,7 @@
 
 void acr_print_stats(
     FILE *out,
+    const char *kernel_prefix,
     struct acr_simulation_time_stats *sim_stats,
     struct acr_threads_time_stats *thread_stats) {
   double simulation_step_time =
@@ -48,7 +49,7 @@ void acr_print_stats(
   }
   total_time_spent += sim_stats->total_time;
   fprintf(out,
-      "\n############ ACR STATISTICS ############\n\n"
+      "\n############ ACR STATISTICS for %s ############\n\n"
       "%29s: %fs\n\n"
       "%29s: %fs\n"
       "%29s: %zu\n"
@@ -70,6 +71,7 @@ void acr_print_stats(
       "%29s: %f\n"
       "%29s: %f\n"
       "\n########################################\n\n",
+      kernel_prefix,
       "Total time spent",
       total_time_spent,
       "Total simulation time",

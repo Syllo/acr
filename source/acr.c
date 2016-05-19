@@ -26,12 +26,13 @@
 
 #include "acr/gencode.h"
 
-static const char opt_options[] = "zpvh";
+static const char opt_options[] = "pvhxyz";
 
 int main(int argc, char** argv) {
 
+  struct acr_build_options build_options = { .type = acr_regular_build };
+
   bool print = false;
-  bool performance_build = false;
 
   for (;;) {
     int c = getopt(argc, argv, opt_options);
@@ -39,8 +40,14 @@ int main(int argc, char** argv) {
       break;
 
     switch (c) {
+      case 'x':
+        build_options.type = acr_perf_compile_time_zero_run;
+        break;
       case 'z':
-        performance_build = true;
+        build_options.type = acr_perf_kernel_only;
+        break;
+      case 'y':
+        build_options.type = acr_perf_compile_time_zero;
         break;
       case 'h':
         fprintf(stdout, help);
@@ -67,7 +74,7 @@ int main(int argc, char** argv) {
       if (print)
         acr_print_structure_and_related_scop(stdout, argv[i]);
       else
-        acr_generate_code(argv[i], performance_build);
+        acr_generate_code(argv[i], &build_options);
     }
   } else {
     fprintf(stderr, "No input file\nType \"%s -h\" for help\n", argv[-optind]);

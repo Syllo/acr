@@ -44,6 +44,7 @@ static const char help[] = "Usage acr [options] file\n\n"
   "   -v              display version information and exit\n"
   "   -p              print acr data structure and openscop and exit\n"
   "   -z              generate a max performance build for comparison purpose\n"
+  "   -y              generate a zero compile time build\n"
   "   -h              display this help and exit\n";
 
 static const char version[] = "ACR version " ACR_VERSION "\n"
