@@ -374,9 +374,9 @@ void* acr_verification_and_coordinator_function(void *in_data) {
             functions.function_priority[function_in_use]->tcc_function;
           init_data->alternative_still_usable =
             init_data->usability_inital_value;
-          pthread_spin_unlock(&init_data->alternative_lock);
           init_data->current_monitoring_data =
             functions.function_priority[function_in_use]->monitor_result;
+          pthread_spin_unlock(&init_data->alternative_lock);
           break;
         case acr_function_tcc_and_shared:
 #endif
@@ -386,9 +386,9 @@ void* acr_verification_and_coordinator_function(void *in_data) {
             functions.function_priority[function_in_use]->cc_function;
           init_data->alternative_still_usable =
             init_data->usability_inital_value;
-          pthread_spin_unlock(&init_data->alternative_lock);
           init_data->current_monitoring_data =
             functions.function_priority[function_in_use]->monitor_result;
+          pthread_spin_unlock(&init_data->alternative_lock);
           break;
         case acr_function_started_cloog_gen: // Cloog has not finished
           break;
@@ -404,8 +404,8 @@ void* acr_verification_and_coordinator_function(void *in_data) {
 
       pthread_spin_lock(&init_data->alternative_lock);
       init_data->alternative_still_usable = 0;
-      pthread_spin_unlock(&init_data->alternative_lock);
       init_data->current_monitoring_data = NULL;
+      pthread_spin_unlock(&init_data->alternative_lock);
 
       // Round robin function
       function_in_use = (function_in_use + 1) % num_functions;
@@ -812,6 +812,7 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
     .total_time = 0.,
 #endif
   };
+
   pthread_spin_init(&monitor_data.spinlock, PTHREAD_PROCESS_PRIVATE);
   monitor_data.scrap_values =
     malloc(rdata->monitor_total_size * sizeof(*monitor_data.scrap_values));
@@ -837,18 +838,20 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
     if (acr_verify_me(rdata->monitor_total_size,
           current_element->element.monitor_result,
           valid_monitor_result)) { // Valid function
-      continue;
+
+      pthread_spin_lock(&rdata->alternative_lock);
+      rdata->alternative_function =
+        current_element->element.function;
+      rdata->alternative_still_usable =
+        rdata->usability_inital_value;
+      rdata->current_monitoring_data = current_element->element.monitor_result;
+      pthread_spin_unlock(&rdata->alternative_lock);
     } else {
-      fprintf(stderr, "Switch\n");
+      pthread_spin_lock(&rdata->alternative_lock);
+      rdata->alternative_still_usable = 0;
+      pthread_spin_unlock(&rdata->alternative_lock);
+      rdata->current_monitoring_data = NULL;
       current_element = current_element->next;
-      if (current_element != NULL) {
-        pthread_spin_lock(&rdata->alternative_lock);
-        rdata->alternative_function =
-          current_element->element.function;
-        rdata->alternative_still_usable =
-          rdata->usability_inital_value;
-        pthread_spin_unlock(&rdata->alternative_lock);
-      }
     }
     invalid_monitor_result = valid_monitor_result;
     valid_monitor_result = NULL;
@@ -859,7 +862,7 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
   pthread_spin_unlock(&monitor_data.spinlock);
 
   pthread_join(monitoring_thread, NULL);
-  free(valid_monitor_result);
+  free(invalid_monitor_result);
 
   pthread_exit(NULL);
 }

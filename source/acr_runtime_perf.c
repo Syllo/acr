@@ -276,5 +276,5 @@ void acr_runtime_print_perf_compile_time_zero_function_list_init(
     fprintf(output, "  acr_perf_add_compilation_to_list(rperf, comp);\n");
     list_element = list_element->next;
   }
-  fprintf(output, "  return rperf;\n}\n");
+  fprintf(output, "}\n");
 }
