@@ -21,6 +21,11 @@
  * \file acr_time.h
  * \brief Time functions for performance analysis purpose
  *
+ * \defgroup acr_time
+ *
+ * @{
+ * \brief Dealing with system time measurements
+ *
  */
 
 #ifndef __ACR_TIME_H
@@ -69,3 +74,9 @@ static inline double acr_difftime(acr_time t0, acr_time t1) {
 #endif // _OPENMP
 
 #endif // __ACR_TIME_H
+
+/**
+ *
+ * @}
+ *
+ */

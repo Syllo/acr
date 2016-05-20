@@ -16,6 +16,17 @@
  *
  */
 
+/**
+ *
+ * \file acr_runtime_build.h
+ * \brief Wrapper for compiling an in-memory C program
+ *
+ * \defgroup runtime_generation
+ *
+ * @{
+ *
+ */
+
 #ifndef __ACR_RUNTIME_BUILD_H
 #define __ACR_RUNTIME_BUILD_H
 
@@ -42,3 +53,9 @@ void acr_append_necessary_compile_flags(
     char ***options);
 
 #endif // __ACR_RUNTIME_BUILD_H
+
+/**
+ *
+ * @}
+ *
+ */

@@ -16,6 +16,18 @@
  *
  */
 
+/**
+ *
+ * \file print.h
+ * \brief Print the pragma data structure
+ *
+ * \defgroup build_print
+ *
+ * @{
+ * \brief Print the pragma construct data structure
+ *
+ */
+
 #ifndef __ACR_PRINT_H
 #define __ACR_PRINT_H
 
@@ -69,3 +81,9 @@ void pprint_acr_option_list(FILE *out,
                             size_t indent_level);
 
 #endif // __ACR_PRINT_H
+
+/**
+ *
+ * @}
+ *
+ */

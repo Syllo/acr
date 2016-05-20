@@ -21,7 +21,7 @@
  * \file acr_options.h
  * \brief ACR compiler options
  *
- * \defgroup compiler_options
+ * \defgroup build_options
  *
  * @{
  * \brief Compiler options

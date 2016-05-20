@@ -18,7 +18,7 @@
 
 /**
  *
- * \file cloog_runtime.h
+ * \file acr_runtime_code_generation.h
  * \brief Code generation using CLooG library
  *
  * \defgroup runtime_generation
@@ -28,8 +28,8 @@
  *
  */
 
-#ifndef __ACR_CLOOG_RUNTIME_H
-#define __ACR_CLOOG_RUNTIME_H
+#ifndef __ACR_RUNTIME_CODE_GENERATION_H
+#define __ACR_RUNTIME_CODE_GENERATION_H
 
 #include <acr/acr_runtime_data.h>
 #include <acr/runtime_alternatives.h>
@@ -48,7 +48,7 @@ void acr_cloog_get_rid_of_parameter(
     unsigned int parameter,
     long int value);
 
-#endif // __ACR_CLOOG_RUNTIME_H
+#endif // __ACR_RUNTIME_CODE_GENERATION_H
 
 /**
  *

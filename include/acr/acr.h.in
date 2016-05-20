@@ -26,6 +26,11 @@
  * @{
  * \brief The compiler part of ACR dealing with pragmas
  *
+ * \defgroup build_gencode Generation of instrumented code
+ * \defgroup build_pragma The ACR pragma data structure
+ * \defgroup build_lexyacc Scanner and parser utilities
+ * \defgroup build_openscop OpenScop information extraction
+ * \defgroup build_options Generator build options
  *
  * @}
  *

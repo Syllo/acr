@@ -20,10 +20,10 @@
  *
  * \file acr_openscop.h
  *
- * \defgroup openscop OpenScop helper functions
+ * \defgroup build_openscop
  *
  * @{
- * \brief
+ * \brief Extract information from OpenScop format
  *
  */
 

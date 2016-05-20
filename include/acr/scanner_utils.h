@@ -16,6 +16,17 @@
  *
  */
 
+/**
+ *
+ * \file scanner_utils.h
+ * \brief Lex useful data
+ *
+ * \defgroup build_lexyacc
+ *
+ * @{
+ *
+ */
+
 #ifndef __ACR_SCANNER_UTILS_H
 #define __ACR_SCANNER_UTILS_H
 
@@ -40,3 +51,9 @@ static const struct acr_pragma_options_utils acr_pragma_options_name_list[] =
   };
 
 #endif // __ACR_SCANNER_UTILS_H
+
+/**
+ *
+ * @}
+ *
+ */

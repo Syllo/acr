@@ -16,7 +16,7 @@
  *
  */
 
-#include <acr/cloog_runtime.h>
+#include <acr/acr_runtime_code_generation.h>
 
 #include <string.h>
 

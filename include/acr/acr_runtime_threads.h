@@ -24,7 +24,7 @@
  * \defgroup runtime_threads
  *
  * @{
- * \brief Pthread functions starting the runtime threads
+ * \brief The threading system of ACR
  *
  */
 

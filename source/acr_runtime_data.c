@@ -16,10 +16,10 @@
  *
  */
 
-#include "acr/acr_runtime_data.h"
-#include "acr/cloog_runtime.h"
-#include "acr/osl_runtime.h"
 #include "acr/acr_runtime_build.h"
+#include "acr/acr_runtime_code_generation.h"
+#include "acr/acr_runtime_data.h"
+#include "acr/acr_runtime_osl.h"
 
 #include <cloog/isl/domain.h>
 #include <isl/constraint.h>

@@ -16,6 +16,18 @@
  *
  */
 
+/**
+ *
+ * \file runtime_alternative.h
+ * \brief Structure to store alternative data
+ *
+ * \defgroup runtime_alternative
+ *
+ * @{
+ * \brief Structure storing the alternative data required during runtime
+ *
+ */
+
 #ifndef __ACR_RUNTIME_ALTERNATIVES__H
 #define __ACR_RUNTIME_ALTERNATIVES__H
 
@@ -45,3 +57,9 @@ struct runtime_alternative {
 };
 
 #endif // __ACR_RUNTIME_ALTERNATIVES__H
+
+/**
+ *
+ * @}
+ *
+ */

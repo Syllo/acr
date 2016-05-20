@@ -16,6 +16,18 @@
  *
  */
 
+/**
+ *
+ * \file parser_utils.h
+ * \brief Yacc parser helper functions
+ *
+ * \defgroup build_lexyacc
+ *
+ * @{
+ * \brief Flexx and Yacc data structure and helper functions
+ *
+ */
+
 #ifndef __ACR_PARSER_UTILS_H
 #define __ACR_PARSER_UTILS_H
 
@@ -179,3 +191,9 @@ size_t array_dim_list_size_free_convert(
     acr_array_dimensions_list* list);
 
 #endif // __ACR_PARSER_UTILS_H
+
+/**
+ *
+ * @}
+ *
+ */

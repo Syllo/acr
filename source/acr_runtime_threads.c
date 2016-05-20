@@ -25,11 +25,11 @@
 #include <pthread.h>
 
 #include "acr/acr_runtime_build.h"
+#include "acr/acr_runtime_code_generation.h"
 #include "acr/acr_runtime_data.h"
 #include "acr/acr_runtime_perf.h"
 #include "acr/acr_runtime_verify.h"
 #include "acr/acr_stats.h"
-#include "acr/cloog_runtime.h"
 
 static void* acr_runtime_monitoring_function(void* in_data);
 
@@ -139,7 +139,7 @@ struct acr_runtime_threads_compile_tcc {
 #endif
 
 static void* acr_runtime_monitoring_function(void *in_data) {
-  struct acr_monitoring_computation *input_data =
+  struct acr_monitoring_computation * const input_data =
     (struct acr_monitoring_computation*) in_data;
 
 #ifdef ACR_STATS_ENABLED
@@ -197,7 +197,7 @@ static void* acr_runtime_monitoring_function(void *in_data) {
 }
 
 void* acr_verification_and_coordinator_function(void *in_data) {
-  struct acr_runtime_data *init_data =
+  struct acr_runtime_data *const init_data =
     (struct acr_runtime_data*) in_data;
 
   const size_t num_functions = 2;
@@ -523,7 +523,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
 }
 
 static void* acr_cloog_generate_code_from_alt(void* in_data) {
-  struct acr_runtime_threads_cloog_gencode * input_data =
+  struct acr_runtime_threads_cloog_gencode *const input_data =
     (struct acr_runtime_threads_cloog_gencode *) in_data;
 
 #ifdef ACR_STATS_ENABLED
@@ -531,7 +531,6 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
   size_t num_mesurement = 0;
 #endif
 
-  struct acr_runtime_data *rdata = input_data->rdata;
   FILE* stream;
 
   for (;;) {
@@ -568,8 +567,8 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
     fseek(stream, 0l, SEEK_SET);
     fprintf(stream, //"#include \"acr_required_definitions.h\"\n"
         "void acr_alternative_function%s {\n",
-        rdata->function_prototype);
-    acr_cloog_generate_alternative_code_from_input(stream, rdata,
+        input_data->rdata->function_prototype);
+    acr_cloog_generate_alternative_code_from_input(stream, input_data->rdata,
         monitor_result);
     fprintf(stream, "}\n");
 
@@ -600,7 +599,7 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
 
 #ifdef TCC_PRESENT
 static void* acr_runtime_compile_tcc(void* in_data) {
-  struct acr_runtime_threads_compile_tcc *input_data =
+  struct acr_runtime_threads_compile_tcc *const input_data =
     (struct acr_runtime_threads_compile_tcc *) in_data;
 
 #ifdef ACR_STATS_ENABLED
@@ -666,7 +665,7 @@ static void* acr_runtime_compile_tcc(void* in_data) {
 #endif
 
 static void* acr_runtime_compile_thread(void* in_data) {
-  struct acr_runtime_threads_compile_data * input_data =
+  struct acr_runtime_threads_compile_data *const input_data =
     (struct acr_runtime_threads_compile_data *) in_data;
 
 #ifdef ACR_STATS_ENABLED

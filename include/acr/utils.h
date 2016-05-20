@@ -16,6 +16,29 @@
  *
  */
 
+/**
+ *
+ * \file utils.h
+ * \brief Utilities functions
+ *
+ * \defgroup acr_misc Miscellaneous
+ *
+ * @{
+ * \brief General purpose functions and data
+ *
+ * \defgroup acr_utilities Utilities functions
+ * \defgroup acr_time Time related functions
+ * \defgroup acr_compiler_path The compiler absolute path
+ *
+ * @}
+ *
+ * \defgroup acr_utilities
+ *
+ * @{
+ * \brief Useful functions and macros
+ *
+ */
+
 #ifndef __ACR_UTILS_H
 #define __ACR_UTILS_H
 
@@ -40,3 +63,9 @@ char* acr_strdup(const char* to_duplicate);
                           (((a)-(b)) >= (-DOUBLE_TRESHOLD)))
 
 #endif // __ACR_UTILS_H
+
+/**
+ *
+ * @}
+ *
+ */

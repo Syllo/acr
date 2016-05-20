@@ -16,6 +16,18 @@
  *
  */
 
+/**
+ *
+ * \file gencode.h
+ * \brief Generate the ACR instrumented code
+ *
+ * \defgroup build_gencode
+ *
+ * @{
+ * \brief Generate the instrumented code from ACR pragma construct
+ *
+ */
+
 #ifndef __ACR_GENCODE_H
 #define __ACR_GENCODE_H
 
@@ -65,3 +77,9 @@ bool acr_verify_bounds_and_node_options(
     const acr_compute_node node);
 
 #endif // __ACR_GENCODE_H
+
+/**
+ *
+ * @}
+ *
+ */

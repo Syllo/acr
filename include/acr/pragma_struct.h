@@ -16,6 +16,20 @@
  *
  */
 
+/**
+ *
+ * \file pragma_struct.h
+ * \brief ACR pragma construct functions
+ *
+ * \defgroup build_pragma
+ *
+ * @{
+ * \brief ACR pragma construct build/destroy/explore functions
+ *
+ * \defgroup build_print Print the pragma data structure
+ *
+ */
+
 #ifndef __ACR_PRAGMA_STRUCT_H
 #define __ACR_PRAGMA_STRUCT_H
 
@@ -580,3 +594,9 @@ acr_option_list acr_get_general_option_list(const acr_compute_node node,
     size_t *new_list_size);
 
 #endif // __ACR_PRAGMA_STRUCT_H
+
+/**
+ *
+ * @}
+ *
+ */

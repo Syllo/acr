@@ -23,9 +23,9 @@
 #include <sys/stat.h>
 
 #include "acr/acr_runtime_build.h"
+#include "acr/acr_runtime_code_generation.h"
 #include "acr/acr_runtime_perf.h"
 #include "acr/acr_runtime_verify.h"
-#include "acr/cloog_runtime.h"
 
 #define GETCWD_DEFAULT_BUFFER_SIZE 100
 

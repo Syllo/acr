@@ -206,13 +206,13 @@ configure_file(
 
 list(APPEND ACR_RUNTIME_LIBRARY_C_FILES
   source/acr_runtime_build.c
+  source/acr_runtime_code_generation.c
   source/acr_runtime_data.c
+  source/acr_runtime_osl.c
   source/acr_runtime_perf.c
   source/acr_runtime_threads.c
   source/acr_runtime_verify.c
-  source/acr_stats.c
-  source/cloog_runtime.c
-  source/osl_runtime.c)
+  source/acr_stats.c)
 
 list(APPEND ACR_LIBRARY_C_FILES
   source/acr_openscop.c

@@ -36,6 +36,7 @@
  * \defgroup runtime_stats Runtime kernel statistics
  * \defgroup runtime_osl Runtime OpenScop helper functions
  * \defgroup runtime_verify Runtime grid comparison function
+ * \defgroup runtime_alternative Runtime alternative structure
  *
  * @}
  *
@@ -44,12 +45,11 @@
 #ifndef __ACR_RUNTIME_H
 #define __ACR_RUNTIME_H
 
+#include <acr/acr_runtime_code_generation.h>
 #include <acr/acr_runtime_data.h>
 #include <acr/acr_runtime_perf.h>
 #include <acr/acr_runtime_threads.h>
-#include <acr/cloog_runtime.h>
 #include <acr/acr_stats.h>
-#include <acr/osl_runtime.h>
 
 #define __ACR_PRESENT__
 

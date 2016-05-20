@@ -16,9 +16,27 @@
  *
  */
 
+/**
+ *
+ * \file compiler_name.h
+ * \brief Absolute path to the compiler set at configure time
+ *
+ * \defgroup acr_compiler_path
+ *
+ * @{
+ * \brief Compiler absolute path used by runtime ACR
+ *
+ */
+
 #ifndef __COMPILER_NAME_H
 #define __COMPILER_NAME_H
 
 static char acr_system_compiler_path[] = "@CMAKE_C_COMPILER@";
 
 #endif // __COMPILER_NAME_H
+
+/**
+ *
+ * @}
+ *
+ */

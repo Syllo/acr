@@ -16,14 +16,29 @@
  *
  */
 
-#include "acr/osl_runtime.h"
+/**
+ *
+ * \file acr_runtime_osl.h
+ * \brief OpenScop helper functions
+ *
+ * \defgroup runtime_osl
+ *
+ * @{
+ * \brief Openscop helper functions
+ *
+ */
 
-#include <stdio.h>
+#ifndef __ACR_OSL_RUNTIME_H
+#define __ACR_OSL_RUNTIME_H
 
-osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer) {
-  FILE* fakefile = fmemopen(buffer, size_buffer, "r");
-  osl_scop_p scop = osl_scop_read(fakefile);
-  fclose(fakefile);
-  return scop;
-}
+#include <osl/scop.h>
 
+osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer);
+
+#endif // __ACR_OSL_RUNTIME_H
+
+/**
+ *
+ * @}
+ *
+ */
