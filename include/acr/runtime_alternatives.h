@@ -18,7 +18,7 @@
 
 /**
  *
- * \file runtime_alternative.h
+ * \file runtime_alternatives.h
  * \brief Structure to store alternative data
  *
  * \defgroup runtime_alternative
