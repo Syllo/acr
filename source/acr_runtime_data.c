@@ -29,7 +29,9 @@
 #include <string.h>
 
 void free_acr_runtime_data_thread_specific(struct acr_runtime_data* data) {
+  pthread_spin_lock(&data->alternative_lock);
   data->monitor_thread_continue = false;
+  pthread_spin_unlock(&data->alternative_lock);
   pthread_join(data->monitor_thread, NULL);
   pthread_spin_destroy(&data->alternative_lock);
 }

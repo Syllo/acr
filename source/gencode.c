@@ -837,15 +837,16 @@ void acr_print_node_init_function_call(FILE* out,
       "#ifdef ACR_STATS_ENABLED\n"
       "  acr_time t1;\n"
       "  acr_get_current_time(&t1);\n"
+      "  pthread_spin_lock(&%s_runtime_data.alternative_lock);\n"
       "  %s_runtime_data.sim_stats.total_time += acr_difftime(t0, t1);\n"
       "  %s_runtime_data.sim_stats.num_simmulation_step += 1;\n"
-      "#endif\n",
-      prefix, prefix);
-  fprintf(out,
+      "#else\n"
       "  pthread_spin_lock(&%s_runtime_data.alternative_lock);\n"
-      "  if(%s_runtime_data.alternative_still_usable) {\n"
-      "    %s = (void (*)",
-      prefix, prefix, prefix);
+      "#endif\n"
+      "  if (%s_runtime_data.alternative_still_usable) {\n"
+      "    if (%s_runtime_data.alternative_function) {\n"
+      "      %s = (void (*)",
+      prefix, prefix, prefix, prefix, prefix, prefix, prefix);
   acr_print_parameters(out, init);
 
   acr_option_list list = acr_compute_node_get_option_list(node);
@@ -862,7 +863,8 @@ void acr_print_node_init_function_call(FILE* out,
   if (has_alternative_parameter) {
     fprintf(out,
         ") %s_runtime_data.alternative_function;\n"
-        "    %s_runtime_data.alternative_still_usable -= 1;\n"
+        "      %s_runtime_data.alternative_function = NULL;\n"
+        "    }\n"
         /*"    fprintf(stderr, \"[Compute] Using new\\n\");\n"*/
         "  } else {\n"
         "    %s = %s_acr_initial_0;\n"
@@ -873,14 +875,13 @@ void acr_print_node_init_function_call(FILE* out,
   } else {
     fprintf(out,
         ") %s_runtime_data.alternative_function;\n"
-        "    %s_runtime_data.alternative_still_usable -= 1;\n"
         /*"    fprintf(stderr, \"[Compute] Using new\\n\");\n"*/
         "  } else {\n"
         "    %s = %s_acr_initial;\n"
         /*"    fprintf(stderr, \"[Compute] Using initial\\n\");\n"*/
         "  }\n"
         "  pthread_spin_unlock(&%s_runtime_data.alternative_lock);\n",
-        prefix, prefix, prefix, prefix, prefix);
+        prefix, prefix, prefix, prefix);
   }
 }
 
