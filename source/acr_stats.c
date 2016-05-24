@@ -48,6 +48,16 @@ void acr_print_stats(
     total_time_spent += thread_stats->total_time[i];
   }
   total_time_spent += sim_stats->total_time;
+  double sim_proportion_of_total =
+      sim_stats->total_time / total_time_spent;
+  double monitor_proportion_of_total =
+      thread_stats->total_time[acr_thread_time_monitor] / total_time_spent;
+  double cloog_proportion_of_total =
+      thread_stats->total_time[acr_thread_time_cloog] / total_time_spent;
+  double cc_proportion_of_total =
+      thread_stats->total_time[acr_thread_time_cc] / total_time_spent;
+  double tcc_proportion_of_total =
+      thread_stats->total_time[acr_thread_time_tcc] / total_time_spent;
   fprintf(out,
       "\n############ ACR STATISTICS for %s ############\n\n"
       "%29s: %fs\n\n"
@@ -69,16 +79,21 @@ void acr_print_stats(
       "%29s: %f\n"
       "%29s: %f\n"
       "%29s: %f\n"
-      "%29s: %f\n"
+      "%29s: %f\n\n"
+      "%29s: %f%%\n"
+      "%29s: %f%%\n"
+      "%29s: %f%%\n"
+      "%29s: %f%%\n"
+      "%29s: %f%%\n"
       "\n########################################\n\n",
       kernel_prefix,
       "Total time spent",
       total_time_spent,
-      "Total simulation time",
+      "Total kernel time",
       sim_stats->total_time,
-      "Total simulation steps",
+      "Total kernel calls",
       sim_stats->num_simmulation_step,
-      "Time of one simulation step",
+      "Mean time of kernel",
       simulation_step_time,
       "Total monitoring time",
       thread_stats->total_time[acr_thread_time_monitor],
@@ -111,7 +126,17 @@ void acr_print_stats(
       "cc time / frame time",
       cc_proportion_of_sim_step,
       "tcc time / frame time",
-      tcc_proportion_of_sim_step);
+      tcc_proportion_of_sim_step,
+      "% of kernel time",
+      sim_proportion_of_total*100.f,
+      "% of monitor time",
+      monitor_proportion_of_total*100.f,
+      "% of CLooG time",
+      cloog_proportion_of_total*100.f,
+      "% of CC time",
+      cc_proportion_of_total*100.f,
+      "% of TCC time",
+      tcc_proportion_of_total*100.f);
 }
 
 #endif
