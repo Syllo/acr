@@ -480,7 +480,6 @@ void* acr_verification_and_coordinator_function(void *in_data) {
       most_recent_function =
         (most_recent_function+1) == num_functions ? 0 : most_recent_function+1;
       if (most_recent_function != next_good) {
-        fprintf(stderr, "Switch\n");
         struct func_value *const temp = functions.function_priority[next_good];
         functions.function_priority[next_good] =
           functions.function_priority[most_recent_function];
