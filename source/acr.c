@@ -26,7 +26,7 @@
 
 #include "acr/gencode.h"
 
-static const char opt_options[] = "pvhxyz";
+static const char opt_options[] = "apvhxyz";
 
 int main(int argc, char** argv) {
 

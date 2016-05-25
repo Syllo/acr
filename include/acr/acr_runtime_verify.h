@@ -38,6 +38,14 @@ bool acr_verify_me(size_t size_buffers,
     const unsigned char *current,
     const unsigned char *more_precise);
 
+void acr_verify_versionning(size_t size_buffers,
+    unsigned char const*const current,
+    unsigned char const*const more_recent,
+    unsigned char *maximized_version,
+    size_t num_alternatives,
+    double *delta,
+    bool *still_valid);
+
 #endif // __ACR_RUNTIME_VERIFY_H
 
 /**

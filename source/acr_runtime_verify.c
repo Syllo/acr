@@ -21,13 +21,37 @@
 #include <string.h>
 
 bool acr_verify_me(size_t size_buffers,
-    const unsigned char *current,
-    const unsigned char *more_recent) {
-  size_t i;
+    unsigned char const*const restrict current,
+    unsigned char const*const restrict more_recent) {
   bool same = true;
 #pragma omp simd reduction(&&:same)
-  for(i = 0; i < size_buffers; i++) {
+  for(size_t i = 0; i < size_buffers; i++) {
     same = same && (current[i] <= more_recent[i]);
   }
   return same;
+}
+
+void acr_verify_versionning(size_t size_buffers,
+    unsigned char const*const restrict current,
+    unsigned char const*const restrict more_recent,
+    unsigned char *restrict maximized_version,
+    size_t num_alternatives,
+    double *delta,
+    bool *still_valid) {
+  size_t total_difference = 0;
+  bool still_valid_local = true;
+
+  for(size_t i = 0; i < size_buffers; i++) {
+    if (more_recent[i] < current[i]) {
+      maximized_version[i] = more_recent[i];
+      total_difference = total_difference + current[i] - more_recent[i];
+      still_valid_local = false;
+    } else {
+      maximized_version[i] = current[i];
+      total_difference = total_difference + more_recent[i] - current[i];
+    }
+  }
+  size_buffers *= num_alternatives;
+  *delta = (double) total_difference / (double) size_buffers;
+  *still_valid = still_valid_local;
 }
