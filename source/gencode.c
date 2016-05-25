@@ -589,6 +589,12 @@ static void acr_print_get_rid_of_parameters(
   }
 }
 
+static
+char const*const acr_kernel_strategy_type_string[acr_runtime_kernel_unknown] =
+  { [acr_runtime_kernel_simple]      = "acr_kernel_strategy_simple",
+    [acr_runtime_kernel_versionning] = "acr_kernel_strategy_versionning"
+  };
+
 static void acr_print_acr_runtime_init(FILE* out,
     const acr_compute_node node,
     const dimensions_upper_lower_bounds_all_statements *dims,
@@ -616,6 +622,7 @@ static void acr_print_acr_runtime_init(FILE* out,
   acr_option grid = acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
   fprintf(out, "static void %s_monitoring_function(unsigned char*);\n", prefix);
   fprintf(out, "static struct acr_runtime_data %s_runtime_data = {\n"
+      "  .kernel_strategy_type = %s,\n"
       "  .kernel_prefix = \"%s\",\n"
       "  .num_alternatives = %zu,\n"
       "  .alternatives = %s_alternatives,\n"
@@ -623,7 +630,8 @@ static void acr_print_acr_runtime_init(FILE* out,
       "  .grid_size = %zu,\n"
       "  .num_statements = %zu,\n"
       "  .dimensions_per_statements = (unsigned int [%zu]) {\n",
-      prefix, prefix, num_alternatives, prefix,
+      prefix, acr_kernel_strategy_type_string[build_options->kernel_version],
+      prefix, num_alternatives, prefix,
       num_monitor_dims, acr_grid_get_grid_size(grid),
       dims->num_statements, dims->num_statements);
   for (size_t i = 0; i < dims->num_statements; ++i) {

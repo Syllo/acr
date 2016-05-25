@@ -30,7 +30,10 @@ static const char opt_options[] = "pvhxyz";
 
 int main(int argc, char** argv) {
 
-  struct acr_build_options build_options = { .type = acr_regular_build };
+  struct acr_build_options build_options =
+  { .type = acr_regular_build,
+    .kernel_version = acr_runtime_kernel_simple,
+  };
 
   bool print = false;
 
@@ -40,6 +43,9 @@ int main(int argc, char** argv) {
       break;
 
     switch (c) {
+      case 'a':
+        build_options.kernel_version = acr_runtime_kernel_versionning;
+        break;
       case 'x':
         build_options.type = acr_perf_compile_time_zero_run;
         break;

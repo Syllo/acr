@@ -128,15 +128,15 @@ void acr_print_stats(
       "tcc time / frame time",
       tcc_proportion_of_sim_step,
       "% of kernel time",
-      sim_proportion_of_total*100.f,
+      sim_proportion_of_total*100,
       "% of monitor time",
-      monitor_proportion_of_total*100.f,
+      monitor_proportion_of_total*100,
       "% of CLooG time",
-      cloog_proportion_of_total*100.f,
+      cloog_proportion_of_total*100,
       "% of CC time",
-      cc_proportion_of_total*100.f,
+      cc_proportion_of_total*100,
       "% of TCC time",
-      tcc_proportion_of_total*100.f);
+      tcc_proportion_of_total*100);
 }
 
 #endif

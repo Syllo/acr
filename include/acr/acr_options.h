@@ -38,8 +38,15 @@ enum acr_build_type {
   acr_perf_compile_time_zero_run,
 };
 
+enum acr_runtime_kernel_version {
+  acr_runtime_kernel_simple,
+  acr_runtime_kernel_versionning,
+  acr_runtime_kernel_unknown,
+};
+
 struct acr_build_options {
   enum acr_build_type type;
+  enum acr_runtime_kernel_version kernel_version;
 };
 
 #endif // __ACR_OPTIONS_H

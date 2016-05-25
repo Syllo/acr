@@ -39,7 +39,14 @@
 #include <pthread.h>
 #include "acr/acr_stats.h"
 
+enum acr_kernel_strategy_type {
+  acr_kernel_strategy_simple = 0,
+  acr_kernel_strategy_versionning,
+  acr_kernel_strategy_unknown,
+};
+
 struct acr_runtime_data {
+  char *kernel_prefix;
   CloogState* state;
   struct osl_scop* osl_relation;
   size_t num_alternatives;
@@ -62,17 +69,17 @@ struct acr_runtime_data {
   char **compiler_flags;
 
   unsigned char *current_monitoring_data;
-  pthread_spinlock_t alternative_lock;
   void *alternative_function;
+  pthread_spinlock_t alternative_lock;
   uint_fast8_t alternative_still_usable;
   uint_fast8_t usability_inital_value;
   pthread_t monitor_thread;
   bool monitor_thread_continue;
-  char *kernel_prefix;
 #ifdef ACR_STATS_ENABLED
   struct acr_threads_time_stats thread_stats;
   struct acr_simulation_time_stats sim_stats;
 #endif
+  enum acr_kernel_strategy_type kernel_strategy_type;
 };
 
 void init_acr_runtime_data_thread_specific(struct acr_runtime_data *data);

@@ -204,6 +204,280 @@ static void* acr_runtime_monitoring_function(void *in_data) {
   pthread_exit(NULL);
 }
 
+static void acr_kernel_versionning(
+    struct acr_runtime_data *const init_data,
+    struct acr_avaliable_functions *const functions,
+    struct acr_monitoring_computation *const monitor_data,
+    struct acr_runtime_threads_compile_data *const compile_threads_data,
+    struct acr_runtime_threads_cloog_gencode *const cloog_thread_data) {
+
+  unsigned char *valid_monitor_result = NULL;
+  unsigned char *invalid_monitor_result =
+    malloc(init_data->monitor_total_size * sizeof(*monitor_data->scrap_values));
+  size_t most_recent_function = 0;
+  size_t function_used_by_kernel = 0;
+  enum acr_kernel_function_type function_used_by_kernel_type =
+    acr_kernel_function_initial;
+
+  // Wait for one valid monitor data
+  while (valid_monitor_result == NULL) {
+    pthread_spin_lock(&monitor_data->spinlock);
+    if (monitor_data->current_valid_computation) {
+      valid_monitor_result = monitor_data->current_valid_computation;
+      monitor_data->current_valid_computation = NULL;
+      monitor_data->scrap_values = invalid_monitor_result;
+    }
+    pthread_spin_unlock(&monitor_data->spinlock);
+  }
+  invalid_monitor_result = NULL;
+
+  // Gen with CLooG the first valid function
+  pthread_mutex_lock(&cloog_thread_data->mutex);
+  while(cloog_thread_data->num_threads == cloog_thread_data->num_threads_compiling) {
+    pthread_cond_wait(&cloog_thread_data->coordinator_sleep, &cloog_thread_data->mutex);
+  }
+  cloog_thread_data->where_to_add =
+    functions->function_priority[most_recent_function];
+  invalid_monitor_result = cloog_thread_data->where_to_add->monitor_result;
+  cloog_thread_data->where_to_add->monitor_result = valid_monitor_result;
+  cloog_thread_data->generate_function = true;
+  functions->function_priority[most_recent_function]->type =
+    acr_function_started_cloog_gen;
+  pthread_mutex_unlock(&cloog_thread_data->mutex);
+  valid_monitor_result = NULL;
+
+  // CLooG it's your time to shine
+  pthread_cond_signal(&cloog_thread_data->compiler_thread_sleep);
+
+  while (init_data->monitor_thread_continue) {
+  }
+  free(valid_monitor_result);
+  free(invalid_monitor_result);
+}
+
+static void acr_kernel_simple(
+    struct acr_runtime_data *const init_data,
+    struct acr_avaliable_functions *const functions,
+    struct acr_monitoring_computation *const monitor_data,
+    struct acr_runtime_threads_compile_data *const compile_threads_data,
+    struct acr_runtime_threads_cloog_gencode *const cloog_thread_data) {
+
+  unsigned char *valid_monitor_result = NULL;
+  unsigned char *invalid_monitor_result =
+    malloc(init_data->monitor_total_size * sizeof(*monitor_data->scrap_values));
+  size_t most_recent_function = 0;
+  size_t function_used_by_kernel = 0;
+  enum acr_kernel_function_type function_used_by_kernel_type =
+    acr_kernel_function_initial;
+
+  // Wait for one valid monitor data
+  while (valid_monitor_result == NULL) {
+    pthread_spin_lock(&monitor_data->spinlock);
+    if (monitor_data->current_valid_computation) {
+      valid_monitor_result = monitor_data->current_valid_computation;
+      monitor_data->current_valid_computation = NULL;
+      monitor_data->scrap_values = invalid_monitor_result;
+    }
+    pthread_spin_unlock(&monitor_data->spinlock);
+  }
+  invalid_monitor_result = NULL;
+
+  // Gen with CLooG the first valid function
+  pthread_mutex_lock(&cloog_thread_data->mutex);
+  while(cloog_thread_data->num_threads == cloog_thread_data->num_threads_compiling) {
+    pthread_cond_wait(&cloog_thread_data->coordinator_sleep, &cloog_thread_data->mutex);
+  }
+  cloog_thread_data->where_to_add =
+    functions->function_priority[most_recent_function];
+  invalid_monitor_result = cloog_thread_data->where_to_add->monitor_result;
+  cloog_thread_data->where_to_add->monitor_result = valid_monitor_result;
+  cloog_thread_data->generate_function = true;
+  functions->function_priority[most_recent_function]->type =
+    acr_function_started_cloog_gen;
+  pthread_mutex_unlock(&cloog_thread_data->mutex);
+  valid_monitor_result = NULL;
+
+  // CLooG it's your time to shine
+  pthread_cond_signal(&cloog_thread_data->compiler_thread_sleep);
+
+  while (init_data->monitor_thread_continue) {
+
+    // Get last valid monitor result
+    while (valid_monitor_result == NULL) {
+      pthread_spin_lock(&monitor_data->spinlock);
+      if (monitor_data->current_valid_computation) {
+        valid_monitor_result = monitor_data->current_valid_computation;
+        monitor_data->current_valid_computation = NULL;
+        monitor_data->scrap_values = invalid_monitor_result;
+      }
+      pthread_spin_unlock(&monitor_data->spinlock);
+    }
+    invalid_monitor_result = NULL;
+
+    enum acr_avaliable_function_type type;
+    // Test current function validity
+    if (acr_verify_me(init_data->monitor_total_size,
+          functions->function_priority[most_recent_function]->monitor_result,
+          valid_monitor_result)) { // Valid function
+      pthread_spin_lock(&functions->function_priority[most_recent_function]->lock);
+      type = functions->function_priority[most_recent_function]->type;
+      pthread_spin_unlock(&functions->function_priority[most_recent_function]->lock);
+      switch(type) {
+        case acr_function_finished_cloog_gen:  // missing C compilation
+          pthread_mutex_lock(&compile_threads_data->mutex);
+          while(compile_threads_data->num_threads ==
+              compile_threads_data->num_threads_compiling) {
+            pthread_cond_wait(&compile_threads_data->coordinator_sleep,
+                &compile_threads_data->mutex);
+          }
+          functions->function_priority[most_recent_function]->type =
+            acr_function_started_compilation;
+          compile_threads_data->compile_something = true;
+          compile_threads_data->where_to_add =
+            functions->function_priority[most_recent_function];
+          pthread_cond_signal(&compile_threads_data->compiler_thread_sleep);
+          pthread_mutex_unlock(&compile_threads_data->mutex);
+          break;
+        case acr_function_started_compilation: // - Waiting compilation
+          break;
+#ifdef TCC_PRESENT
+        case acr_function_tcc_in_memory: // Fast compilation finished
+          if (function_used_by_kernel_type == acr_kernel_function_initial) {
+            pthread_spin_lock(&init_data->alternative_lock);
+            init_data->alternative_function =
+              functions->function_priority[most_recent_function]->tcc_function;
+            init_data->alternative_still_usable = true;
+            init_data->current_monitoring_data =
+              functions->function_priority[most_recent_function]->monitor_result;
+            pthread_spin_unlock(&init_data->alternative_lock);
+            function_used_by_kernel_type = acr_kernel_function_proposed_tcc;
+          } else {
+            if (function_used_by_kernel_type == acr_kernel_function_proposed_tcc) {
+              pthread_spin_lock(&init_data->alternative_lock);
+              void *function_pointer = init_data->alternative_function;
+              pthread_spin_unlock(&init_data->alternative_lock);
+              if (function_pointer == NULL) {
+                function_used_by_kernel = most_recent_function;
+                function_used_by_kernel_type = acr_kernel_function_using_tcc;
+              }
+            }
+          }
+          break;
+        case acr_function_tcc_and_shared:
+        case acr_function_shared_object_lib: // Better compilation finished
+          if (function_used_by_kernel_type != acr_kernel_function_proposed_cc
+              && function_used_by_kernel_type != acr_kernel_function_using_cc) {
+#else
+        case acr_function_shared_object_lib: // Better compilation finished
+          if (function_used_by_kernel_type == acr_kernel_function_initial) {
+#endif
+
+            pthread_spin_lock(&init_data->alternative_lock);
+#ifdef TCC_PRESENT
+            void *function_pointer = init_data->alternative_function;
+#endif
+            init_data->alternative_function =
+              functions->function_priority[most_recent_function]->cc_function;
+            init_data->alternative_still_usable = true;
+            init_data->current_monitoring_data =
+              functions->function_priority[most_recent_function]->monitor_result;
+            pthread_spin_unlock(&init_data->alternative_lock);
+#ifdef TCC_PRESENT
+            if (function_used_by_kernel_type == acr_kernel_function_proposed_tcc
+                && function_pointer == NULL)
+              function_used_by_kernel = most_recent_function;
+#endif
+            function_used_by_kernel_type = acr_kernel_function_proposed_cc;
+          } else {
+            if (function_used_by_kernel_type == acr_kernel_function_proposed_cc) {
+              pthread_spin_lock(&init_data->alternative_lock);
+              void *function_pointer = init_data->alternative_function;
+              pthread_spin_unlock(&init_data->alternative_lock);
+              if (function_pointer == NULL) {
+                function_used_by_kernel = most_recent_function;
+                function_used_by_kernel_type = acr_kernel_function_using_cc;
+              }
+            }
+          }
+          break;
+        case acr_function_started_cloog_gen: // Cloog has not finished
+          break;
+        case acr_function_empty:
+          fprintf(stderr, "Empty function in test\n");
+          exit(1);
+          break;
+      }
+      invalid_monitor_result = valid_monitor_result;
+      valid_monitor_result = NULL;
+    } else {
+      // Function no more suitable
+
+      pthread_spin_lock(&init_data->alternative_lock);
+      init_data->alternative_still_usable = false;
+      init_data->current_monitoring_data = NULL;
+      pthread_spin_unlock(&init_data->alternative_lock);
+      function_used_by_kernel_type = acr_kernel_function_initial;
+
+      // Round robin function
+      size_t next_good = most_recent_function;
+      bool good_function = false;
+      while (!good_function) {
+        next_good = (next_good+1) == functions->total_functions ? 0 : next_good+1;
+        switch (functions->function_priority[next_good]->type) {
+          case acr_function_empty:
+          case acr_function_finished_cloog_gen:
+#ifdef TCC_PRESENT
+          case acr_function_tcc_and_shared:
+#else
+          case acr_function_shared_object_lib
+#endif
+            good_function = next_good != function_used_by_kernel;
+            break;
+          default:
+            break;
+        }
+      }
+      most_recent_function =
+        (most_recent_function+1) == functions->total_functions ? 0 : most_recent_function+1;
+      if (most_recent_function != next_good) {
+        struct func_value *const temp = functions->function_priority[next_good];
+        functions->function_priority[next_good] =
+          functions->function_priority[most_recent_function];
+        functions->function_priority[most_recent_function] = temp;
+      }
+
+      pthread_mutex_lock(&cloog_thread_data->mutex);
+      while(cloog_thread_data->num_threads ==
+          cloog_thread_data->num_threads_compiling) { // All CLooGs are busy
+        pthread_cond_wait(&cloog_thread_data->coordinator_sleep,
+            &cloog_thread_data->mutex);
+      }
+
+      // CLooG with last valid result
+      pthread_spin_lock(&monitor_data->spinlock);
+      if (monitor_data->current_valid_computation != NULL) { // Most recent data
+        monitor_data->scrap_values = valid_monitor_result;
+        valid_monitor_result = monitor_data->current_valid_computation;
+        monitor_data->current_valid_computation = NULL;
+      }
+      pthread_spin_unlock(&monitor_data->spinlock);
+
+      cloog_thread_data->where_to_add =
+        functions->function_priority[most_recent_function];
+      invalid_monitor_result = cloog_thread_data->where_to_add->monitor_result;
+      cloog_thread_data->where_to_add->monitor_result = valid_monitor_result;
+      cloog_thread_data->generate_function = true;
+      functions->function_priority[most_recent_function]->type =
+        acr_function_started_cloog_gen;
+      pthread_mutex_unlock(&cloog_thread_data->mutex);
+      pthread_cond_signal(&cloog_thread_data->compiler_thread_sleep);
+      valid_monitor_result = NULL;
+    }
+  }
+  free(valid_monitor_result);
+  free(invalid_monitor_result);
+}
+
 void* acr_verification_and_coordinator_function(void *in_data) {
   struct acr_runtime_data *const init_data =
     (struct acr_runtime_data*) in_data;
@@ -301,218 +575,17 @@ void* acr_verification_and_coordinator_function(void *in_data) {
         (void*)&cloog_thread_data);
   }
 
-  unsigned char *valid_monitor_result = NULL;
-  unsigned char *invalid_monitor_result =
-    malloc(monitor_total_size * sizeof(*monitor_data.scrap_values));
-  size_t most_recent_function = 0;
-  size_t function_used_by_kernel = 0;
-  enum acr_kernel_function_type function_used_by_kernel_type =
-    acr_kernel_function_initial;
-
-  // Start gencode
-
-  // Wait for one valid monitor data
-  while (valid_monitor_result == NULL) {
-    pthread_spin_lock(&monitor_data.spinlock);
-    if (monitor_data.current_valid_computation) {
-      valid_monitor_result = monitor_data.current_valid_computation;
-      monitor_data.current_valid_computation = NULL;
-      monitor_data.scrap_values = invalid_monitor_result;
-    }
-    pthread_spin_unlock(&monitor_data.spinlock);
-  }
-  invalid_monitor_result = NULL;
-
-  // Gen with CLooG the first valid function
-  pthread_mutex_lock(&cloog_thread_data.mutex);
-  while(cloog_thread_data.num_threads == cloog_thread_data.num_threads_compiling) {
-    pthread_cond_wait(&cloog_thread_data.coordinator_sleep, &cloog_thread_data.mutex);
-  }
-  cloog_thread_data.where_to_add = functions.function_priority[most_recent_function];
-  invalid_monitor_result = cloog_thread_data.where_to_add->monitor_result;
-  cloog_thread_data.where_to_add->monitor_result = valid_monitor_result;
-  cloog_thread_data.generate_function = true;
-  functions.function_priority[most_recent_function]->type =
-    acr_function_started_cloog_gen;
-  pthread_mutex_unlock(&cloog_thread_data.mutex);
-  valid_monitor_result = NULL;
-
-  // CLooG it's your time to shine
-  pthread_cond_signal(&cloog_thread_data.compiler_thread_sleep);
-
-  while (init_data->monitor_thread_continue) {
-
-    // Get last valid monitor result
-    while (valid_monitor_result == NULL) {
-      pthread_spin_lock(&monitor_data.spinlock);
-      if (monitor_data.current_valid_computation) {
-        valid_monitor_result = monitor_data.current_valid_computation;
-        monitor_data.current_valid_computation = NULL;
-        monitor_data.scrap_values = invalid_monitor_result;
-      }
-      pthread_spin_unlock(&monitor_data.spinlock);
-    }
-    invalid_monitor_result = NULL;
-
-    enum acr_avaliable_function_type type;
-    // Test current function validity
-    if (acr_verify_me(monitor_total_size,
-          functions.function_priority[most_recent_function]->monitor_result,
-          valid_monitor_result)) { // Valid function
-      pthread_spin_lock(&functions.function_priority[most_recent_function]->lock);
-      type = functions.function_priority[most_recent_function]->type;
-      pthread_spin_unlock(&functions.function_priority[most_recent_function]->lock);
-      switch(type) {
-        case acr_function_finished_cloog_gen:  // missing C compilation
-          pthread_mutex_lock(&compile_threads_data.mutex);
-          while(compile_threads_data.num_threads ==
-              compile_threads_data.num_threads_compiling) {
-            pthread_cond_wait(&compile_threads_data.coordinator_sleep,
-                &compile_threads_data.mutex);
-          }
-          functions.function_priority[most_recent_function]->type =
-            acr_function_started_compilation;
-          compile_threads_data.compile_something = true;
-          compile_threads_data.where_to_add =
-            functions.function_priority[most_recent_function];
-          pthread_cond_signal(&compile_threads_data.compiler_thread_sleep);
-          pthread_mutex_unlock(&compile_threads_data.mutex);
-          break;
-        case acr_function_started_compilation: // - Waiting compilation
-          break;
-#ifdef TCC_PRESENT
-        case acr_function_tcc_in_memory: // Fast compilation finished
-          if (function_used_by_kernel_type == acr_kernel_function_initial) {
-            pthread_spin_lock(&init_data->alternative_lock);
-            init_data->alternative_function =
-              functions.function_priority[most_recent_function]->tcc_function;
-            init_data->alternative_still_usable = true;
-            init_data->current_monitoring_data =
-              functions.function_priority[most_recent_function]->monitor_result;
-            pthread_spin_unlock(&init_data->alternative_lock);
-            function_used_by_kernel_type = acr_kernel_function_proposed_tcc;
-          } else {
-            if (function_used_by_kernel_type == acr_kernel_function_proposed_tcc) {
-              pthread_spin_lock(&init_data->alternative_lock);
-              void *function_pointer = init_data->alternative_function;
-              pthread_spin_unlock(&init_data->alternative_lock);
-              if (function_pointer == NULL) {
-                function_used_by_kernel = most_recent_function;
-                function_used_by_kernel_type = acr_kernel_function_using_tcc;
-              }
-            }
-          }
-          break;
-        case acr_function_tcc_and_shared:
-        case acr_function_shared_object_lib: // Better compilation finished
-          if (function_used_by_kernel_type != acr_kernel_function_proposed_cc
-              && function_used_by_kernel_type != acr_kernel_function_using_cc) {
-#else
-        case acr_function_shared_object_lib: // Better compilation finished
-          if (function_used_by_kernel_type == acr_kernel_function_initial) {
-#endif
-
-            pthread_spin_lock(&init_data->alternative_lock);
-#ifdef TCC_PRESENT
-            void *function_pointer = init_data->alternative_function;
-#endif
-            init_data->alternative_function =
-              functions.function_priority[most_recent_function]->cc_function;
-            init_data->alternative_still_usable = true;
-            init_data->current_monitoring_data =
-              functions.function_priority[most_recent_function]->monitor_result;
-            pthread_spin_unlock(&init_data->alternative_lock);
-#ifdef TCC_PRESENT
-            if (function_used_by_kernel_type == acr_kernel_function_proposed_tcc
-                && function_pointer == NULL)
-              function_used_by_kernel = most_recent_function;
-#endif
-            function_used_by_kernel_type = acr_kernel_function_proposed_cc;
-          } else {
-            if (function_used_by_kernel_type == acr_kernel_function_proposed_cc) {
-              pthread_spin_lock(&init_data->alternative_lock);
-              void *function_pointer = init_data->alternative_function;
-              pthread_spin_unlock(&init_data->alternative_lock);
-              if (function_pointer == NULL) {
-                function_used_by_kernel = most_recent_function;
-                function_used_by_kernel_type = acr_kernel_function_using_cc;
-              }
-            }
-          }
-          break;
-        case acr_function_started_cloog_gen: // Cloog has not finished
-          break;
-        case acr_function_empty:
-          fprintf(stderr, "Empty function in test\n");
-          exit(1);
-          break;
-      }
-      invalid_monitor_result = valid_monitor_result;
-      valid_monitor_result = NULL;
-    } else {
-      // Function no more suitable
-
-      pthread_spin_lock(&init_data->alternative_lock);
-      init_data->alternative_still_usable = false;
-      init_data->current_monitoring_data = NULL;
-      pthread_spin_unlock(&init_data->alternative_lock);
-      function_used_by_kernel_type = acr_kernel_function_initial;
-
-      // Round robin function
-      size_t next_good = most_recent_function;
-      bool good_function = false;
-      while (!good_function) {
-        next_good = (next_good+1) == num_functions ? 0 : next_good+1;
-        switch (functions.function_priority[next_good]->type) {
-          case acr_function_empty:
-          case acr_function_finished_cloog_gen:
-#ifdef TCC_PRESENT
-          case acr_function_tcc_and_shared:
-#else
-          case acr_function_shared_object_lib
-#endif
-            good_function = next_good != function_used_by_kernel;
-            break;
-          default:
-            break;
-        }
-      }
-      most_recent_function =
-        (most_recent_function+1) == num_functions ? 0 : most_recent_function+1;
-      if (most_recent_function != next_good) {
-        struct func_value *const temp = functions.function_priority[next_good];
-        functions.function_priority[next_good] =
-          functions.function_priority[most_recent_function];
-        functions.function_priority[most_recent_function] = temp;
-      }
-
-      pthread_mutex_lock(&cloog_thread_data.mutex);
-      while(cloog_thread_data.num_threads ==
-          cloog_thread_data.num_threads_compiling) { // All CLooGs are busy
-        pthread_cond_wait(&cloog_thread_data.coordinator_sleep,
-            &cloog_thread_data.mutex);
-      }
-
-      // CLooG with last valid result
-      pthread_spin_lock(&monitor_data.spinlock);
-      if (monitor_data.current_valid_computation != NULL) { // Most recent data
-        monitor_data.scrap_values = valid_monitor_result;
-        valid_monitor_result = monitor_data.current_valid_computation;
-        monitor_data.current_valid_computation = NULL;
-      }
-      pthread_spin_unlock(&monitor_data.spinlock);
-
-      cloog_thread_data.where_to_add =
-        functions.function_priority[most_recent_function];
-      invalid_monitor_result = cloog_thread_data.where_to_add->monitor_result;
-      cloog_thread_data.where_to_add->monitor_result = valid_monitor_result;
-      cloog_thread_data.generate_function = true;
-      functions.function_priority[most_recent_function]->type =
-        acr_function_started_cloog_gen;
-      pthread_mutex_unlock(&cloog_thread_data.mutex);
-      pthread_cond_signal(&cloog_thread_data.compiler_thread_sleep);
-      valid_monitor_result = NULL;
-    }
+  switch (init_data->kernel_strategy_type) {
+    case acr_kernel_strategy_simple:
+      acr_kernel_simple(init_data,
+          &functions, &monitor_data, &compile_threads_data, &cloog_thread_data);
+      break;
+    case acr_kernel_strategy_versionning:
+      acr_kernel_versionning(init_data,
+          &functions, &monitor_data, &compile_threads_data, &cloog_thread_data);
+      break;
+    case acr_kernel_strategy_unknown:
+      break;
   }
 
   // Quit compile threads
@@ -582,8 +655,6 @@ void* acr_verification_and_coordinator_function(void *in_data) {
 
   free(functions.value);
   free(functions.function_priority);
-  free(valid_monitor_result);
-  free(invalid_monitor_result);
   pthread_exit(NULL);
 }
 
