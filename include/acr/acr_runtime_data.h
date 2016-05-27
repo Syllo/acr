@@ -95,6 +95,8 @@ void free_acr_runtime_data(struct acr_runtime_data* data);
 
 unsigned char* acr_runtime_get_runtime_data(struct acr_runtime_data* data);
 
+size_t acr_runtime_get_grid_size(struct acr_runtime_data* data);
+
 #endif // __ACR_RUNTIME_DATA_H
 
 /**

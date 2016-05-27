@@ -227,3 +227,6 @@ unsigned char* acr_runtime_get_runtime_data(struct acr_runtime_data* data) {
   return data->current_monitoring_data;
 }
 
+size_t acr_runtime_get_grid_size(struct acr_runtime_data* data) {
+  return data->grid_size;
+}

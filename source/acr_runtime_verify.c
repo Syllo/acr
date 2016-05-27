@@ -31,6 +31,8 @@ bool acr_verify_me(size_t size_buffers,
   return same;
 }
 
+#include <stdio.h>
+
 void acr_verify_versionning(size_t size_buffers,
     unsigned char const*const restrict current,
     unsigned char const*const restrict more_recent,
@@ -43,15 +45,19 @@ void acr_verify_versionning(size_t size_buffers,
 
   for(size_t i = 0; i < size_buffers; i++) {
     if (more_recent[i] < current[i]) {
-      maximized_version[i] = more_recent[i];
-      total_difference = total_difference + current[i] - more_recent[i];
+      // Overapprox if recently added
+      maximized_version[i] = more_recent[i] == 0 ? 0 : more_recent[i]-1;
+      total_difference += current[i] - more_recent[i] ? 1 : 0;
+      /*total_difference = total_difference + current[i] - more_recent[i];*/
       still_valid_local = false;
     } else {
       maximized_version[i] = current[i];
-      total_difference = total_difference + more_recent[i] - current[i];
+      total_difference += more_recent[i] - current[i] ? 1 : 0;
+      /*total_difference = total_difference + more_recent[i] - current[i];*/
     }
   }
-  size_buffers *= num_alternatives;
+  /*size_buffers *= num_alternatives;*/
+  (void) num_alternatives;
   *delta = (double) total_difference / (double) size_buffers;
   *still_valid = still_valid_local;
 }
