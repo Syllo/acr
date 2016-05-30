@@ -53,8 +53,10 @@ enum acr_avaliable_function_type {
 
 enum acr_kernel_function_type {
   acr_kernel_function_initial,
+#ifdef TCC_PRESENT
   acr_kernel_function_proposed_tcc,
   acr_kernel_function_using_tcc,
+#endif
   acr_kernel_function_proposed_cc,
   acr_kernel_function_using_cc,
 };
@@ -259,7 +261,7 @@ static void acr_valid_function_switch_to(enum acr_avaliable_function_type type,
           pthread_spin_unlock(&init_data->alternative_lock);
           if (function_pointer == NULL) {
             /*fprintf(stderr, "Kernel use tcc %zu\n", most_recent_function);*/
-            *function_used_by_kernel = most_recent_function;
+            *function_used_by_kernel = *function_proposed_to_kernel;
             *function_used_by_kernel_type = acr_kernel_function_using_tcc;
           }
         }
@@ -267,43 +269,42 @@ static void acr_valid_function_switch_to(enum acr_avaliable_function_type type,
       break;
     case acr_function_tcc_and_shared:
     case acr_function_shared_object_lib: // Better compilation finished
-      if (*function_used_by_kernel_type != acr_kernel_function_proposed_cc
-          && *function_used_by_kernel_type != acr_kernel_function_using_cc) {
+      if (*function_used_by_kernel_type != acr_kernel_function_proposed_cc) {
 #else
     case acr_function_shared_object_lib: // Better compilation finished
       if (*function_used_by_kernel_type == acr_kernel_function_initial) {
 #endif
+        if (*function_used_by_kernel_type != acr_kernel_function_using_cc) {
 
-        pthread_spin_lock(&init_data->alternative_lock);
-#ifdef TCC_PRESENT
-        void *function_pointer = init_data->alternative_function;
-#endif
-        init_data->alternative_function =
-          functions->function_priority[most_recent_function]->cc_function;
-        init_data->alternative_still_usable = true;
-        init_data->current_monitoring_data =
-          functions->function_priority[most_recent_function]->monitor_result;
-        pthread_spin_unlock(&init_data->alternative_lock);
-#ifdef TCC_PRESENT
-        if (*function_used_by_kernel_type == acr_kernel_function_proposed_tcc
-            && function_pointer == NULL) {
-          /*fprintf(stderr, "Kernel use tcc %zu\n", most_recent_function);*/
-          *function_used_by_kernel = most_recent_function;
-        }
-#endif
-        *function_used_by_kernel_type = acr_kernel_function_proposed_cc;
-        *function_proposed_to_kernel = most_recent_function;
-        /*fprintf(stderr, "Propose cc %zu\n", most_recent_function);*/
-      } else {
-        if (*function_used_by_kernel_type == acr_kernel_function_proposed_cc) {
           pthread_spin_lock(&init_data->alternative_lock);
+#ifdef TCC_PRESENT
           void *function_pointer = init_data->alternative_function;
+#endif
+          init_data->alternative_function =
+            functions->function_priority[most_recent_function]->cc_function;
+          init_data->alternative_still_usable = true;
+          init_data->current_monitoring_data =
+            functions->function_priority[most_recent_function]->monitor_result;
           pthread_spin_unlock(&init_data->alternative_lock);
-          if (function_pointer == NULL) {
-            *function_used_by_kernel = most_recent_function;
-            *function_used_by_kernel_type = acr_kernel_function_using_cc;
-            /*fprintf(stderr, "Kernel use cc %zu\n", most_recent_function);*/
+#ifdef TCC_PRESENT
+          if (*function_used_by_kernel_type == acr_kernel_function_proposed_tcc
+              && function_pointer == NULL) {
+            /*fprintf(stderr, "Kernel use tcc %zu\n", most_recent_function);*/
+            *function_used_by_kernel = *function_proposed_to_kernel;
           }
+#endif
+          *function_used_by_kernel_type = acr_kernel_function_proposed_cc;
+          *function_proposed_to_kernel = most_recent_function;
+          /*fprintf(stderr, "Propose cc %zu\n", most_recent_function);*/
+        }
+      } else {
+        pthread_spin_lock(&init_data->alternative_lock);
+        void *function_pointer = init_data->alternative_function;
+        pthread_spin_unlock(&init_data->alternative_lock);
+        if (function_pointer == NULL) {
+          *function_used_by_kernel = *function_proposed_to_kernel;
+          /*fprintf(stderr, "Using kernel CC %zu\n", *function_used_by_kernel);*/
+          *function_used_by_kernel_type = acr_kernel_function_using_cc;
         }
       }
       break;
@@ -387,7 +388,8 @@ static inline size_t acr_next_free_function_position(
 #else
       case acr_function_shared_object_lib:
 #endif
-        good_function = next_good != function_used_by_kernel && next_good != function_proposed_to_kernel;
+        good_function = next_good != function_used_by_kernel &&
+          next_good != function_proposed_to_kernel;
         break;
       default:
         break;
@@ -419,10 +421,9 @@ static void acr_kernel_versionning(
     malloc(init_data->monitor_total_size * sizeof(*monitor_data->scrap_values));
   unsigned char *maximized_version =
     malloc(init_data->monitor_total_size * sizeof(*monitor_data->scrap_values));
-  size_t function_proposed_to_kernel = 0;
   size_t most_recent_function = 0;
-  size_t most_recently_used_version = 0;
-  size_t function_used_by_kernel = 0;
+  size_t function_proposed_to_kernel = 0;
+  size_t function_used_by_kernel = functions->total_functions - 1;
   enum acr_kernel_function_type function_used_by_kernel_type =
     acr_kernel_function_initial;
 
@@ -440,6 +441,8 @@ static void acr_kernel_versionning(
   size_t num_updated_version = 0;
   size_t total_version_update = 0;
 
+  enum acr_avaliable_function_type most_recent_function_type;
+
   while (init_data->monitor_thread_continue) {
 
     acr_get_most_recent_monitor_result(&valid_monitor_result,
@@ -455,46 +458,25 @@ static void acr_kernel_versionning(
 
     if (validity) {
 
-      enum acr_avaliable_function_type type;
-      pthread_spin_lock(&functions->function_priority[most_recent_function]->lock);
-      type = functions->function_priority[most_recent_function]->type;
-      pthread_spin_unlock(&functions->function_priority[most_recent_function]->lock);
+      if (function_used_by_kernel != most_recent_function ||
+          function_used_by_kernel_type != acr_kernel_function_using_cc) {
+        pthread_spin_lock(
+            &functions->function_priority[most_recent_function]->lock);
 
-      enum acr_kernel_function_type entry_type = function_used_by_kernel_type;
+        most_recent_function_type =
+          functions->function_priority[most_recent_function]->type;
 
-      acr_valid_function_switch_to(type,
-          &function_used_by_kernel_type,
-          &function_used_by_kernel,
-          &function_proposed_to_kernel,
-          most_recent_function,
-          init_data,
-          functions,
-          compile_threads_data);
+        pthread_spin_unlock(
+            &functions->function_priority[most_recent_function]->lock);
 
-      // Case where compilation is still pending, if the old one was not used
-      // but ready, use it now
-      if (entry_type != acr_kernel_function_initial &&
-          function_proposed_to_kernel != most_recent_function &&
-          function_used_by_kernel != most_recently_used_version) {
-
-        acr_valid_function_switch_to(type,
+        acr_valid_function_switch_to(most_recent_function_type,
             &function_used_by_kernel_type,
             &function_used_by_kernel,
             &function_proposed_to_kernel,
-            most_recently_used_version,
+            most_recent_function,
             init_data,
             functions,
             compile_threads_data);
-        /*fprintf(stderr, "Reuse old ###########################\n");*/
-      }
-      /*if (delta > .01)*/
-      /*fprintf(stderr, "Delta = %f\n", delta);*/
-
-      if (num_updated_version > updated_version_treshold &&
-          delta > delta_treshold) { // We are changing version but older still ok
-        num_updated_version = 0;
-        /*fprintf(stderr, "Changing version\n");*/
-        goto delta_treshold_switch_version;
       }
 
       invalid_monitor_result = valid_monitor_result;
@@ -502,6 +484,7 @@ static void acr_kernel_versionning(
     } else { // Version no more suitable
 
       discard_kernel_function(init_data, &function_used_by_kernel_type);
+      most_recent_function_type = acr_function_empty;
 
       if (num_updated_version < updated_version_treshold ||
           delta < delta_treshold) { // Not changing version
@@ -517,7 +500,6 @@ static void acr_kernel_versionning(
         /*fprintf(stderr, "Changing version no more suitable %f\n", delta);*/
       }
 
-delta_treshold_switch_version:
       pthread_mutex_lock(&cloog_thread_data->mutex);
       bool cloog_has_to_generate = cloog_thread_data->generate_function;
       if (!(cloog_has_to_generate &&
@@ -525,11 +507,10 @@ delta_treshold_switch_version:
           functions->function_priority[most_recent_function])) {
         if (cloog_has_to_generate)
           pthread_mutex_unlock(&cloog_thread_data->mutex);
-        most_recently_used_version = most_recent_function;
         most_recent_function = acr_next_free_function_position(
             most_recent_function,
             function_used_by_kernel,
-            function_used_by_kernel,
+            function_proposed_to_kernel,
             functions);
         if (cloog_has_to_generate)
           pthread_mutex_lock(&cloog_thread_data->mutex);
@@ -561,7 +542,7 @@ static void acr_kernel_simple(
   unsigned char *invalid_monitor_result =
     malloc(init_data->monitor_total_size * sizeof(*monitor_data->scrap_values));
   size_t most_recent_function = 0;
-  size_t function_used_by_kernel = 0;
+  size_t function_used_by_kernel = functions->total_functions - 1;
   enum acr_kernel_function_type function_used_by_kernel_type =
     acr_kernel_function_initial;
 
@@ -587,10 +568,14 @@ static void acr_kernel_simple(
           functions->function_priority[most_recent_function]->monitor_result,
           valid_monitor_result)) { // Valid function
 
+      if (function_used_by_kernel != most_recent_function ||
+          function_used_by_kernel_type != acr_kernel_function_using_cc) {
       enum acr_avaliable_function_type type;
-      pthread_spin_lock(&functions->function_priority[most_recent_function]->lock);
+      pthread_spin_lock(
+          &functions->function_priority[most_recent_function]->lock);
       type = functions->function_priority[most_recent_function]->type;
-      pthread_spin_unlock(&functions->function_priority[most_recent_function]->lock);
+      pthread_spin_unlock(
+          &functions->function_priority[most_recent_function]->lock);
 
       size_t no_care;
       acr_valid_function_switch_to(type,
@@ -601,6 +586,7 @@ static void acr_kernel_simple(
           init_data,
           functions,
           compile_threads_data);
+      }
 
       invalid_monitor_result = valid_monitor_result;
       valid_monitor_result = NULL;
