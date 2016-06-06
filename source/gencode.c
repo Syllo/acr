@@ -591,8 +591,10 @@ static void acr_print_get_rid_of_parameters(
 
 static
 char const*const acr_kernel_strategy_type_string[acr_runtime_kernel_unknown] =
-  { [acr_runtime_kernel_simple]      = "acr_kernel_strategy_simple",
-    [acr_runtime_kernel_versionning] = "acr_kernel_strategy_versionning"
+  {
+    [acr_runtime_kernel_simple]      = "acr_kernel_strategy_simple",
+    [acr_runtime_kernel_versionning] = "acr_kernel_strategy_versionning",
+    [acr_runtime_kernel_stencil]     = "acr_kernel_strategy_stencil",
   };
 
 static void acr_print_acr_runtime_init(FILE* out,

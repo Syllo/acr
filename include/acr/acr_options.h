@@ -41,6 +41,7 @@ enum acr_build_type {
 enum acr_runtime_kernel_version {
   acr_runtime_kernel_simple,
   acr_runtime_kernel_versionning,
+  acr_runtime_kernel_stencil,
   acr_runtime_kernel_unknown,
 };
 

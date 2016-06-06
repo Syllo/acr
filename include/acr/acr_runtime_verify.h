@@ -46,6 +46,15 @@ void acr_verify_versionning(size_t size_buffers,
     double *delta,
     bool *still_valid);
 
+void acr_verify_2dstencil(
+    unsigned long const* dims_size,
+    unsigned char const*const restrict current_untouched,
+    unsigned char const*const restrict more_recent,
+    unsigned char const*const restrict current_optimized_version,
+    unsigned char *restrict new_optimized_version,
+    bool *required_compilation,
+    bool *still_valid);
+
 #endif // __ACR_RUNTIME_VERIFY_H
 
 /**

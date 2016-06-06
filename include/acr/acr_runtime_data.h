@@ -42,6 +42,7 @@
 enum acr_kernel_strategy_type {
   acr_kernel_strategy_simple = 0,
   acr_kernel_strategy_versionning,
+  acr_kernel_strategy_stencil,
   acr_kernel_strategy_unknown,
 };
 

@@ -26,12 +26,13 @@
 
 #include "acr/gencode.h"
 
-static const char opt_options[] = "apvhxyz";
+static const char opt_options[] = "abpvVhxyz";
 
 int main(int argc, char** argv) {
 
   struct acr_build_options build_options =
-  { .type = acr_regular_build,
+  {
+    .type = acr_regular_build,
     .kernel_version = acr_runtime_kernel_simple,
   };
 
@@ -45,6 +46,9 @@ int main(int argc, char** argv) {
     switch (c) {
       case 'a':
         build_options.kernel_version = acr_runtime_kernel_versionning;
+        break;
+      case 'b':
+        build_options.kernel_version = acr_runtime_kernel_stencil;
         break;
       case 'x':
         build_options.type = acr_perf_compile_time_zero_run;
@@ -60,6 +64,7 @@ int main(int argc, char** argv) {
           return EXIT_SUCCESS;
         break;
       case 'v':
+      case 'V':
         fprintf(stdout, "%s", version);
           return EXIT_SUCCESS;
         break;
