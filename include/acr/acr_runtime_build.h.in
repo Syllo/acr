@@ -34,20 +34,44 @@
 
 #if @ACR_TCC@ // Build option ACR_TCC
 
+/**
+ * \brief If build with TCC support, definr TCC_PRESENT
+ */
 #define TCC_PRESENT
 #include <libtcc.h>
 
+/**
+ * \brief Compile a program directly to memory
+ * \param[in] string_to_compile The C program inside a string.
+ * \return The compiler state.
+ */
 TCCState* acr_compile_with_tcc(
     const char *string_to_compile);
 
 #endif
 
+/**
+ * \brief Compile a C program to a file
+ * \param[in] requested_filename A string storing the absolute path to a file.
+ * If NULL, a file will be created in /tmp.
+ * \param[in] string_to_compile The C program inside a string.
+ * \param[in] num_options The number of compiler options.
+ * \param[in] options The compiler options.
+ * \return The name of the created file.
+ * \pre options must have been prepared with ::acr_append_necessary_compile_flags
+ */
 char* acr_compile_with_system_compiler(
     char *requested_filename,
     const char *string_to_compile,
     size_t num_options,
     char** options);
 
+/**
+ * \brief Prepare the compiler options for compilation.
+ * \param[in,out] num_options At call must contain the current number of
+ * options and at exit will contain the new number of options.
+ * \param[in,out] options A pointer where additional options will be append.
+ */
 void acr_append_necessary_compile_flags(
     size_t *num_options,
     char ***options);

@@ -33,6 +33,12 @@
 
 #include <osl/scop.h>
 
+/**
+ * \brief Read an OpenScop format inside a memory buffer
+ * \param[in] buffer The buffer storing the Scop
+ * \param[in] size_buffer The size of the buffer
+ * \return The OpenScop library representation of the Scop
+ */
 osl_scop_p acr_read_scop_from_buffer(char* buffer, size_t size_buffer);
 
 #endif // __ACR_OSL_RUNTIME_H

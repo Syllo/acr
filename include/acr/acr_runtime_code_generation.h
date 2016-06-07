@@ -35,14 +35,35 @@
 #include <acr/runtime_alternatives.h>
 #include <isl/set.h>
 
+/**
+ * \brief Generate an optimized code based on the current data observation using
+ * CLooG.
+ * \param[in,out] output The output file where to store the generated code.
+ * \param[in] data_info The runtime data info
+ * \param[in] data The array representation of the alternative state to use.
+ * \sa runtime_data
+ */
 void acr_cloog_generate_alternative_code_from_input(
     FILE* output,
-    struct acr_runtime_data *data_info,
+    const struct acr_runtime_data *data_info,
     const unsigned char *data);
 
+/**
+ * \brief Update the OpenScop used for code generation with current alternative.
+ * \param[in,out] data The runtime data info
+ * \sa runtime_data
+ */
 void acr_cloog_init_scop_to_match_alternatives(
     struct acr_runtime_data *data);
 
+/**
+ * \brief At runtime we know the parameters so this function replaces the
+ * parameters of the loop with their respective values.
+ * \param[in,out] data_info The runtime data info
+ * \param[in] parameter The parameter index
+ * \param[in] value The current parameter value
+ * \sa runtime_data
+ */
 void acr_cloog_get_rid_of_parameter(
     struct acr_runtime_data *data_info,
     unsigned int parameter,

@@ -162,7 +162,7 @@ static isl_set** acr_isl_set_from_monitor(
 
 void acr_cloog_generate_alternative_code_from_input(
     FILE* output,
-    struct acr_runtime_data *data_info,
+    const struct acr_runtime_data *data_info,
     const unsigned char *data) {
 
   CloogUnionDomain *new_udomain = cloog_union_domain_alloc(0);

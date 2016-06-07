@@ -31,22 +31,63 @@
 #ifndef __ACR_OPTIONS_H
 #define __ACR_OPTIONS_H
 
+/**
+ * \brief The ACR strategy to choose
+ *
+ * ACR can use multiple strategies and that can be used when generating
+ * the code.
+ */
 enum acr_build_type {
+  /** \brief Build a runnable version of ACR */
   acr_regular_build,
+  /** \brief Build a version that will output the sequential code to run only
+   * the kernel
+   */
   acr_perf_kernel_only,
+  /** \brief Build a version that will generate all the functions in the working
+   * directory.
+   */
   acr_perf_compile_time_zero,
+  /** \brief Build a version that will run the generated functions instead of
+   * ACR runtime thus providing an approximation of ACR without compile time.
+   */
   acr_perf_compile_time_zero_run,
 };
 
+/**
+ * \brief The runtime kernel type to use
+ */
 enum acr_runtime_kernel_version {
+  /** \brief ACR simple strategy
+   *
+   * This Strategy just monitors the data and issue a compilation if the
+   * currently used version is no more suitable
+   */
   acr_runtime_kernel_simple,
+  /** \brief ACR versionning strategy
+   *
+   * This strategy uses versions of the kernel to minimize the need
+   * recompilation in case of many local fluctuations.
+   */
   acr_runtime_kernel_versionning,
+  /** \brief ACR stencil strategy
+   *
+   * This kernel uses a stencil approach to anticipate the change due to
+   * neighborhood changing state.
+   */
   acr_runtime_kernel_stencil,
+  /** \brief Error value
+   */
   acr_runtime_kernel_unknown,
 };
 
+/**
+ * \brief Struct storing the build type during code generation
+ */
 struct acr_build_options {
+  /** \brief The build type */
   enum acr_build_type type;
+  /** \brief The kernel version used */
   enum acr_runtime_kernel_version kernel_version;
 };
 
