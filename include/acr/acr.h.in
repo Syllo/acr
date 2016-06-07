@@ -42,8 +42,14 @@
 #include <stdio.h>
 #include "acr/pragma_struct.h"
 
+/**
+ * \brief Program version macro
+ */
 #define ACR_VERSION "@PACKAGE_VERSION@"
 
+/**
+ * \brief Helper string
+ */
 static const char help[] = "Usage acr [options] file\n\n"
   "Valid options:\n"
   "   -a              Use the versionning strategy\n"
@@ -55,12 +61,23 @@ static const char help[] = "Usage acr [options] file\n\n"
   "   -y              Generate a zero compile time build\n"
   "   -z              Generate a max performance build for comparison purpose\n";
 
+/**
+ * \brief Version string
+ */
 static const char version[] = "ACR version " ACR_VERSION "\n"
   "This is the Adaptative Code Refinement software, with help of pragma acr construct\n"
   "you can automaticaly generate adaptative code based on runtime analysis.\n"
   "License LGPLv3+: GNU LGPL version 3 or later <http://gnu.org/licenses/lgpl.html>.\n"
   "There is NO WARRANTY, to the extent permitted by law.\n";
 
+/**
+ * \brief Parse a C file to found and append it in the node.
+ * \param[in] file The file to parse
+ * \param[in,out] node_to_init The compute node that will be initialized with
+ * the encountered pragmas information.
+ * \retval 0 Success
+ * \retval other Failure
+ */
 extern int start_acr_parsing(FILE* file, acr_compute_node* node_to_init);
 
 

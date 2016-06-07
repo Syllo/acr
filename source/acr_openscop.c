@@ -175,7 +175,7 @@ osl_strings_p acr_openscop_get_monitor_identifiers(const acr_option monitor) {
 }
 
 bool acr_osl_check_if_identifiers_are_not_parameters(const osl_scop_p scop,
-    osl_strings_p identifiers) {
+    const osl_strings_p identifiers) {
   size_t num_identifiers = osl_strings_size(identifiers);
   osl_statement_p statements = scop->statement;
   while (statements) {
@@ -734,7 +734,7 @@ static void acr_openscop_add_related_dims_in_scattering(
   free(already_added);
 }
 
-static void monitor_openscop_generate_monitor_dim(
+void monitor_openscop_generate_monitor_dim(
     const dimensions_upper_lower_bounds *dims,
     size_t num_dims,
     size_t **monitor_dim) {
