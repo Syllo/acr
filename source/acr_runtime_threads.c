@@ -538,7 +538,7 @@ recompilation:
   free(maximized_version);
 }
 
-static void acr_kernel_versionning(
+static void acr_kernel_versioning(
     struct acr_runtime_data *const init_data,
     struct acr_avaliable_functions *const functions,
     struct acr_monitoring_computation *const monitor_data,
@@ -583,7 +583,7 @@ static void acr_kernel_versionning(
 
     bool validity;
     double delta;
-    acr_verify_versionning(init_data->monitor_total_size,
+    acr_verify_versioning(init_data->monitor_total_size,
         functions->function_priority[most_recent_function]->monitor_result,
         valid_monitor_result, maximized_version, init_data->num_alternatives,
         &delta, &validity);
@@ -874,8 +874,8 @@ void* acr_verification_and_coordinator_function(void *in_data) {
       acr_kernel_simple(init_data,
           &functions, &monitor_data, &compile_threads_data, &cloog_thread_data);
       break;
-    case acr_kernel_strategy_versionning:
-      acr_kernel_versionning(init_data,
+    case acr_kernel_strategy_versioning:
+      acr_kernel_versioning(init_data,
           &functions, &monitor_data, &compile_threads_data, &cloog_thread_data);
       break;
     case acr_kernel_strategy_stencil:
@@ -935,19 +935,19 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   }
 
 #ifdef ACR_STATS_ENABLED
-    init_data->thread_stats.num_mesurements[acr_thread_time_cloog] =
+    init_data->thread_stats.num_measurements[acr_thread_time_cloog] =
       cloog_thread_data.num_mesurement;
     init_data->thread_stats.total_time[acr_thread_time_cloog] =
       cloog_thread_data.total_time;
-    init_data->thread_stats.num_mesurements[acr_thread_time_monitor] =
+    init_data->thread_stats.num_measurements[acr_thread_time_monitor] =
       monitor_data.num_mesurement;
     init_data->thread_stats.total_time[acr_thread_time_monitor] =
       monitor_data.total_time;
-    init_data->thread_stats.num_mesurements[acr_thread_time_cc] =
+    init_data->thread_stats.num_measurements[acr_thread_time_cc] =
       compile_threads_data.num_mesurement;
     init_data->thread_stats.total_time[acr_thread_time_cc] =
       compile_threads_data.total_time;
-    init_data->thread_stats.num_mesurements[acr_thread_time_tcc] =
+    init_data->thread_stats.num_measurements[acr_thread_time_tcc] =
       compile_threads_data.num_tcc_mesurement;
     init_data->thread_stats.total_time[acr_thread_time_tcc] =
       compile_threads_data.total_tcc_time;

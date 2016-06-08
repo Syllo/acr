@@ -34,12 +34,24 @@
 #if _OPENMP
 #include <omp.h>
 
+/** \brief The time type used by acr */
 typedef double acr_time;
 
+/**
+ * \brief Get the current time
+ * \param[out] time The object to initialize with the current time
+ */
 static inline void acr_get_current_time(acr_time *time) {
   *time = omp_get_wtime();
 }
 
+/**
+ * \brief Get the difference in seconds between two times
+ * \param[in] t0 A time mesurement
+ * \param[in] t1 A time mesurement
+ * \return The difference between the two times in seconds
+ * \pre t0 must have been mesured **befor** t1
+ */
 static inline double acr_difftime(acr_time t0, acr_time t1) {
   return t1 - t0;
 }
@@ -48,17 +60,31 @@ static inline double acr_difftime(acr_time t0, acr_time t1) {
 #include <time.h>
 
 #ifdef CLOCK_MONOTONIC_RAW
+/** \brief Linux specific clock that does not change with ntp and adjtime */
 #define ACR_CLOCK CLOCK_MONOTONIC_RAW
 #else
+/** \brief Type of clock used by the system */
 #define ACR_CLOCK CLOCK_MONOTONIC
 #endif
 
+/** \brief The time type used by acr */
 typedef struct timespec acr_time;
 
+/**
+ * \brief Get the current time
+ * \param[out] time The object to initialize with the current time
+ */
 static inline void acr_get_current_time(acr_time *time) {
   clock_gettime(ACR_CLOCK, time);
 }
 
+/**
+ * \brief Get the difference in seconds between two times
+ * \param[in] t0 A time measurement
+ * \param[in] t1 A time measurement
+ * \return The difference between the two times in seconds
+ * \pre t0 must have been measured **before** t1
+ */
 static inline double acr_difftime(acr_time t0, acr_time t1) {
   double secdiff = difftime(t1.tv_sec, t0.tv_sec);
   if (t1.tv_nsec < t0.tv_nsec) {

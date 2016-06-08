@@ -33,11 +33,18 @@
 #include "acr/pragma_struct.h"
 #include "acr_parser.h"
 
+/**
+ * \brief Parser pragma storing structure */
 struct acr_pragma_options_utils {
+  /** \brief The token identifier */
   char* name;
+  /** \brief The token number */
   int token_id;
 };
 
+/**
+ * \brief The pragmas name and their ids
+ */
 static const struct acr_pragma_options_utils acr_pragma_options_name_list[] =
   {
     [acr_type_alternative]      = {"alternative",      ACR_ALTERNATIVE},

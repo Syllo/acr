@@ -32,8 +32,19 @@
 #ifndef __ACR_RUNTIME_THREADS_H
 #define __ACR_RUNTIME_THREADS_H
 
+/**
+ * \brief Thread function that you must call with pthread to start the
+ * coordinator
+ * \param[in] in_data A struct ::acr_runtime_data cast in (void*).
+ * \retval NULL
+ */
 void* acr_verification_and_coordinator_function(void *in_data);
 
+/**
+ * \brief The kernel used when doing performance tests
+ * \param[in] in_data A struct ::acr_runtime_perf cast in (void*)
+ * \retval NULL
+ */
 void* acr_runtime_perf_compile_time_zero(void* in_data);
 
 #endif // __ACR_RUNTIME_THREADS_H

@@ -107,7 +107,7 @@ void* acr_runntime_perf_end_step(struct acr_runtime_perf *perf);
 
 /**
  * \brief Clean the performance data structure
- * \param[in,out] perf The performance data structure
+ * \param[in] perf The performance data structure
  */
 void acr_runtime_perf_clean(struct acr_runtime_perf *perf);
 
@@ -142,7 +142,7 @@ void acr_perf_add_compilation_to_list(struct acr_runtime_perf *perf,
 /**
  * \brief Clean the performance structure after an
  * ::acr_runtime_perf_compilation_time_zero_run test
- * \param[in,out] perf The performance structure to free
+ * \param[in] perf The performance structure to free
  */
 void acr_runtime_clean_time_zero_run(struct acr_runtime_perf *perf);
 

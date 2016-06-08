@@ -23,22 +23,22 @@
 void acr_print_stats(
     FILE *out,
     const char *kernel_prefix,
-    struct acr_simulation_time_stats *sim_stats,
-    struct acr_threads_time_stats *thread_stats) {
+    const struct acr_simulation_time_stats *sim_stats,
+    const struct acr_threads_time_stats *thread_stats) {
   double simulation_step_time =
     sim_stats->total_time / (double) sim_stats->num_simmulation_step;
   double monitor_mean_time =
     thread_stats->total_time[acr_thread_time_monitor]
-    / (double) thread_stats->num_mesurements[acr_thread_time_monitor];
+    / (double) thread_stats->num_measurements[acr_thread_time_monitor];
   double cloog_mean_time =
     thread_stats->total_time[acr_thread_time_cloog]
-    / (double) thread_stats->num_mesurements[acr_thread_time_cloog];
+    / (double) thread_stats->num_measurements[acr_thread_time_cloog];
   double cc_mean_time =
     thread_stats->total_time[acr_thread_time_cc]
-    / (double) thread_stats->num_mesurements[acr_thread_time_cc];
+    / (double) thread_stats->num_measurements[acr_thread_time_cc];
   double tcc_mean_time =
     thread_stats->total_time[acr_thread_time_tcc]
-    / (double) thread_stats->num_mesurements[acr_thread_time_tcc];
+    / (double) thread_stats->num_measurements[acr_thread_time_tcc];
   double monitor_proportion_of_sim_step = monitor_mean_time / simulation_step_time;
   double cloog_proportion_of_sim_step = cloog_mean_time / simulation_step_time;
   double cc_proportion_of_sim_step = cc_mean_time / simulation_step_time;
@@ -98,25 +98,25 @@ void acr_print_stats(
       "Total monitoring time",
       thread_stats->total_time[acr_thread_time_monitor],
       "Total monitoring loops",
-      thread_stats->num_mesurements[acr_thread_time_monitor],
+      thread_stats->num_measurements[acr_thread_time_monitor],
       "Mean time spent in monitoring",
       monitor_mean_time,
       "Total cloog time",
       thread_stats->total_time[acr_thread_time_cloog],
       "Total cloog invocations",
-      thread_stats->num_mesurements[acr_thread_time_cloog],
+      thread_stats->num_measurements[acr_thread_time_cloog],
       "Mean time spent in cloog",
       cloog_mean_time,
       "Total cc time",
       thread_stats->total_time[acr_thread_time_cc],
       "Total cc invocations",
-      thread_stats->num_mesurements[acr_thread_time_cc],
+      thread_stats->num_measurements[acr_thread_time_cc],
       "Mean time spent in cc",
       cc_mean_time,
       "Total tcc time",
       thread_stats->total_time[acr_thread_time_tcc],
       "Total tcc invocations",
-      thread_stats->num_mesurements[acr_thread_time_tcc],
+      thread_stats->num_measurements[acr_thread_time_tcc],
       "Mean time spent in tcc",
       tcc_mean_time,
       "monitor time / frame time",

@@ -52,7 +52,7 @@
  */
 static const char help[] = "Usage acr [options] file\n\n"
   "Valid options:\n"
-  "   -a              Use the versionning strategy\n"
+  "   -a              Use the versioning strategy\n"
   "   -b              Use the stencil strategy\n"
   "   -h              Display this help and exit\n"
   "   -v              Display version information and exit\n"
@@ -73,7 +73,7 @@ static const char version[] = "ACR version " ACR_VERSION "\n"
 /**
  * \brief Parse a C file to found and append it in the node.
  * \param[in] file The file to parse
- * \param[in,out] node_to_init The compute node that will be initialized with
+ * \param[out] node_to_init The compute node that will be initialized with
  * the encountered pragmas information.
  * \retval 0 Success
  * \retval other Failure

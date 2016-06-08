@@ -24,8 +24,7 @@
  * \defgroup build_openscop
  *
  * @{
- * \brief Extract information from OpenScop format
- *
+ * \brief Extract information from OpenScop format *
  */
 
 #ifndef __ACR_OPENSCOP_H

@@ -282,7 +282,7 @@ void acr_free_option(acr_option opt) {
       acr_free_strategy(&opt->options.strategy);
       break;
     case acr_type_deferred_destroy:
-      acr_free_deferred_destroy(&opt->options.defered_destroy);
+      acr_free_deferred_destroy(&opt->options.deferred_destroy);
       break;
     case acr_type_unknown:
       break;
@@ -940,8 +940,8 @@ acr_option acr_new_deferred_destroy(size_t pragma_position,
     const char *ref_init_name) {
   acr_option option = malloc(sizeof(*option));
   option->type = acr_type_deferred_destroy;
-  option->options.defered_destroy.pragma_position = pragma_position;
-  option->options.defered_destroy.ref_init_name = acr_strdup(ref_init_name);
+  option->options.deferred_destroy.pragma_position = pragma_position;
+  option->options.deferred_destroy.ref_init_name = acr_strdup(ref_init_name);
   return option;
 }
 

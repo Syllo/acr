@@ -31,7 +31,7 @@ bool acr_verify_me(size_t size_buffers,
   return same;
 }
 
-void acr_verify_versionning(size_t size_buffers,
+void acr_verify_versioning(size_t size_buffers,
     unsigned char const*const restrict current,
     unsigned char const*const restrict more_recent,
     unsigned char *restrict maximized_version,
@@ -60,7 +60,7 @@ void acr_verify_versionning(size_t size_buffers,
 // Von Neumann neighborhood
 
 void acr_verify_2dstencil(
-    unsigned long const* dims_size,
+    unsigned long const dims_size[2],
     unsigned char const*const restrict current_untouched,
     unsigned char const*const restrict more_recent,
     unsigned char const*const restrict current_optimized_version,

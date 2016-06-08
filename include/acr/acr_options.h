@@ -64,12 +64,12 @@ enum acr_runtime_kernel_version {
    * currently used version is no more suitable
    */
   acr_runtime_kernel_simple,
-  /** \brief ACR versionning strategy
+  /** \brief ACR versioning strategy
    *
    * This strategy uses versions of the kernel to minimize the need
    * recompilation in case of many local fluctuations.
    */
-  acr_runtime_kernel_versionning,
+  acr_runtime_kernel_versioning,
   /** \brief ACR stencil strategy
    *
    * This kernel uses a stencil approach to anticipate the change due to

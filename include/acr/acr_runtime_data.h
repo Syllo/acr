@@ -46,8 +46,8 @@
 enum acr_kernel_strategy_type {
   /** \brief ACR simple strategy */
   acr_kernel_strategy_simple = 0,
-  /** \brief ACR versionning strategy */
-  acr_kernel_strategy_versionning,
+  /** \brief ACR versioning strategy */
+  acr_kernel_strategy_versioning,
   /** \brief ACR stencil strategy */
   acr_kernel_strategy_stencil,
   /** \brief Error value */

@@ -31,6 +31,9 @@
 #ifndef __COMPILER_NAME_H
 #define __COMPILER_NAME_H
 
+/**
+ * \brief The compiler path used to build acr
+ */
 static char acr_system_compiler_path[] = "@CMAKE_C_COMPILER@";
 
 #endif // __COMPILER_NAME_H

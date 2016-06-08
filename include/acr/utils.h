@@ -44,21 +44,47 @@
 
 #include <stdio.h>
 
+/**
+ * \brief If (A) then error
+ */
 #define acr_try_or_die(A,B) {if((A)){perror(B); exit(EXIT_FAILURE);}}
 
 #ifdef ACR_DEBUG
+/**
+ * \brief Print to stream A the string B
+ */
   #define acr_print_debug(A,B)  { fprintf(A, "%s\n", B); }
 #else
+/**
+ * \brief Print nothing
+ */
   #define acr_print_debug(A,B)  {  }
 #endif // ACR_DEBUG
 
+/**
+ * \brief Duplicate the string
+ * \param[in] to_duplicate The string to duplicate
+ * \return The duplicated string
+ */
 char* acr_strdup(const char* to_duplicate);
 
+/**
+ * \brief The float precision threshold
+ */
 #define FLOAT_TRESHOLD 1e-5f
+/**
+ * \brief The float equality test
+ */
 #define float_equal(a,b) ((((a)-(b)) <= FLOAT_TRESHOLD) && \
                           (((a)-(b)) >= (-FLOAT_TRESHOLD)))
 
+/**
+ * \brief The double precision threshold
+ */
 #define DOUBLE_TRESHOLD 1e-5
+/**
+ * \brief The double equality test
+ */
 #define double_equal(a,b) ((((a)-(b)) <= DOUBLE_TRESHOLD) && \
                           (((a)-(b)) >= (-DOUBLE_TRESHOLD)))
 

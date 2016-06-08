@@ -38,29 +38,55 @@
 #include <stdio.h>
 #include "acr/acr_time.h"
 
+/**
+ * \brief The index used for the stat array
+ */
 enum acr_thread_time_id {
+  /** The monitoring thread index */
   acr_thread_time_monitor = 0,
-  acr_thread_time_cloog = 1,
-  acr_thread_time_cc = 2,
-  acr_thread_time_tcc = 3,
-  acr_thread_time_total = 4,
+  /** The CLooG thread index */
+  acr_thread_time_cloog,
+  /** The compiler thread index */
+  acr_thread_time_cc,
+  /** The tcc thread index */
+  acr_thread_time_tcc,
+  /** The size of the array */
+  acr_thread_time_total,
 };
 
+/**
+ * \brief Structure storing the number of measurements and the total time of
+ * each threads
+ */
 struct acr_threads_time_stats {
-  size_t num_mesurements[acr_thread_time_total];
+  /** The nummber of measurements for each threads */
+  size_t num_measurements[acr_thread_time_total];
+  /** The sum of each measurements time */
   double total_time[acr_thread_time_total];
 };
 
+/**
+ * \brief The simulation kernel statistics
+ */
 struct acr_simulation_time_stats {
+  /** The number of measurements done */
   size_t num_simmulation_step;
+  /** The sum of each measurements time */
   double total_time;
 };
 
+/**
+ * \brief Print the statistics in a human readable form
+ * \param[in,out] out The output stream
+ * \param[in] prefix The function prefix
+ * \param[in] sim_stats The simulation stats
+ * \param[in] thread_stats The threads statistics
+ */
 void acr_print_stats(
     FILE *out,
     const char *prefix,
-    struct acr_simulation_time_stats *sim_stats,
-    struct acr_threads_time_stats *thread_stats);
+    const struct acr_simulation_time_stats *sim_stats,
+    const struct acr_threads_time_stats *thread_stats);
 
 #endif // __ACR_STATS_H
 #endif // Build option ACR_STAT

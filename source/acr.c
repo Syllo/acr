@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
 
     switch (c) {
       case 'a':
-        build_options.kernel_version = acr_runtime_kernel_versionning;
+        build_options.kernel_version = acr_runtime_kernel_versioning;
         break;
       case 'b':
         build_options.kernel_version = acr_runtime_kernel_stencil;

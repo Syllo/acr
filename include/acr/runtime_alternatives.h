@@ -34,25 +34,44 @@
 #include <stdint.h>
 #include <isl/set.h>
 
+/**
+ * \brief The runtime alternative type
+ */
 enum acr_runtime_alternative_type {
+  /** \brief It is an alternative modifying a parameter */
   acr_runtime_alternative_parameter,
+  /** \brief It is an alternative calling a function */
   acr_runtime_alternative_function,
 };
 
+/**
+ * \brief Structure storing the alternative info needed at runtime
+ */
 struct runtime_alternative {
+  /** \brief The initial iteration domains for each statements */
   isl_set **restricted_domains;
+  /** \brief The number of alternatives for this kernel */
   size_t alternative_number;
+  /** \brief The alternative information */
   struct {
+    /** \brief Union for function and parameter data compaction */
     union {
+      /** \brief The replacement function for function type */
       char *function_to_swap;
+      /** \brief The data for parameter type */
       struct {
+        /** \brief The function computing the whole kernel with this alternative */
         void *function_matching_alternative;
+        /** \brief The parameter value */
         intmax_t parameter_value;
+        /** \brief The parameter position */
         unsigned int parameter_id;
       } parameter;
     } alt;
+    /** \brief Name of parameter or function that the alternative modifies */
     char *name_to_swap;
   } value;
+  /** \brief The alternative type */
   enum acr_runtime_alternative_type type;
 };
 
