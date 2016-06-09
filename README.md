@@ -24,14 +24,15 @@ for (int k = 0; k < P; ++k)
         (data[i][j+1] + data[i+1][j] + data[i+1][j+2] + data[i+2][j+1]) / 4.;
 ~~~
 
-Pretend this kernel is part of a simulation to smoothen the data after an other
-algorithm and they are called many times.
+Pretend this kernel, a 2D Von Neumann neighbourhood applied P times, is part of
+a simulation to smoothen the data after an other algorithm and that both are
+called many times.
 
-If the data values are close to each other, you obviously does not need to
-smoothen them further. This is where ACR shines, you can ask him to monitor the
-"data" array and change the value of the "P" parameter. So you can lower its
-value where the data are already close to each other and rise the value where
-they are not.
+If the neighbourhood of the data is between a range of delta you have chosen
+wisely, you obviously does not need to smoothen them further. This is where ACR
+shines, you can ask him to monitor the "data" array and change the value of the
+"P" parameter. This way you can lower the computation overhead by doing less
+pass of this algorithm where it does not matter that much.
 
 So the by adding the following pragmas, the kernel will automatically generate
 an optimized kernel depending on the data.
@@ -52,6 +53,9 @@ for (int k = 0; k < P; ++k)
         (data[i][j+1] + data[i+1][j] + data[i+1][j+2] + data[i+2][j+1]) / 4.;
 ~~~
 
+The data_to_strategy is a function matching the data value to a strategy unsigned
+integer one.
+
 Build
 -----
 
@@ -60,6 +64,35 @@ mkdir build && cd build
 cmake ..
 make
 ~~~
+
+Documentation
+-------------
+
+Make sure [Doxygen](http://doxygen.org) is installed on your system.
+
+- Fedora
+  ~~~{.bash}
+  sudo dnf install doxygen
+  ~~~
+- ArchLinux
+  ~~~{.bash}
+  sudo pacman -S doxygen
+  ~~~
+- Debian / Ubuntu
+  ~~~{.bash}
+  sudo apt-get install doxygen
+  ~~~
+
+To build the documentation:
+
+~~~ {.bash}
+mkdir build && cd build
+cmake ..
+make doxygen
+~~~
+
+After that you will find the generated documentation as ``html`` or ``latex``
+format in the ``doc`` folder.
 
 License
 -------
