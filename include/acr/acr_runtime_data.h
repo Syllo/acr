@@ -58,6 +58,10 @@ enum acr_kernel_strategy_type {
  * \brief The main data structure having all the data needed at runtime
  */
 struct acr_runtime_data {
+  /** \brief Number of code generation threads */
+  size_t num_codegen_threads;
+  /** \brief Number of compilation threads */
+  size_t num_compile_threads;
   /** The prefix used during compilation */
   char *kernel_prefix;
   /** The CLooG state */

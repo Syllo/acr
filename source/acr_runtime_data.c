@@ -27,6 +27,7 @@
 #include <isl/map.h>
 #include <pthread.h>
 #include <string.h>
+#include <unistd.h>
 
 void free_acr_runtime_data_thread_specific(struct acr_runtime_data* data) {
   pthread_spin_lock(&data->alternative_lock);
@@ -184,10 +185,62 @@ void init_acr_runtime_data_thread_specific(struct acr_runtime_data *data) {
   pthread_spin_init(&data->alternative_lock, PTHREAD_PROCESS_PRIVATE);
 }
 
+/**
+ * \brief Initialize the number of threads used during the simulation
+ * \param[out] codegen The number of code generation threads
+ * \param[out] compile The number of compilation threads
+ *
+ * \remark You can use the *ACR_GEN_THREADS* environment variable to set the
+ * number of code generation threads.
+ * \remark You can use the *ACR_COMPILE_THREADS* environment variable to set
+ * the number of compilation threads.
+ *
+ */
+static void init_num_threads(size_t *restrict codegen, size_t *restrict compile) {
+  char *codegen_env = getenv("ACR_GEN_THREADS");
+  long num_threads = sysconf(_SC_NPROCESSORS_ONLN);
+  num_threads /= 2;
+  num_threads = num_threads == 0 ? 1 : num_threads;
+  if (codegen_env == NULL) {
+    *codegen = (size_t) num_threads;
+  } else {
+    long env_threads;
+    int num_matched = sscanf(codegen_env, "%ld", &env_threads);
+    if (num_matched != 1) {
+      fprintf(stderr,
+          "Warning: Bad value \"%s\" in ACR_GEN_THREADS environment"
+          " variable.\n"
+          "         Default to %ld threads.\n", codegen_env, num_threads);
+      *codegen = (size_t) num_threads;
+    } else {
+      env_threads = env_threads < 0 ? -env_threads : env_threads;
+      *compile = (size_t) env_threads;
+    }
+  }
+  char *compile_env = getenv("ACR_COMPILE_THREADS");
+  if (compile_env == NULL) {
+    *compile = (size_t) num_threads;
+  } else {
+    long env_threads;
+    int num_matched = sscanf(compile_env, "%ld", &env_threads);
+    if (num_matched != 1) {
+      fprintf(stderr,
+          "Warning: Bad value \"%s\" in ACR_COMPILE_THREADS environment"
+          " variable.\n"
+          "         Default to %ld threads.\n", compile_env, num_threads);
+      *compile = (size_t) num_threads;
+    } else {
+      env_threads = env_threads < 0 ? -env_threads : env_threads;
+      *compile = (size_t) env_threads;
+    }
+  }
+}
+
 void init_acr_runtime_data(
     struct acr_runtime_data* data,
     char *scop,
     size_t scop_size) {
+  init_num_threads(&data->num_codegen_threads, &data->num_compile_threads);
   data->osl_relation = acr_read_scop_from_buffer(scop, scop_size);
   data->state = cloog_state_malloc();
   data->monitor_total_size = 1;
