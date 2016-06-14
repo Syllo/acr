@@ -102,7 +102,7 @@ static void perf_new_compilation(struct acr_runtime_perf *perf,
   char *filename = acr_compile_with_system_compiler(
       compilation_filename,
       generated_function,
-      perf->rdata->num_compiler_flags, perf->rdata->compiler_flags);
+      perf->rdata->num_compiler_flags, perf->rdata->compiler_flags[0]);
   free(generated_function);
 
   struct acr_perf_compilation comp;

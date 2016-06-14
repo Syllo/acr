@@ -71,7 +71,9 @@ void free_acr_runtime_data(struct acr_runtime_data* data) {
   osl_scop_free(data->osl_relation);
   data->osl_relation = NULL;
   free(data->monitor_dim_max);
-  free(data->compiler_flags[1]);
+  free(data->compiler_flags[0][1]);
+  for (size_t i = 0; i < data->num_compile_threads; ++i)
+    free(data->compiler_flags[i]);
   free(data->compiler_flags);
 }
 
@@ -195,8 +197,17 @@ default_flags:
     memcpy(options[0], "-O2", 4*sizeof(char));
   }
   acr_append_necessary_compile_flags(&num_options, &options);
-  data->compiler_flags = options;
+  data->compiler_flags =
+    malloc(data->num_compile_threads * sizeof(*data->compiler_flags));
+  data->compiler_flags[0] = options;
   data->num_compiler_flags = num_options;
+  for (size_t i = 1; i < data->num_compile_threads; ++i) {
+    data->compiler_flags[i] =
+      malloc(num_options * sizeof(*data->compiler_flags[i]));
+    for (size_t j = 0; j < num_options; ++j) {
+      data->compiler_flags[i][j] = data->compiler_flags[0][j];
+    }
+  }
 }
 
 void init_acr_runtime_data_thread_specific(struct acr_runtime_data *data) {

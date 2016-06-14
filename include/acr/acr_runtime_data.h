@@ -103,7 +103,7 @@ struct acr_runtime_data {
   /** The number of compiler flags */
   size_t num_compiler_flags;
   /** The compiler flags */
-  char **compiler_flags;
+  char ***compiler_flags;
 
   /** The monitoring data used by the current kernel */
   unsigned char *current_monitoring_data;

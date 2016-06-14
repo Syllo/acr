@@ -823,7 +823,6 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   // Compile threads
   const size_t num_compilation_threads = 2;
   struct acr_runtime_threads_compile_data compile_threads_data = {
-    .cflags = init_data->compiler_flags,
     .num_cflags = init_data->num_compiler_flags,
     .end_yourself = false,
     .compile_something = false,
@@ -843,6 +842,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   pthread_cond_init(&compile_threads_data.compiler_thread_sleep, NULL);
   pthread_cond_init(&compile_threads_data.coordinator_sleep, NULL);
   for (size_t i = 0; i < num_compilation_threads; ++i) {
+    compile_threads_data.cflags = init_data->compiler_flags[i];
     pthread_create(&compile_threads[i], NULL,
         acr_runtime_compile_thread, (void*)&compile_threads_data);
   }
