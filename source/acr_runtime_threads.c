@@ -821,7 +821,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
       (void*) &monitor_data);
 
   // Compile threads
-  const size_t num_compilation_threads = 2;
+  const size_t num_compilation_threads = init_data->num_compile_threads;
   struct acr_runtime_threads_compile_data compile_threads_data = {
     .num_cflags = init_data->num_compiler_flags,
     .end_yourself = false,
@@ -848,10 +848,11 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   }
 
   // Cloog thread
-  const size_t num_cloog_threads = 1; // We need to fix that
+  const size_t num_cloog_threads = init_data->num_codegen_threads; // We need to fix that
   pthread_t *cloog_threads =
     malloc(num_cloog_threads * sizeof(*compile_threads));
   struct acr_runtime_threads_cloog_gencode cloog_thread_data = {
+    .thread_num = 0,
     .end_yourself = false,
     .generate_function = false,
     .num_threads = num_cloog_threads,
@@ -963,7 +964,10 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
   struct acr_runtime_threads_cloog_gencode *const input_data =
     (struct acr_runtime_threads_cloog_gencode *) in_data;
 
+  pthread_mutex_lock(&input_data->mutex);
   const size_t thread_num = input_data->thread_num;
+  input_data->thread_num += 1;
+  pthread_mutex_unlock(&input_data->mutex);
 
 #ifdef ACR_STATS_ENABLED
   double total_time = 0.;
@@ -998,6 +1002,7 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
 
     if (has_to_stop)
       break;
+    fprintf(stderr, "Cloog %zu gogo\n", thread_num);
 
     monitor_result = where_to_add->monitor_result;
     stream = where_to_add->memstream;
