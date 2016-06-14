@@ -41,19 +41,21 @@
  * \param[in,out] output The output file where to store the generated code.
  * \param[in] data_info The runtime data info
  * \param[in] data The array representation of the alternative state to use.
+ * \param[in] thread_num The id of the thread that requested the generation.
  * \sa runtime_data
  */
 void acr_cloog_generate_alternative_code_from_input(
     FILE* output,
     const struct acr_runtime_data *data_info,
-    const unsigned char *data);
+    const unsigned char *data,
+    size_t thread_num);
 
 /**
  * \brief Update the OpenScop used for code generation with current alternative.
  * \param[in,out] data The runtime data info
  * \sa runtime_data
  */
-void acr_cloog_init_scop_to_match_alternatives(
+void acr_gencode_init_scop_to_match_alternatives(
     struct acr_runtime_data *data);
 
 /**

@@ -104,6 +104,7 @@ struct acr_monitoring_computation {
 };
 
 struct acr_runtime_threads_cloog_gencode {
+  size_t thread_num;
   size_t num_threads;
   size_t num_threads_compiling;
   struct func_value *where_to_add;
@@ -962,6 +963,8 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
   struct acr_runtime_threads_cloog_gencode *const input_data =
     (struct acr_runtime_threads_cloog_gencode *) in_data;
 
+  const size_t thread_num = input_data->thread_num;
+
 #ifdef ACR_STATS_ENABLED
   double total_time = 0.;
   size_t num_mesurement = 0;
@@ -1008,7 +1011,7 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
         "void acr_alternative_function%s {\n",
         input_data->rdata->function_prototype);
     acr_cloog_generate_alternative_code_from_input(stream, input_data->rdata,
-        monitor_result);
+        monitor_result, thread_num);
     fprintf(stream, "}\n");
 
     // Now the pointers in function structure are up to date

@@ -48,8 +48,8 @@ enum acr_runtime_alternative_type {
  * \brief Structure storing the alternative info needed at runtime
  */
 struct runtime_alternative {
-  /** \brief The initial iteration domains for each statements */
-  isl_set **restricted_domains;
+  /** \brief The initial iteration domains for each statements for each threads */
+  isl_set ***restricted_domains;
   /** \brief The number of alternatives for this kernel */
   size_t alternative_number;
   /** \brief The alternative information */

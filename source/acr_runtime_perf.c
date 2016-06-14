@@ -68,7 +68,7 @@ static void perf_new_compilation(struct acr_runtime_perf *perf,
   char *body = NULL;
   FILE *bodystream = open_memstream(&body, &generated_function_size);
   acr_cloog_generate_alternative_code_from_input(bodystream, perf->rdata,
-      monitor_result);
+      monitor_result, 0);
   fclose(bodystream);
   FILE *memstring = open_memstream(&generated_function, &generated_function_size);
   fprintf(memstring, "void acr_function%s {\n%s}\n",

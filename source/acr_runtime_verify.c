@@ -44,7 +44,9 @@ void acr_verify_versioning(size_t size_buffers,
   for(size_t i = 0; i < size_buffers; i++) {
     if (more_recent[i] < current[i]) {
       // Overapprox if recently added
-      maximized_version[i] = more_recent[i] == 0 ? 0 : more_recent[i]-1;
+      maximized_version[i] = more_recent[i];
+      if (maximized_version[i] > 0)
+        maximized_version[i] = (unsigned char) (maximized_version[i] - 1);
       total_difference += current[i] - more_recent[i] ? 1 : 0;
       still_valid_local = false;
     } else {

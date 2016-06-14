@@ -64,8 +64,8 @@ struct acr_runtime_data {
   size_t num_compile_threads;
   /** The prefix used during compilation */
   char *kernel_prefix;
-  /** The CLooG state */
-  CloogState* state;
+  /** The CLooG state for each threads */
+  CloogState **state;
   /** The OpenScop relation used by code generation functions */
   struct osl_scop* osl_relation;
   /** The number of alternatives */
@@ -77,9 +77,9 @@ struct acr_runtime_data {
   /** The upper bound of the dimension */
   unsigned long *monitor_dim_max;
   /** The pre-computed tiles used by CLooG to generate code */
-  isl_set **tiles_domains;
+  isl_set ***tiles_domains;
   /** An empty set used for performance */
-  isl_set *empty_monitor_set;
+  isl_set **empty_monitor_set;
   /** The size of the monitor data */
   size_t monitor_total_size;
   /** The tiling size */
@@ -87,9 +87,9 @@ struct acr_runtime_data {
   /** Number of statement of the kernel */
   size_t num_statements;
   /** The loop context */
-  isl_set *context;
-  /** The scattering function for each statements */
-  isl_map **statement_maps;
+  isl_set **context;
+  /** The scattering function for each statements for each threads */
+  isl_map ***statement_maps;
   /** An array storing the number of dimensions per statements */
   unsigned int *dimensions_per_statements;
   /** For each dimensions in each statements, it's type */

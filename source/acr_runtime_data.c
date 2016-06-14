@@ -38,24 +38,35 @@ void free_acr_runtime_data_thread_specific(struct acr_runtime_data* data) {
 }
 
 void free_acr_runtime_data(struct acr_runtime_data* data) {
+  for (size_t k = 0; k < data->num_codegen_threads; ++k) {
+    for (size_t i = 0; i < data->num_alternatives; ++i) {
+      struct runtime_alternative *alt = &data->alternatives[i];
+      for (size_t j = 0; j < data->num_statements; ++j) {
+        isl_set_free(alt->restricted_domains[k][j]);
+      }
+      free(alt->restricted_domains[k]);
+    }
+    for (size_t i = 0; i < data->num_statements; ++i) {
+      isl_map_free(data->statement_maps[k][i]);
+    }
+    free(data->statement_maps[k]);
+    for (unsigned long i = 0; i < data->monitor_total_size; ++i) {
+      isl_set_free(data->tiles_domains[k][i]);
+    }
+    free(data->tiles_domains[k]);
+    isl_set_free(data->context[k]);
+    isl_set_free(data->empty_monitor_set[k]);
+    cloog_state_free(data->state[k]);
+  }
   for (size_t i = 0; i < data->num_alternatives; ++i) {
     struct runtime_alternative *alt = &data->alternatives[i];
-    for (size_t j = 0; j < data->num_statements; ++j) {
-      isl_set_free(alt->restricted_domains[j]);
-    }
     free(alt->restricted_domains);
   }
-  for (size_t i = 0; i < data->num_statements; ++i) {
-    isl_map_free(data->statement_maps[i]);
-  }
-  for (unsigned long i = 0; i < data->monitor_total_size; ++i) {
-    isl_set_free(data->tiles_domains[i]);
-  }
-  free(data->tiles_domains);
-  isl_set_free(data->empty_monitor_set);
+  free(data->context);
+  free(data->state);
   free(data->statement_maps);
-  isl_set_free(data->context);
-  cloog_state_free(data->state);
+  free(data->tiles_domains);
+  free(data->empty_monitor_set);
   data->state = NULL;
   osl_scop_free(data->osl_relation);
   data->osl_relation = NULL;
@@ -67,64 +78,71 @@ void free_acr_runtime_data(struct acr_runtime_data* data) {
 isl_map* isl_map_from_cloog_scattering(CloogScattering *scat);
 
 static void init_isl_tiling_domain(struct acr_runtime_data *data) {
+
   data->tiles_domains =
-    malloc(data->monitor_total_size * sizeof(*data->tiles_domains));
+    malloc(data->num_codegen_threads * sizeof(*data->tiles_domains));
+  data->empty_monitor_set =
+    malloc(data->num_codegen_threads * sizeof(*data->empty_monitor_set));
+  for (size_t k = 0; k < data->num_codegen_threads; ++k) {
+    data->tiles_domains[k] =
+      malloc(data->monitor_total_size * sizeof(*data->tiles_domains[k]));
 
-  isl_ctx *ctx = isl_set_get_ctx(data->context);
-  isl_space *space = isl_space_set_alloc(ctx, 0, data->num_monitor_dims);
-  isl_val *tiling_size_val = isl_val_int_from_ui(ctx, data->grid_size);
+    isl_ctx *ctx = isl_set_get_ctx(data->context[k]);
+    isl_space *space = isl_space_set_alloc(ctx, 0, data->num_monitor_dims);
+    isl_val *tiling_size_val = isl_val_int_from_ui(ctx, data->grid_size);
 
-  isl_set *empty_domain = isl_set_empty(isl_space_copy(space));
-  data->empty_monitor_set = empty_domain;
+    isl_set *empty_domain = isl_set_empty(isl_space_copy(space));
+    data->empty_monitor_set[k] = empty_domain;
 
-  isl_set *universe_domain = isl_set_universe(space);
+    isl_set *universe_domain = isl_set_universe(space);
 
-  unsigned long *current_dimension =
-    calloc(data->num_monitor_dims, sizeof(*current_dimension));
-  for(size_t i = 0; i < data->monitor_total_size; ++i) {
-    data->tiles_domains[i] = isl_set_copy(universe_domain);
-    for (unsigned long j = 0; j < data->num_monitor_dims; ++j) {
-      unsigned long dimensions_pos = current_dimension[data->num_monitor_dims- 1 - j];
-      isl_local_space *local_space =
-        isl_local_space_from_space(isl_set_get_space(data->tiles_domains[i]));
-      isl_constraint *c_lower = isl_constraint_alloc_inequality(
-          local_space);
-      isl_constraint *c_upper = isl_constraint_copy(c_lower);
+    unsigned long *current_dimension =
+      calloc(data->num_monitor_dims, sizeof(*current_dimension));
+    for(size_t i = 0; i < data->monitor_total_size; ++i) {
+      data->tiles_domains[k][i] = isl_set_copy(universe_domain);
+      for (unsigned long j = 0; j < data->num_monitor_dims; ++j) {
+        unsigned long dimensions_pos = current_dimension[data->num_monitor_dims- 1 - j];
+        isl_local_space *local_space =
+          isl_local_space_from_space(isl_set_get_space(data->tiles_domains[k][i]));
+        isl_constraint *c_lower = isl_constraint_alloc_inequality(
+            local_space);
+        isl_constraint *c_upper = isl_constraint_copy(c_lower);
 
-      isl_val *lower_bound =
-        isl_val_mul_ui(isl_val_copy(tiling_size_val), dimensions_pos);
-      lower_bound = isl_val_neg(lower_bound);
-      c_lower =
-        isl_constraint_set_constant_val(c_lower, lower_bound);
-      c_lower =
-        isl_constraint_set_coefficient_si(c_lower, isl_dim_set, (int)j, 1);
-      data->tiles_domains[i] =
-        isl_set_add_constraint(data->tiles_domains[i], c_lower);
+        isl_val *lower_bound =
+          isl_val_mul_ui(isl_val_copy(tiling_size_val), dimensions_pos);
+        lower_bound = isl_val_neg(lower_bound);
+        c_lower =
+          isl_constraint_set_constant_val(c_lower, lower_bound);
+        c_lower =
+          isl_constraint_set_coefficient_si(c_lower, isl_dim_set, (int)j, 1);
+        data->tiles_domains[k][i] =
+          isl_set_add_constraint(data->tiles_domains[k][i], c_lower);
 
-      isl_val *upper_bound =
-        isl_val_mul_ui(isl_val_copy(tiling_size_val), dimensions_pos);
-      upper_bound = isl_val_add(upper_bound, isl_val_copy(tiling_size_val));
-      upper_bound = isl_val_sub_ui(upper_bound, 1);
-      c_upper =
-        isl_constraint_set_constant_val(c_upper, upper_bound);
-      c_upper =
-        isl_constraint_set_coefficient_si(c_upper, isl_dim_set, (int)j, -1);
-      data->tiles_domains[i] =
-        isl_set_add_constraint(data->tiles_domains[i], c_upper);
-    }
+        isl_val *upper_bound =
+          isl_val_mul_ui(isl_val_copy(tiling_size_val), dimensions_pos);
+        upper_bound = isl_val_add(upper_bound, isl_val_copy(tiling_size_val));
+        upper_bound = isl_val_sub_ui(upper_bound, 1);
+        c_upper =
+          isl_constraint_set_constant_val(c_upper, upper_bound);
+        c_upper =
+          isl_constraint_set_coefficient_si(c_upper, isl_dim_set, (int)j, -1);
+        data->tiles_domains[k][i] =
+          isl_set_add_constraint(data->tiles_domains[k][i], c_upper);
+      }
 
-    for (unsigned long j = 0; j < data->num_monitor_dims; ++j) {
-      current_dimension[j] += 1;
-      if(current_dimension[j] == data->monitor_dim_max[j]) {
-        current_dimension[j] = 0;
-      } else {
-        break;
+      for (unsigned long j = 0; j < data->num_monitor_dims; ++j) {
+        current_dimension[j] += 1;
+        if(current_dimension[j] == data->monitor_dim_max[j]) {
+          current_dimension[j] = 0;
+        } else {
+          break;
+        }
       }
     }
+    isl_set_free(universe_domain);
+    isl_val_free(tiling_size_val);
+    free(current_dimension);
   }
-  isl_set_free(universe_domain);
-  isl_val_free(tiling_size_val);
-  free(current_dimension);
 }
 
 static void init_compile_flags(struct acr_runtime_data *data) {
@@ -242,36 +260,54 @@ void init_acr_runtime_data(
     size_t scop_size) {
   init_num_threads(&data->num_codegen_threads, &data->num_compile_threads);
   data->osl_relation = acr_read_scop_from_buffer(scop, scop_size);
-  data->state = cloog_state_malloc();
+
   data->monitor_total_size = 1;
   for (size_t i = 0; i < data->num_monitor_dims; ++i) {
     data->monitor_total_size *= data->monitor_dim_max[i];
   }
   data->usability_inital_value = 3;
 
-  CloogInput *cloog_input = cloog_input_from_osl_scop(data->state,
-      data->osl_relation);
-  acr_cloog_init_scop_to_match_alternatives(data);
-  data->statement_maps =
-    malloc(data->num_statements * sizeof(*data->statement_maps));
-  CloogNamedDomainList *domain_list = cloog_input->ud->domain;
-  for (size_t i = 0; i < data->num_statements; ++i, domain_list = domain_list->next) {
-    data->statement_maps[i] = isl_map_copy(
-        isl_map_from_cloog_scattering(domain_list->scattering));
-  }
-  for (size_t i = 0; i < data->num_alternatives; ++i) {
-    struct runtime_alternative *alt = &data->alternatives[i];
+  for (size_t j = 0; j < data->num_alternatives; ++j) {
+    struct runtime_alternative *alt = &data->alternatives[j];
     alt->restricted_domains =
-      malloc(data->num_statements * sizeof(*alt->restricted_domains));
-    domain_list = cloog_input->ud->domain;
-    for(size_t j = 0; j < data->num_statements; ++j, domain_list = domain_list->next) {
-      alt->restricted_domains[j] =
-        isl_set_copy(isl_set_from_cloog_domain(domain_list->domain));
-    }
+      malloc(data->num_codegen_threads * sizeof(*alt->restricted_domains));
   }
-  data->context = isl_set_from_cloog_domain(cloog_input->context);
-  cloog_union_domain_free(cloog_input->ud);
-  free(cloog_input);
+  CloogInput **cloog_inputs =
+    malloc(data->num_codegen_threads * sizeof(*cloog_inputs));
+  data->context =
+    malloc(data->num_codegen_threads * sizeof(*data->context));
+  data->state =
+    malloc(data->num_codegen_threads * sizeof(*data->state));
+  data->statement_maps =
+    malloc(data->num_codegen_threads * sizeof(*data->statement_maps));
+
+  for (size_t i = 0; i < data->num_codegen_threads; ++i) {
+    data->state[i] = cloog_state_malloc();
+    cloog_inputs[i] = cloog_input_from_osl_scop(data->state[i],
+      data->osl_relation);
+    data->context[i] = isl_set_from_cloog_domain(cloog_inputs[i]->context);
+    data->statement_maps[i] =
+      malloc(data->num_statements * sizeof(**data->statement_maps));
+    CloogNamedDomainList *domain_list = cloog_inputs[i]->ud->domain;
+    for (size_t j = 0; j < data->num_statements; ++j, domain_list = domain_list->next) {
+      data->statement_maps[i][j] = isl_map_copy(
+          isl_map_from_cloog_scattering(domain_list->scattering));
+    }
+    for (size_t j = 0; j < data->num_alternatives; ++j) {
+      struct runtime_alternative *alt = &data->alternatives[j];
+      alt->restricted_domains[i] =
+        malloc(data->num_statements * sizeof(*alt->restricted_domains[i]));
+      domain_list = cloog_inputs[i]->ud->domain;
+      for(size_t k = 0; k < data->num_statements; ++k, domain_list = domain_list->next) {
+        alt->restricted_domains[i][k] =
+          isl_set_copy(isl_set_from_cloog_domain(domain_list->domain));
+      }
+    }
+    cloog_union_domain_free(cloog_inputs[i]->ud);
+    free(cloog_inputs[i]);
+  }
+  acr_gencode_init_scop_to_match_alternatives(data);
+  free(cloog_inputs);
   init_isl_tiling_domain(data);
   init_compile_flags(data);
 }
