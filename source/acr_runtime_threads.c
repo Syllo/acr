@@ -1004,7 +1004,6 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
 
     if (has_to_stop)
       break;
-    fprintf(stderr, "Cloog %zu gogo\n", thread_num);
 
     monitor_result = where_to_add->monitor_result;
     stream = where_to_add->memstream;
