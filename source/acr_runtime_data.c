@@ -243,7 +243,8 @@ static void init_num_threads(size_t *restrict codegen, size_t *restrict compile)
       *codegen = (size_t) num_threads;
     } else {
       env_threads = env_threads < 0 ? -env_threads : env_threads;
-      *compile = (size_t) env_threads;
+      *codegen = (size_t) env_threads;
+      *codegen = *codegen == 0 ? 1 : *codegen;
     }
   }
   char *compile_env = getenv("ACR_COMPILE_THREADS");
@@ -261,6 +262,7 @@ static void init_num_threads(size_t *restrict codegen, size_t *restrict compile)
     } else {
       env_threads = env_threads < 0 ? -env_threads : env_threads;
       *compile = (size_t) env_threads;
+      *compile = *compile == 0 ? 1 : *compile;
     }
   }
 }
