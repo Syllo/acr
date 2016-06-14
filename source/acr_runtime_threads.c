@@ -975,6 +975,8 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
 #endif
 
   FILE* stream;
+  isl_set **generation_buffer =
+    malloc(input_data->rdata->num_alternatives * sizeof(*generation_buffer));
 
   for (;;) {
     struct func_value *where_to_add;
@@ -1016,7 +1018,7 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
         "void acr_alternative_function%s {\n",
         input_data->rdata->function_prototype);
     acr_cloog_generate_alternative_code_from_input(stream, input_data->rdata,
-        monitor_result, thread_num);
+        monitor_result, thread_num, generation_buffer);
     fprintf(stream, "}\n");
 
     // Now the pointers in function structure are up to date
@@ -1040,6 +1042,7 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
   input_data->num_mesurement += num_mesurement;
   pthread_mutex_unlock(&input_data->mutex);
 #endif
+  free(generation_buffer);
 
   pthread_exit(NULL);
 }

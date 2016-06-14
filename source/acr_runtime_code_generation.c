@@ -142,12 +142,12 @@ void acr_cloog_get_rid_of_parameter(
   }
 }
 
-static isl_set** acr_isl_set_from_monitor(
+static void acr_isl_set_from_monitor(
     const struct acr_runtime_data *data_info,
     const unsigned char*data,
-    size_t thread_num) {
+    size_t thread_num,
+    isl_set **sets) {
 
-  isl_set **sets = malloc(data_info->num_alternatives * sizeof(*sets));
   for (size_t i = 0; i < data_info->num_alternatives; ++i) {
     sets[i] = isl_set_copy(data_info->empty_monitor_set[thread_num]);
   }
@@ -160,21 +160,19 @@ static isl_set** acr_isl_set_from_monitor(
       isl_set_union(sets[alternative->alternative_number],
           isl_set_copy(data_info->tiles_domains[thread_num][i]));
   }
-  return sets;
 }
 
 void acr_cloog_generate_alternative_code_from_input(
     FILE* output,
     const struct acr_runtime_data *data_info,
     const unsigned char *data,
-    size_t thread_num) {
+    size_t thread_num,
+    isl_set **temporary_alt_domain) {
 
   CloogUnionDomain *new_udomain = cloog_union_domain_alloc(0);
 
-  isl_set **temporary_alt_domain =
-    malloc(data_info->num_alternatives * sizeof(*temporary_alt_domain));
-  isl_set **alternative_domains = acr_isl_set_from_monitor(
-      data_info, data, thread_num);
+  acr_isl_set_from_monitor(
+      data_info, data, thread_num, temporary_alt_domain);
   CloogNamedDomainList *current_domain = NULL;
   for (size_t i = 0; i < data_info->num_statements; ++i) {
     CloogDomain *cloog_domain;
@@ -200,7 +198,7 @@ void acr_cloog_generate_alternative_code_from_input(
           case acr_dimension_type_bound_to_alternative:
           case acr_dimension_type_free_dim:
             temporary_alt_domain[j] =
-              isl_set_insert_dims(isl_set_copy(alternative_domains[j]),
+              isl_set_insert_dims(temporary_alt_domain[j],
                   isl_dim_set, k, 1);
             break;
           case acr_dimension_type_bound_to_monitor:
@@ -238,11 +236,6 @@ void acr_cloog_generate_alternative_code_from_input(
     pragma_parameter_domain->domain = cloog_domain;
 
   }
-  for (size_t j = 0; j < data_info->num_alternatives; ++j) {
-    isl_set_free(alternative_domains[j]);
-  }
-  free(alternative_domains);
-  free(temporary_alt_domain);
 
   CloogOptions *cloog_option = cloog_options_malloc(data_info->state[thread_num]);
   cloog_option->quiet = 1;

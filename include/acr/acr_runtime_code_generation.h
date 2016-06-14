@@ -42,13 +42,15 @@
  * \param[in] data_info The runtime data info
  * \param[in] data The array representation of the alternative state to use.
  * \param[in] thread_num The id of the thread that requested the generation.
+ * \param[in] generation_buffer A buffer of size the number of alternatives
  * \sa runtime_data
  */
 void acr_cloog_generate_alternative_code_from_input(
     FILE* output,
     const struct acr_runtime_data *data_info,
     const unsigned char *data,
-    size_t thread_num);
+    size_t thread_num,
+    isl_set **generation_buffer);
 
 /**
  * \brief Update the OpenScop used for code generation with current alternative.
