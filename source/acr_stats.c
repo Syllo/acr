@@ -24,7 +24,9 @@ void acr_print_stats(
     FILE *out,
     const char *kernel_prefix,
     const struct acr_simulation_time_stats *sim_stats,
-    const struct acr_threads_time_stats *thread_stats) {
+    const struct acr_threads_time_stats *thread_stats,
+    size_t num_gen_threads,
+    size_t num_compile_threads) {
   double simulation_step_time =
     sim_stats->total_time / (double) sim_stats->num_simmulation_step;
   double monitor_mean_time =
@@ -67,9 +69,11 @@ void acr_print_stats(
       "%29s: %fs\n"
       "%29s: %zu\n"
       "%29s: %fs\n\n"
+      "%29s: %zu\n"
       "%29s: %fs\n"
       "%29s: %zu\n"
       "%29s: %fs\n\n"
+      "%29s: %zu\n"
       "%29s: %fs\n"
       "%29s: %zu\n"
       "%29s: %fs\n\n"
@@ -101,12 +105,16 @@ void acr_print_stats(
       thread_stats->num_measurements[acr_thread_time_monitor],
       "Mean time spent in monitoring",
       monitor_mean_time,
+      "Number of cloog threads",
+      num_gen_threads,
       "Total cloog time",
       thread_stats->total_time[acr_thread_time_cloog],
       "Total cloog invocations",
       thread_stats->num_measurements[acr_thread_time_cloog],
       "Mean time spent in cloog",
       cloog_mean_time,
+      "Number of cc threads",
+      num_compile_threads,
       "Total cc time",
       thread_stats->total_time[acr_thread_time_cc],
       "Total cc invocations",

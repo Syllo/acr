@@ -86,7 +86,9 @@ void acr_print_stats(
     FILE *out,
     const char *prefix,
     const struct acr_simulation_time_stats *sim_stats,
-    const struct acr_threads_time_stats *thread_stats);
+    const struct acr_threads_time_stats *thread_stats,
+    size_t num_gen_threads,
+    size_t num_compile_threads);
 
 #endif // __ACR_STATS_H
 #endif // Build option ACR_STAT

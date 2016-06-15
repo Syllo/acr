@@ -969,9 +969,11 @@ static void acr_print_destroy(FILE* output, const acr_compute_node node,
       "  free_acr_runtime_data(&%s_runtime_data);\n"
       "#ifdef ACR_STATS_ENABLED\n"
       "  acr_print_stats(stdout, %s_runtime_data.kernel_prefix,"
-      "  &%s_runtime_data.sim_stats,\n  &%s_runtime_data.thread_stats);\n"
+      "  &%s_runtime_data.sim_stats,\n  &%s_runtime_data.thread_stats,\n"
+      "  %s_runtime_data.num_codegen_threads,\n"
+      "  %s_runtime_data.num_compile_threads);\n"
       "#endif\n",
-     prefix, prefix, prefix, prefix);
+     prefix, prefix, prefix, prefix, prefix, prefix);
 }
 
 static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
@@ -1119,9 +1121,11 @@ static void acr_print_deferred_destroy(FILE * out, const acr_option def_destroy,
           "  free_acr_runtime_data_thread_specific(&%s_runtime_data);\n"
           "#ifdef ACR_STATS_ENABLED\n"
           "  acr_print_stats(stdout, %s_runtime_data.kernel_prefix,"
-          "  &%s_runtime_data.sim_stats,\n  &%s_runtime_data.thread_stats);\n"
+          "  &%s_runtime_data.sim_stats,\n  &%s_runtime_data.thread_stats,\n"
+          "  %s_runtime_data.num_codegen_threads,\n"
+          "  %s_runtime_data.num_compile_threads);\n"
           "#endif\n",
-          prefix, prefix, prefix, prefix);
+          prefix, prefix, prefix, prefix, prefix, prefix);
       break;
     case acr_perf_kernel_only:
     case acr_perf_compile_time_zero:
