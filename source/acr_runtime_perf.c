@@ -199,6 +199,7 @@ void acr_runtime_perf_clean(struct acr_runtime_perf *perf) {
   }
   perf->list_size = 0;
   free(file_name);
+  free_acr_runtime_data(perf->rdata);
 }
 
 void acr_runtime_clean_time_zero_run(struct acr_runtime_perf *perf) {
@@ -212,6 +213,7 @@ void acr_runtime_clean_time_zero_run(struct acr_runtime_perf *perf) {
     free(plist);
     plist = plist_temp;
   }
+  free_acr_runtime_data(perf->rdata);
 }
 
 void* acr_runntime_perf_end_step(struct acr_runtime_perf *perf) {

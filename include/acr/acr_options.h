@@ -52,6 +52,10 @@ enum acr_build_type {
    * ACR runtime thus providing an approximation of ACR without compile time.
    */
   acr_perf_compile_time_zero_run,
+  /** \brief Build a version where the tiles are pre-computed and can be
+   * computed in parallel
+   */
+  acr_static_kernel,
 };
 
 /**
