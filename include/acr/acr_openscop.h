@@ -326,6 +326,17 @@ dimensions_upper_lower_bounds* acr_osl_get_min_max_bound_statement(
 osl_strings_p acr_osl_get_alternative_parameters(
     const acr_compute_node node);
 
+/**
+ * \brief Generate the functions for each cell and alternative of the simulation
+ * \param[in,out] temp_buffer The output buffer
+ * \param[in] scop The OpenScop format representation of the kernel
+ * \param[in] node The compute node having all the alternative data
+ */
+bool acr_print_acr_static_functions(
+    FILE *temp_buffer,
+    osl_scop_p scop,
+    acr_compute_node node);
+
 #endif // __ACR_OPENSCOP_H
 
 /**

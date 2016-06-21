@@ -76,6 +76,7 @@ void acr_generate_preamble(FILE* out, const char *filename);
  * where to find the kernel
  * \param[in] kernel_end The number of characters from the start of the file
  * where to find the end of the kernel
+ * \param[in] options The build options
  * \retval true If there is something to initialize
  * \retval false Otherwise
  * \sa build_pragma
@@ -83,7 +84,8 @@ void acr_generate_preamble(FILE* out, const char *filename);
  */
 bool acr_print_node_initialization(FILE* kernel_file, FILE* out,
     const acr_compute_node node,
-    size_t kernel_start, size_t kernel_end);
+    size_t kernel_start, size_t kernel_end,
+    struct acr_build_options const* options);
 
 /**
  * \brief Extract the OpenScop format of the kernel inside the compute node.
@@ -129,20 +131,35 @@ void acr_scop_coord_to_acr_coord(
  * runtime
  * \param[in,out] out The output stream
  * \param[in] node The compute node
+ * \param[in] build_options The build options
  * \sa build_pragma
  */
 void acr_print_node_init_function_call(FILE* out,
-    const acr_compute_node node);
+    const acr_compute_node node,
+    const struct acr_build_options *build_options);
 
+/**
+ * \brief Print the acr static data initialization function that must be called at
+ * runtime
+ * \param[in,out] out The output stream
+ * \param[in] node The compute node
+ * \param[in] build_options The build options.
+ * \sa build_pragma
+ */
+void acr_print_static_function_call(FILE* out,
+    const acr_compute_node node,
+    const struct acr_build_options *build_options);
 /**
  * \brief Print the acr data initialization function that must be called at
  * runtime for a performance run test
  * \param[in,out] out The output stream
  * \param[in] node The compute node
+ * \param[in] build_options The build options.
  * \sa build_pragma
  */
 void acr_print_node_init_function_call_for_max_perf_run(FILE *out,
-    const acr_compute_node node);
+    const acr_compute_node node,
+    const struct acr_build_options *build_options);
 
 #endif // __ACR_GENCODE_H
 

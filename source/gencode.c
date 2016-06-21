@@ -170,7 +170,8 @@ static void acr_print_parameters(FILE* out, const acr_option init) {
   fprintf(out, ")");
 }
 
-static void acr_print_init_function_call(FILE* out, const acr_option init);
+static void acr_print_init_function_call(FILE* out, const acr_option init,
+    const struct acr_build_options *options);
 
 static intmax_t acr_strategy_get_min(const acr_option strategy) {
   intmax_t values[2];
@@ -252,7 +253,8 @@ static void acr_print_acr_alternatives(FILE *out,
       const char *prefix,
       size_t num_alternatives,
       const acr_option_list alternative_list,
-      const osl_scop_p scop) {
+      const osl_scop_p scop,
+      const struct acr_build_options *options) {
   static const char* alternative_types_char[] = {
     [acr_alternative_function] = "acr_runtime_alternative_function",
     [acr_alternative_parameter] = "acr_runtime_alternative_parameter"};
@@ -279,10 +281,22 @@ static void acr_print_acr_alternatives(FILE *out,
             ".value = { .alt.parameter.parameter_value = %zu"
             " , .alt.parameter.parameter_id = %zu"
             " , .name_to_swap = \"%s\""
-            " , .alt.parameter.function_matching_alternative = %s_acr_initial_%zu } ",
-            acr_alternative_get_replacement_parameter(alternative),
+            , acr_alternative_get_replacement_parameter(alternative),
             osl_strings_find(parameters, name),
-            name, prefix, num_function++);
+            name);
+        switch (options->type) {
+          case acr_regular_build:
+          case acr_perf_kernel_only:
+          case acr_perf_compile_time_zero:
+          case acr_perf_compile_time_zero_run:
+            fprintf(out,
+            " , .alt.parameter.function_matching_alternative = %s_acr_initial_%zu } "
+            , prefix, num_function++);
+            break;
+          case acr_static_kernel:
+            fprintf(out, " } ");
+            break;
+        }
         break;
       case acr_alternative_function:
         fprintf(out,
@@ -397,47 +411,98 @@ static void cloog_print_function_for_all_alternative_parameters(FILE *out,
   cloog_options_free(cloog_option);
 }
 
-static bool acr_print_acr_alternative_and_strategy_init(FILE* out,
-    const acr_compute_node node,
-    const osl_scop_p scop) {
-  const char* prefix = acr_get_scop_prefix(node);
-  size_t num_strategy = 0;
-  size_t num_alternatives = 0;
+static bool print_alternative_preamble(
+    acr_option_list *strategy_list,
+    acr_option_list *alternative_list,
+    size_t ** strategy_to_alternative_index,
+    size_t *num_alternatives,
+    size_t *num_strategy,
+    const acr_compute_node node) {
+
   size_t size_list = acr_compute_node_get_option_list_size(node);
   acr_option_list options = acr_compute_node_get_option_list(node);
   for (size_t i = 0; i < size_list; ++i) {
     acr_option current_option = acr_option_list_get_option(i, options);
     if (acr_option_get_type(current_option) == acr_type_strategy) {
-      ++num_strategy;
+      ++*num_strategy;
     }
     if (acr_option_get_type(current_option) == acr_type_alternative) {
-      ++num_alternatives;
+      ++*num_alternatives;
     }
   }
-  if (num_strategy == 0) {
+  if (*num_strategy == 0) {
     fprintf(stderr,
         "[ACR] Warning: There is no strategies left for this node:\n");
     pprint_acr_compute_node(stderr, node, 0);
     return false;
   }
-  if (num_alternatives == 0) {
+  if (*num_alternatives == 0) {
     fprintf(stderr,
         "[ACR] Warning: There is no alternatives left for this node:\n");
     pprint_acr_compute_node(stderr, node, 0);
     return false;
   }
-  acr_option_list strategy_list = acr_new_option_list(num_strategy);
-  size_t *strategy_to_alternative_index =
-    malloc(num_strategy * sizeof(*strategy_to_alternative_index));
-  acr_option_list alternative_list = acr_new_option_list(num_alternatives);
+  *strategy_list = acr_new_option_list(*num_strategy);
+  *strategy_to_alternative_index =
+    malloc(*num_strategy * sizeof(*strategy_to_alternative_index));
+  *alternative_list = acr_new_option_list(*num_alternatives);
 
   acr_populate_strategy_and_alternative_list(
       node,
-      num_strategy,
-      strategy_list,
+      *num_strategy,
+      *strategy_list,
+      *num_alternatives,
+      *alternative_list,
+      *strategy_to_alternative_index);
+
+  return true;
+}
+
+static bool acr_print_static_alternative_tab(FILE *out,
+    const acr_compute_node node,
+    const osl_scop_p scop,
+    const struct acr_build_options *options) {
+  const char* prefix = acr_get_scop_prefix(node);
+  size_t num_strategy = 0;
+  size_t num_alternatives = 0;
+  acr_option_list strategy_list;
+  acr_option_list alternative_list;
+  size_t *strategy_to_alternative_index;
+
+  if (!print_alternative_preamble(&strategy_list, &alternative_list,
+                                  &strategy_to_alternative_index,
+                                  &num_alternatives, &num_strategy, node))
+    return false;
+
+  acr_print_acr_alternatives(out,
+      prefix,
       num_alternatives,
       alternative_list,
-      strategy_to_alternative_index);
+      scop,
+      options);
+
+  free(strategy_list);
+  free(strategy_to_alternative_index);
+  free(alternative_list);
+
+  return true;
+}
+
+static bool acr_print_acr_alternative_and_strategy_init(FILE* out,
+    const acr_compute_node node,
+    const osl_scop_p scop,
+    const struct acr_build_options *options) {
+  const char* prefix = acr_get_scop_prefix(node);
+  size_t num_strategy = 0;
+  size_t num_alternatives = 0;
+  acr_option_list strategy_list;
+  acr_option_list alternative_list;
+  size_t *strategy_to_alternative_index;
+
+  if (!print_alternative_preamble(&strategy_list, &alternative_list,
+                                  &strategy_to_alternative_index,
+                                  &num_alternatives, &num_strategy, node))
+    return false;
 
   cloog_print_function_for_all_alternative_parameters(
       out, prefix,
@@ -448,7 +513,8 @@ static bool acr_print_acr_alternative_and_strategy_init(FILE* out,
       prefix,
       num_alternatives,
       alternative_list,
-      scop);
+      scop,
+      options);
 
   acr_print_get_alternetive_from_val(out,
       prefix, num_strategy, strategy_list, strategy_to_alternative_index);
@@ -596,6 +662,30 @@ char const*const acr_kernel_strategy_type_string[acr_runtime_kernel_unknown] =
     [acr_runtime_kernel_versioning] = "acr_kernel_strategy_versioning",
     [acr_runtime_kernel_stencil]     = "acr_kernel_strategy_stencil",
   };
+
+static void acr_print_static_runtime_init(FILE* out,
+    const acr_compute_node node) {
+
+  const char* prefix = acr_get_scop_prefix(node);
+  size_t num_alternatives = 0;
+  size_t size_list = acr_compute_node_get_option_list_size(node);
+  acr_option_list options = acr_compute_node_get_option_list(node);
+  for (size_t i = 0; i < size_list; ++i) {
+    acr_option current_option = acr_option_list_get_option(i, options);
+    if (acr_option_get_type(current_option) == acr_type_alternative) {
+      ++num_alternatives;
+    }
+  }
+
+  fprintf(out,
+      "static struct acr_runtime_data_static %s_static_runtime = {\n"
+      "  .num_alternatives = %zu,\n"
+      "  .alternatives = %s_alternatives,\n"
+      "};\n"
+      , prefix, num_alternatives, prefix
+      );
+
+}
 
 static void acr_print_acr_runtime_init(FILE* out,
     const acr_compute_node node,
@@ -774,7 +864,7 @@ static void acr_print_acr_runtime_init(FILE* out,
     fprintf(out, "  %s = %s_acr_initial;\n  ",
         prefix, prefix);
   }
-  acr_print_init_function_call(out, init);
+  acr_print_init_function_call(out, init, build_options);
   switch (build_options->type) {
     case acr_regular_build:
     fprintf(out,
@@ -798,7 +888,6 @@ static void acr_print_acr_runtime_init(FILE* out,
 
 }
 
-
 static void acr_print_init_function_declaration(FILE* kernel_file, FILE* out,
     const acr_option init,
     size_t kernel_start, size_t kernel_end) {
@@ -821,33 +910,64 @@ static void acr_print_init_function_declaration(FILE* kernel_file, FILE* out,
 
 bool acr_print_node_initialization(FILE* in, FILE* out,
     const acr_compute_node node,
-    size_t kernel_start, size_t kernel_end) {
+    size_t kernel_start, size_t kernel_end,
+    struct acr_build_options const* options) {
 
+  acr_option init;
   char *prefix = acr_get_scop_prefix(node);
-  fprintf(out, "#define %s_acr &%s_runtime_data\n", prefix, prefix);
-
-  acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
-  if (init == NULL) {
-    fprintf(stderr, "Error no initialization in current node\n");
-    pprint_acr_compute_node(stderr, node, 0);
-    return false;
+  switch (options->type) {
+    case acr_regular_build:
+    case acr_perf_kernel_only:
+    case acr_perf_compile_time_zero:
+    case acr_perf_compile_time_zero_run:
+      fprintf(out, "#define %s_acr &%s_runtime_data\n", prefix, prefix);
+      init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
+      if (init == NULL) {
+        fprintf(stderr, "Error no initialization in current node\n");
+        pprint_acr_compute_node(stderr, node, 0);
+        return false;
+      }
+      acr_print_init_function_declaration(in, out, init,
+          kernel_start, kernel_end);
+      break;
+    case acr_static_kernel:
+      fprintf(out, "#define %s_acr &%s_static_runtime\n", prefix, prefix);
+      break;
   }
-  acr_print_init_function_declaration(in, out, init,
-      kernel_start, kernel_end);
+
   return true;
 
 }
 
+void acr_print_static_function_call(FILE* out,
+    const acr_compute_node node,
+    const struct acr_build_options *build_options) {
+  const char* prefix = acr_get_scop_prefix(node);
+  fprintf(out,
+      "const size_t __acr_total_size = %s_static_runtime.total_functions;\n"
+      "for (size_t __acr_iterator = 0; __acr_iterator < __acr_total_size; __acr_iterator += 1) {\n"
+      "  void (*__acr_function_call)"
+      , prefix);
+  acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
+  acr_print_parameters(out, init);
+  fprintf(out,
+      " = %s_static_runtime.functions[__acr_iterator];\n"
+      "  __acr_function_call"
+      , prefix);
+  acr_print_init_function_call(out, init, build_options);
+  fprintf(out, "}\n");
+}
+
 void acr_print_node_init_function_call(FILE* out,
-    const acr_compute_node node) {
-  char* prefix = acr_get_scop_prefix(node);
+    const acr_compute_node node, const struct acr_build_options *b_options) {
+  const char* prefix = acr_get_scop_prefix(node);
   fprintf(out,
       "#ifdef ACR_STATS_ENABLED\n"
       "  acr_time t0;\n"
       "  acr_get_current_time(&t0);\n"
       "#endif\n");
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
-  acr_print_init_function_call(out, init);
+  acr_print_init_function_call(out, init, b_options);
   fprintf(out,
       "#ifdef ACR_STATS_ENABLED\n"
       "  acr_time t1;\n"
@@ -901,17 +1021,28 @@ void acr_print_node_init_function_call(FILE* out,
 }
 
 void acr_print_node_init_function_call_for_max_perf_run(FILE *out,
-    const acr_compute_node node) {
+    const acr_compute_node node, const struct acr_build_options *build_options) {
   char* prefix = acr_get_scop_prefix(node);
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
-  acr_print_init_function_call(out, init);
+  acr_print_init_function_call(out, init, build_options);
   fprintf(out, "  %s = (void (*)", prefix);
   acr_print_parameters(out, init);
   fprintf(out, ") acr_runntime_perf_end_step(&%s_runtime_perf);", prefix);
 }
 
-static void acr_print_init_function_call(FILE* out, const acr_option init) {
-  fprintf(out, "%s(", acr_init_get_function_name(init));
+static void acr_print_init_function_call(FILE* out, const acr_option init,
+    const struct acr_build_options *build_options) {
+  switch (build_options->type) {
+    case acr_regular_build:
+    case acr_perf_kernel_only:
+    case acr_perf_compile_time_zero:
+    case acr_perf_compile_time_zero_run:
+      fprintf(out, "%s", acr_init_get_function_name(init));
+      break;
+    case acr_static_kernel:
+      break;
+  }
+  fprintf(out, "(");
   size_t num_parameters = acr_init_get_num_parameters(init);
   acr_parameter_declaration_list declaration_list =
     acr_init_get_parameter_list(init);
@@ -973,7 +1104,7 @@ static void acr_print_destroy(FILE* out, const char *prefix,
       break;
     case acr_static_kernel:
       fprintf(out,
-          "  free_acr_static_data(%s_acr_static_data);", prefix);
+          "  free_acr_static_data(&%s_static_runtime);\n", prefix);
       break;
   }
   switch (build_options->type) {
@@ -1211,6 +1342,10 @@ static void acr_generate_code_static(
       char *buffer;
       size_t size_buffer;
       FILE* temp_buffer = open_memstream(&buffer, &size_buffer);
+      const size_t scop_start_position = position_in_input;
+      size_t kernel_start, kernel_end;
+      acr_scop_coord_to_acr_coord(current_file, scop, node,
+          &kernel_start, &kernel_end);
 
       fseek(current_file, (long)position_in_input, SEEK_SET);
       position_in_input = check_and_apply_option_in_future(
@@ -1222,7 +1357,40 @@ static void acr_generate_code_static(
           current_file, temp_buffer, position_in_input,
           acr_position_of_init_in_node(node), all_options);
 
+      const char* prefix = acr_get_scop_prefix(node);
+      acr_print_scop_in_file(temp_buffer, prefix, scop);
 
+      if (!acr_print_static_alternative_tab(
+            temp_buffer, node, scop, build_options)) {
+        fclose(temp_buffer);
+        free(buffer);
+        position_in_input = scop_start_position;
+        osl_scop_free(scop);
+        continue;
+      }
+
+      if (!acr_print_node_initialization(current_file, temp_buffer, node,
+            kernel_start, kernel_end, build_options)) {
+        fclose(temp_buffer);
+        free(buffer);
+        position_in_input = scop_start_position;
+        osl_scop_free(scop);
+        continue;
+      }
+
+      acr_print_static_runtime_init(temp_buffer, node);
+
+      fseek(current_file, (long)position_in_input, SEEK_SET);
+      position_in_input = acr_copy_from_file_avoiding_pragmas(
+          current_file,
+          temp_buffer,
+          position_in_input, kernel_start,
+          all_options);
+
+      acr_print_static_function_call(temp_buffer, node, build_options);
+
+      position_in_input = kernel_end;
+      fseek(current_file, (long)position_in_input, SEEK_SET);
 
       acr_option destroy =
         acr_compute_node_get_option_of_type(acr_type_destroy, node, 1);
@@ -1234,9 +1402,6 @@ static void acr_generate_code_static(
           all_options);
       if (!acr_deferred_destroy_for_node(node, option_to_apply_in_the_future,
             num_option_to_apply_in_future)) {
-        const acr_option init =
-          acr_compute_node_get_option_of_type(acr_type_init, node, 1);
-        const char *prefix = acr_init_get_function_name(init);
         acr_print_destroy(temp_buffer, prefix, build_options);
       }
       fclose(temp_buffer);
@@ -1313,7 +1478,7 @@ static void acr_generate_code_dynamic(
       size_t size_buffer;
       FILE* temp_buffer = open_memstream(&buffer, &size_buffer);
       const size_t scop_start_position = position_in_input;
-      const char* scop_prefix = acr_get_scop_prefix(node);
+      const char* prefix = acr_get_scop_prefix(node);
       size_t kernel_start, kernel_end;
       acr_scop_coord_to_acr_coord(current_file, scop, node,
           &kernel_start, &kernel_end);
@@ -1328,10 +1493,10 @@ static void acr_generate_code_dynamic(
           current_file, temp_buffer, position_in_input,
           acr_position_of_init_in_node(node), all_options);
 
-      acr_print_scop_in_file(temp_buffer, scop_prefix, scop);
+      acr_print_scop_in_file(temp_buffer, prefix, scop);
 
       if (!acr_print_node_initialization(current_file, temp_buffer, node,
-            kernel_start, kernel_end)) {
+            kernel_start, kernel_end, build_options)) {
         fclose(temp_buffer);
         free(buffer);
         position_in_input = scop_start_position;
@@ -1339,7 +1504,8 @@ static void acr_generate_code_dynamic(
         continue;
       }
 
-      if(!acr_print_acr_alternative_and_strategy_init(temp_buffer, node, scop)) {
+      if(!acr_print_acr_alternative_and_strategy_init(
+            temp_buffer, node, scop, build_options)) {
         fclose(temp_buffer);
         free(buffer);
         position_in_input = scop_start_position;
@@ -1367,11 +1533,11 @@ static void acr_generate_code_dynamic(
       switch (build_options->type) {
         case acr_regular_build:
         case acr_perf_compile_time_zero_run:
-          acr_print_node_init_function_call(temp_buffer, node);
+          acr_print_node_init_function_call(temp_buffer, node, build_options);
           break;
         case acr_perf_kernel_only:
         case acr_perf_compile_time_zero:
-          acr_print_node_init_function_call_for_max_perf_run(temp_buffer, node);
+          acr_print_node_init_function_call_for_max_perf_run(temp_buffer, node, build_options);
           break;
         case acr_static_kernel:
           break;
@@ -1390,9 +1556,6 @@ static void acr_generate_code_dynamic(
           all_options);
       if (!acr_deferred_destroy_for_node(node, option_to_apply_in_the_future,
             num_option_to_apply_in_future)) {
-        const acr_option init =
-          acr_compute_node_get_option_of_type(acr_type_init, node, 1);
-        const char *prefix = acr_init_get_function_name(init);
         acr_print_destroy(temp_buffer, prefix, build_options);
       }
       fclose(temp_buffer);

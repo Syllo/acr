@@ -1248,3 +1248,41 @@ bool acr_osl_find_and_verify_free_dims_position(
   osl_strings_free(pragma_alternative_parameters);
   return valid;
 }
+
+/*bool acr_print_acr_static_functions(*/
+    /*FILE *temp_buffer,*/
+    /*osl_scop_p scop,*/
+    /*acr_compute_node node) {*/
+  /*CloogState *state = cloog_state_malloc();*/
+  /*CloogInput *cloog_input = cloog_input_from_osl_scop(state, scop);*/
+  /*CloogUnionDomain *union_domain = cloog_input->ud;*/
+  /*CloogDomain *context = cloog_input->context;*/
+  /*free(cloog_input);*/
+
+  /*size_t num_statements = 0;*/
+  /*CloogNamedDomainList *named_domain = union_domain->domain;*/
+  /*while (named_domain != NULL) {*/
+    /*num_statements += 1;*/
+    /*named_domain = named_domain->next;*/
+  /*}*/
+
+  /*size_t num_alternatives = 0;*/
+  /*size_t size_list = acr_compute_node_get_option_list_size(node);*/
+  /*acr_option_list options = acr_compute_node_get_option_list(node);*/
+  /*for (size_t i = 0; i < size_list; ++i) {*/
+    /*const acr_option current_option = acr_option_list_get_option(i, options);*/
+    /*if (acr_option_get_type(current_option) == acr_type_alternative) {*/
+      /*++num_alternatives;*/
+    /*}*/
+  /*}*/
+
+  /*isl_set **init_domains = malloc(num_statements * sizeof(*init_domains));*/
+
+  /*for (size_t alt_num = 0; alt_num < num_alternatives; ++alt_num) {*/
+    /*named_domain = union_domain->domain;*/
+    /*for (size_t state_num = 0; state_num < num_statements; ++state_num) {*/
+      /*named_domain = named_domain->next;*/
+    /*}*/
+  /*}*/
+
+/*}*/

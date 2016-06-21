@@ -135,7 +135,16 @@ struct acr_runtime_data {
  * \brief Data structure used in static kernel during runtime
  */
 struct acr_runtime_data_static{
-  size_t grid_size;
+  /** \brief The number of functions */
+  size_t total_functions;
+  /** \brief The functions */
+  void **functions;
+  /** \brief The number of alternatives */
+  size_t num_alternatives;
+  /** \brief The alternatives array */
+  struct runtime_alternative *alternatives;
+  /** \brief The OpenScop format of the kernel */
+  struct osl_scop *scop;
 };
 
 /**

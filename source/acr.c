@@ -26,7 +26,7 @@
 
 #include "acr/gencode.h"
 
-static const char opt_options[] = "abpvVhxyz";
+static const char opt_options[] = "sabpvVhxyz";
 
 int main(int argc, char** argv) {
 
@@ -70,6 +70,9 @@ int main(int argc, char** argv) {
         break;
       case 'p':
         print = true;
+        break;
+      case 's':
+        build_options.type = acr_static_kernel;
         break;
       default:
         fprintf(stderr, "Unknown option: %c\n", c);
