@@ -134,7 +134,7 @@ struct acr_runtime_data {
 /**
  * \brief Data structure used in static kernel during runtime
  */
-struct acr_runtime_data_static{
+struct acr_runtime_data_static {
   /** \brief The number of functions */
   size_t total_functions;
   /** \brief The functions */
@@ -145,13 +145,30 @@ struct acr_runtime_data_static{
   struct runtime_alternative *alternatives;
   /** \brief The OpenScop format of the kernel */
   struct osl_scop *scop;
+  /** \brief The first monitor dimension */
+  size_t first_monitor_dimension;
+  /** \brief The number of monitoring dimensions */
+  size_t num_monitor_dimensions;
+  /** \brief The tiling size */
+  size_t grid_size;
+  /** \brief The statements in CLooG representation */
+  CloogUnionDomain *union_domain;
+  /** \brief The context */
+  CloogDomain *context;
+  /** \brief The CLooG state */
+  CloogState *state;
 };
 
 /**
  * \brief Initialize static runtime data structure
  * \param[in,out] static_data The targeted structure
+ * \param[in] scop The OpenScop format from the kernel
+ * \param[in] scop_size The number of characters of the scop string
  */
-void init_acr_static_data(struct acr_runtime_data_static *static_data);
+void init_acr_static_data(
+    struct acr_runtime_data_static *static_data,
+    char *scop,
+    size_t scop_size);
 
 /**
  * \brief Free the data structure used by a static kernel

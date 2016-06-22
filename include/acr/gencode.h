@@ -143,11 +143,13 @@ void acr_print_node_init_function_call(FILE* out,
  * runtime
  * \param[in,out] out The output stream
  * \param[in] node The compute node
+ * \param[in] scop The OpenScop format of the kernel
  * \param[in] build_options The build options.
  * \sa build_pragma
  */
-void acr_print_static_function_call(FILE* out,
+void acr_print_static_function(FILE* out,
     const acr_compute_node node,
+    const osl_scop_p scop,
     const struct acr_build_options *build_options);
 /**
  * \brief Print the acr data initialization function that must be called at

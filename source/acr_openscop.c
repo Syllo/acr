@@ -581,6 +581,43 @@ void acr_openscop_set_tiled_to_do_avg(
   add->next = div;
 }
 
+void acr_openscop_get_monitoring_position_and_num(
+    const acr_compute_node node,
+    const osl_scop_p scop,
+    size_t *starting_position,
+    size_t *num_monitoring_dim) {
+
+  const acr_option monitor =
+    acr_compute_node_get_option_of_type(acr_type_monitor, node, 1);
+  const osl_strings_p identifiers =
+    acr_openscop_get_monitor_identifiers(monitor);
+  const size_t num_id = osl_strings_size(identifiers);
+  char *const*ids = identifiers->string;
+
+  osl_statement_p current_statement = scop->statement;
+  *starting_position = 0;
+  bool found = false;
+  while (!found && current_statement) {
+    const osl_body_p body = osl_generic_lookup(current_statement->extension, OSL_URI_BODY);
+    const size_t num_iterators = osl_strings_size(body->iterators);
+      const size_t position = osl_strings_find(body->iterators, ids[0]);
+      if (position >= num_iterators) {
+        break;
+      } else {
+        found = true;
+        *starting_position = position;
+      }
+    current_statement = current_statement->next;
+  }
+  if (!found) {
+    *num_monitoring_dim = 0;
+  } else {
+    *num_monitoring_dim = num_id;
+  }
+
+  osl_strings_free(identifiers);
+}
+
 void acr_openscop_get_identifiers_with_dependencies(
     const acr_option monitor,
     const osl_scop_p scop,

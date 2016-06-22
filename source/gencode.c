@@ -27,8 +27,8 @@
 #include <cloog/isl/domain.h>
 #include <isl/constraint.h>
 #include <isl/printer.h>
-#include <osl/extensions/coordinates.h>
 #include <osl/extensions/arrays.h>
+#include <osl/extensions/coordinates.h>
 #include <osl/extensions/scatnames.h>
 #include <osl/scop.h>
 #include <osl/strings.h>
@@ -130,9 +130,9 @@ static size_t acr_copy_from_file_avoiding_pragmas(FILE* input, FILE* output,
     size_t next_pragma_position = acr_option_get_pragma_position(current_option);
     if (current_position <= next_pragma_position && next_pragma_position < stop) {
       if (current_position < next_pragma_position)
-      current_position += acr_copy_from_file_to_file(input, output,
-          current_position,
-          next_pragma_position);
+        current_position += acr_copy_from_file_to_file(input, output,
+            current_position,
+            next_pragma_position);
       if (current_position < stop)
         current_position += acr_skip_pragma_in_input(input);
     }
@@ -249,17 +249,50 @@ static void acr_populate_strategy_and_alternative_list(
   }
 }
 
+static void sort_osl_strings(osl_strings_p a, osl_strings_p b) {
+  size_t size_a = osl_strings_size(a);
+  for (size_t end = size_a-1; end > 0; --end) {
+    for (size_t to_end = 0; to_end < end; ++to_end) {
+      if (osl_strings_find(b, a->string[to_end]) > osl_strings_find(b, a->string[to_end+1])) {
+        char *tmp = a->string[to_end];
+        a->string[to_end] = a->string[to_end+1];
+        a->string[to_end+1] = tmp;
+      }
+    }
+  }
+}
+
 static void acr_print_acr_alternatives(FILE *out,
       const char *prefix,
       size_t num_alternatives,
       const acr_option_list alternative_list,
       const osl_scop_p scop,
       const struct acr_build_options *options) {
-  static const char* alternative_types_char[] = {
-    [acr_alternative_function] = "acr_runtime_alternative_function",
-    [acr_alternative_parameter] = "acr_runtime_alternative_parameter"};
+
+  osl_strings_p pragma_alternative_parameters = osl_strings_malloc();
+  size_t string_size = 0;
+  for (size_t i = 0; i < num_alternatives; ++i) {
+    acr_option current_option =
+      acr_option_list_get_option(i, alternative_list);
+    if (acr_option_get_type(current_option) == acr_type_alternative &&
+        acr_alternative_get_type(current_option) == acr_alternative_parameter) {
+      const char *parameter_to_swap =
+        acr_alternative_get_object_to_swap_name(current_option);
+      if (osl_strings_find(pragma_alternative_parameters, parameter_to_swap)
+          == string_size) {
+        osl_strings_add(pragma_alternative_parameters, parameter_to_swap);
+        string_size += 1;
+      }
+    }
+  }
   osl_strings_p parameters =
     osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
+
+  sort_osl_strings(pragma_alternative_parameters, parameters);
+
+  static const char*const alternative_types_char[] = {
+    [acr_alternative_function] = "acr_runtime_alternative_function",
+    [acr_alternative_parameter] = "acr_runtime_alternative_parameter"};
   fprintf(out, "static struct runtime_alternative %s_alternatives[] = {\n",
       prefix);
   size_t num_function = 0;
@@ -277,24 +310,27 @@ static void acr_print_acr_alternatives(FILE *out,
     const char *name = acr_alternative_get_object_to_swap_name(alternative);
     switch (alternative_type) {
       case acr_alternative_parameter:
-        fprintf(out,
-            ".value = { .alt.parameter.parameter_value = %zu"
-            " , .alt.parameter.parameter_id = %zu"
-            " , .name_to_swap = \"%s\""
-            , acr_alternative_get_replacement_parameter(alternative),
-            osl_strings_find(parameters, name),
-            name);
-        switch (options->type) {
+      fprintf(out,
+          ".value = { .alt.parameter.parameter_value = %zu"
+          " , .name_to_swap = \"%s\""
+          , acr_alternative_get_replacement_parameter(alternative),
+          name);
+      switch (options->type) {
           case acr_regular_build:
           case acr_perf_kernel_only:
           case acr_perf_compile_time_zero:
           case acr_perf_compile_time_zero_run:
             fprintf(out,
-            " , .alt.parameter.function_matching_alternative = %s_acr_initial_%zu } "
-            , prefix, num_function++);
+                " , .alt.parameter.parameter_id = %zu"
+                " , .alt.parameter.function_matching_alternative ="
+                " %s_acr_initial_%zu } "
+                ,osl_strings_find(parameters, name), prefix, num_function++);
             break;
           case acr_static_kernel:
-            fprintf(out, " } ");
+            fprintf(out,
+                " , .alt.parameter.parameter_id = %zu"
+                " } "
+                , osl_strings_find(pragma_alternative_parameters, name));
             break;
         }
         break;
@@ -311,6 +347,7 @@ static void acr_print_acr_alternatives(FILE *out,
     fprintf(out, "}");
   }
   fprintf(out, "\n};\n");
+  osl_strings_free(pragma_alternative_parameters);
 }
 
 static void acr_print_get_alternetive_from_val(
@@ -655,6 +692,50 @@ static void acr_print_get_rid_of_parameters(
   }
 }
 
+static void acr_print_static_get_rid_of_parameters(
+    FILE *out,
+    const osl_scop_p scop,
+    const acr_compute_node node) {
+
+  osl_strings_p pragma_alternative_parameters = osl_strings_malloc();
+  size_t string_size = 0;
+  const acr_option_list opt_list = acr_compute_node_get_option_list(node);
+  const size_t opt_list_size = acr_compute_node_get_option_list_size(node);
+  for (size_t i = 0; i < opt_list_size; ++i) {
+    acr_option current_option =
+      acr_option_list_get_option(i, opt_list);
+    if (acr_option_get_type(current_option) == acr_type_alternative &&
+        acr_alternative_get_type(current_option) == acr_alternative_parameter) {
+      const char *parameter_to_swap =
+        acr_alternative_get_object_to_swap_name(current_option);
+      if (osl_strings_find(pragma_alternative_parameters, parameter_to_swap)
+          == string_size) {
+        osl_strings_add(pragma_alternative_parameters, parameter_to_swap);
+        string_size += 1;
+      }
+    }
+  }
+  osl_strings_p parameters =
+    osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
+
+  sort_osl_strings(pragma_alternative_parameters, parameters);
+  size_t total_parameters = osl_strings_size(parameters);
+  const char* prefix = acr_get_scop_prefix(node);
+  size_t index = 0;
+  for (size_t i = 0; i < total_parameters; ++i) {
+    const char *current_parameter = parameters->string[i];
+    if (osl_strings_find(pragma_alternative_parameters, current_parameter) == string_size) {
+      fprintf(out, "    acr_cloog_get_rid_of_parameter_static("
+        "&%s_static_runtime, %zu, %s);\n"
+        , prefix, index, current_parameter);
+    } else {
+      index += 1;
+    }
+  }
+  osl_strings_free(pragma_alternative_parameters);
+
+}
+
 static
 char const*const acr_kernel_strategy_type_string[acr_runtime_kernel_unknown] =
   {
@@ -663,7 +744,8 @@ char const*const acr_kernel_strategy_type_string[acr_runtime_kernel_unknown] =
     [acr_runtime_kernel_stencil]     = "acr_kernel_strategy_stencil",
   };
 
-static void acr_print_static_runtime_init(FILE* out,
+static bool acr_print_static_runtime_init(FILE* out,
+    const osl_scop_p scop,
     const acr_compute_node node) {
 
   const char* prefix = acr_get_scop_prefix(node);
@@ -676,14 +758,34 @@ static void acr_print_static_runtime_init(FILE* out,
       ++num_alternatives;
     }
   }
+  size_t first_monitor_dimension, num_monitor_dims;
+  acr_openscop_get_monitoring_position_and_num(
+      node, scop, &first_monitor_dimension, &num_monitor_dims);
+
+  if (num_monitor_dims == 0) {
+    fprintf(stderr,
+        "[ACR] error: Cannot find the first monitoring dimension"
+        " inside the kernel\n");
+    return false;
+  }
+  const acr_option grid =
+    acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
+  if (!grid) {
+    fprintf(stderr, "[ACR] error: The current node has no grid info\n");
+    return false;
+  }
 
   fprintf(out,
       "static struct acr_runtime_data_static %s_static_runtime = {\n"
       "  .num_alternatives = %zu,\n"
       "  .alternatives = %s_alternatives,\n"
+      "  .first_monitor_dimension = %zu,\n"
+      "  .num_monitor_dimensions = %zu,\n"
+      "  .grid_size = %zu,\n"
       "};\n"
-      , prefix, num_alternatives, prefix
-      );
+      , prefix, num_alternatives, prefix, first_monitor_dimension,
+      num_monitor_dims, acr_grid_get_grid_size(grid));
+  return true;
 
 }
 
@@ -939,23 +1041,40 @@ bool acr_print_node_initialization(FILE* in, FILE* out,
 
 }
 
-void acr_print_static_function_call(FILE* out,
+static void acr_print_static_function_call(FILE* out,
     const acr_compute_node node,
     const struct acr_build_options *build_options) {
   const char* prefix = acr_get_scop_prefix(node);
   fprintf(out,
-      "const size_t __acr_total_size = %s_static_runtime.total_functions;\n"
-      "for (size_t __acr_iterator = 0; __acr_iterator < __acr_total_size; __acr_iterator += 1) {\n"
-      "  void (*__acr_function_call)"
+      "  const size_t __acr_total_size = %s_static_runtime.total_functions;\n"
+      "  for (size_t __acr_iterator = 0; __acr_iterator < __acr_total_size; __acr_iterator += 1) {\n"
+      "    void (*__acr_function_call)"
       , prefix);
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   acr_print_parameters(out, init);
   fprintf(out,
       " = %s_static_runtime.functions[__acr_iterator];\n"
-      "  __acr_function_call"
+      "    __acr_function_call"
       , prefix);
   acr_print_init_function_call(out, init, build_options);
-  fprintf(out, "}\n");
+  fprintf(out, "  }\n");
+}
+
+void acr_print_static_function(FILE* out,
+    const acr_compute_node node,
+    const osl_scop_p scop,
+    const struct acr_build_options *build_options) {
+  const char* prefix = acr_get_scop_prefix(node);
+  fprintf(out,
+      "  static int __acr_is_initialized = 0;\n"
+      "  if (!__acr_is_initialized) {\n"
+      "    init_acr_static_data(&%s_static_runtime, %s_acr_scop, %s_acr_scop_size);\n"
+      , prefix, prefix, prefix);
+  acr_print_static_get_rid_of_parameters(out, scop, node);
+  fprintf(out,
+      "    __acr_is_initialized = 1;\n"
+      "  }\n");
+  acr_print_static_function_call(out, node, build_options);
 }
 
 void acr_print_node_init_function_call(FILE* out,
@@ -1067,7 +1186,7 @@ static void acr_print_scop_in_file(FILE* output,
   acr_print_scop_to_buffer(scop, &buffer, &sizebuffer);
   fprintf(output, "static size_t %s_acr_scop_size = %zu;\n", scop_prefix,
       sizebuffer);
-  fprintf(output, "static char %s_acr_scop[] = \"", scop_prefix);
+  fprintf(output, "static char %s_acr_scop[] = \n\"", scop_prefix);
   size_t current_position = 0;
   while (buffer[current_position] != '\0') {
     if (buffer[current_position] == '\n') {
@@ -1298,6 +1417,17 @@ static bool acr_deferred_destroy_for_node(
   return false;
 }
 
+static void simplify_osl_for_printing(osl_scop_p scop) {
+  osl_generic_remove(&scop->extension, OSL_URI_SCATNAMES);
+  osl_generic_remove(&scop->extension, OSL_URI_ARRAYS);
+  osl_statement_p statement = scop->statement;
+  while (statement) {
+    osl_relation_list_free(statement->access);
+    statement->access = NULL;
+    statement = statement->next;
+  }
+}
+
 static void acr_generate_code_static(
     const char* filename,
     const struct acr_build_options *build_options,
@@ -1328,8 +1458,7 @@ static void acr_generate_code_static(
         osl_scop_free(scop->next);
         scop->next = NULL;
       }
-      osl_generic_remove(&scop->extension, OSL_URI_SCATNAMES);
-      osl_generic_remove(&scop->extension, OSL_URI_ARRAYS);
+      simplify_osl_for_printing(scop);
       acr_delete_alternative_parameters_for_parameter_not_present_in_scop(
           node,
           scop);
@@ -1378,7 +1507,13 @@ static void acr_generate_code_static(
         continue;
       }
 
-      acr_print_static_runtime_init(temp_buffer, node);
+      if(!acr_print_static_runtime_init(temp_buffer, scop, node)) {
+        fclose(temp_buffer);
+        free(buffer);
+        position_in_input = scop_start_position;
+        osl_scop_free(scop);
+        continue;
+      }
 
       fseek(current_file, (long)position_in_input, SEEK_SET);
       position_in_input = acr_copy_from_file_avoiding_pragmas(
@@ -1387,7 +1522,7 @@ static void acr_generate_code_static(
           position_in_input, kernel_start,
           all_options);
 
-      acr_print_static_function_call(temp_buffer, node, build_options);
+      acr_print_static_function(temp_buffer, node, scop, build_options);
 
       position_in_input = kernel_end;
       fseek(current_file, (long)position_in_input, SEEK_SET);
@@ -1455,8 +1590,7 @@ static void acr_generate_code_dynamic(
         osl_scop_free(scop->next);
         scop->next = NULL;
       }
-      osl_generic_remove(&scop->extension, OSL_URI_SCATNAMES);
-      osl_generic_remove(&scop->extension, OSL_URI_ARRAYS);
+      simplify_osl_for_printing(scop);
       acr_delete_alternative_parameters_for_parameter_not_present_in_scop(
           node,
           scop);

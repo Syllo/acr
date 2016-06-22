@@ -337,6 +337,27 @@ bool acr_print_acr_static_functions(
     osl_scop_p scop,
     acr_compute_node node);
 
+/**
+ * \brief Extract the dimension number of the first monitoring dimension and the
+ * total number of monitoring functions
+ * \param[in] node The compute node
+ * \param[in] scop The OpenScop format of the kernel
+ * \param[out] starting_position The dimension number of the first monitoring
+ * dimension
+ * \param[out] num_monitoring_dim The total number of monitoring dimensions
+ * \sa start_acr_parsing
+ * \sa build_pragma
+ *
+ * \remark If the first identifier has not been found in the scop,
+ * num_monitoring_dim will be set to zero (0).
+ *
+ */
+void acr_openscop_get_monitoring_position_and_num(
+    const acr_compute_node node,
+    const osl_scop_p scop,
+    size_t *starting_position,
+    size_t *num_monitoring_dim);
+
 #endif // __ACR_OPENSCOP_H
 
 /**

@@ -256,3 +256,37 @@ void acr_cloog_generate_alternative_code_from_input(
   cloog_program_free(cloog_program);
   free(cloog_option);
 }
+
+isl_map* isl_map_from_cloog_scattering(CloogScattering *scat);
+
+void acr_cloog_get_rid_of_parameter_static(
+    struct acr_runtime_data_static *data_info,
+    unsigned int parameter_index,
+    long int value) {
+
+  isl_set *context = isl_set_from_cloog_domain(data_info->context);
+  data_info->context =
+    cloog_domain_from_isl_set(
+        isl_set_remove_dims(context, isl_dim_param, parameter_index, 1));
+  CloogNamedDomainList *statement_list = data_info->union_domain->domain;
+  while (statement_list != NULL) {
+    isl_map *scat = isl_map_from_cloog_scattering(statement_list->scattering);
+    statement_list->scattering =
+      cloog_scattering_from_isl_map(
+          isl_map_remove_dims(scat, isl_dim_param, parameter_index, 1));
+    isl_set *domain = isl_set_from_cloog_domain(statement_list->domain);
+    isl_ctx *ctx = isl_set_get_ctx(domain);
+    isl_val *val = isl_val_int_from_si(ctx, value);
+    isl_local_space *lspace =
+      isl_local_space_from_space(
+          isl_set_get_space(domain));
+    isl_constraint *constraint = isl_constraint_alloc_equality(lspace);
+    constraint = isl_constraint_set_constant_val(constraint, val);
+    constraint = isl_constraint_set_coefficient_si(constraint, isl_dim_param,
+        0, -1);
+    domain = isl_set_add_constraint(domain, constraint);
+    domain = isl_set_project_out(domain, isl_dim_param, parameter_index, 1);
+    statement_list->domain = cloog_domain_from_isl_set(domain);
+    statement_list = statement_list->next;
+  }
+}

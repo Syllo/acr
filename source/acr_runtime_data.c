@@ -333,10 +333,18 @@ size_t acr_runtime_get_grid_size(struct acr_runtime_data* data) {
   return data->grid_size;
 }
 
-void init_acr_static_data(struct acr_runtime_data_static *static_data) {
-
+void init_acr_static_data(
+    struct acr_runtime_data_static *static_data,
+    char *scop,
+    size_t scop_size) {
+  static_data->scop = acr_read_scop_from_buffer(scop, scop_size);
+  static_data->state = cloog_state_malloc();
+  CloogInput *cloog_inputs = cloog_input_from_osl_scop(static_data->state, static_data->scop);
+  static_data->union_domain = cloog_inputs->ud;
+  static_data->context = cloog_inputs->context;
+  free(cloog_inputs);
 }
 
 void free_acr_static_data(struct acr_runtime_data_static *static_data) {
-
+  osl_scop_free(static_data->scop);
 }

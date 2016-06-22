@@ -64,13 +64,26 @@ void acr_gencode_init_scop_to_match_alternatives(
  * \brief At runtime we know the parameters so this function replaces the
  * parameters of the loop with their respective values.
  * \param[in,out] data_info The runtime data info
- * \param[in] parameter The parameter index
+ * \param[in] parameter_index The parameter index
  * \param[in] value The current parameter value
  * \sa runtime_data
  */
 void acr_cloog_get_rid_of_parameter(
     struct acr_runtime_data *data_info,
-    unsigned int parameter,
+    unsigned int parameter_index,
+    long int value);
+
+/**
+ * \brief At runtime we know the parameters so this function replaces the
+ * parameters of the loop with their respective values.
+ * \param[in,out] data_info The runtime data info
+ * \param[in] parameter_index The parameter index
+ * \param[in] value The current parameter value
+ * \sa runtime_data
+ */
+void acr_cloog_get_rid_of_parameter_static(
+    struct acr_runtime_data_static *data_info,
+    unsigned int parameter_index,
     long int value);
 
 #endif // __ACR_RUNTIME_CODE_GENERATION_H
