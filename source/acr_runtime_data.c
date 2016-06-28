@@ -348,3 +348,35 @@ void init_acr_static_data(
 void free_acr_static_data(struct acr_runtime_data_static *static_data) {
   osl_scop_free(static_data->scop);
 }
+
+void acr_static_data_init_grid(struct acr_runtime_data_static *static_data) {
+  const size_t num_alternatives = static_data->num_alternatives;
+  static_data->functions =
+    malloc(num_alternatives * sizeof(*static_data->functions));
+  /*acr_static_data_init_lexicographic_min_max(static_data);*/
+  CloogUnionDomain *tiled_domain =
+    acr_runtime_apply_tiling(
+        static_data->grid_size,
+        static_data->first_monitor_dimension,
+        static_data->num_monitor_dimensions,
+        static_data->union_domain);
+
+  CloogOptions *cloog_option = cloog_options_malloc(static_data->state);
+  cloog_option->quiet = 1;
+  cloog_option->openscop = 1;
+  cloog_option->scop = static_data->scop;
+  cloog_option->otl = 1;
+  cloog_option->language = 0;
+  CloogDomain *context =
+    static_data->context;
+  CloogProgram *cloog_program = cloog_program_alloc(context,
+      tiled_domain, cloog_option);
+  cloog_program = cloog_program_generate(cloog_program, cloog_option);
+
+  cloog_program_pprint(stderr, cloog_program, cloog_option);
+
+  cloog_option->openscop = 0;
+  cloog_option->scop = NULL;
+  cloog_program_free(cloog_program);
+  free(cloog_option);
+}

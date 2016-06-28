@@ -1072,8 +1072,10 @@ void acr_print_static_function(FILE* out,
       , prefix, prefix, prefix);
   acr_print_static_get_rid_of_parameters(out, scop, node);
   fprintf(out,
+      "    acr_static_data_init_grid(&%s_static_runtime);"
       "    __acr_is_initialized = 1;\n"
-      "  }\n");
+      "  }\n"
+      , prefix);
   acr_print_static_function_call(out, node, build_options);
 }
 

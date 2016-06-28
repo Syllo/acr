@@ -138,7 +138,7 @@ struct acr_runtime_data_static {
   /** \brief The number of functions */
   size_t total_functions;
   /** \brief The functions */
-  void **functions;
+  void ***functions;
   /** \brief The number of alternatives */
   size_t num_alternatives;
   /** \brief The alternatives array */
@@ -149,6 +149,10 @@ struct acr_runtime_data_static {
   size_t first_monitor_dimension;
   /** \brief The number of monitoring dimensions */
   size_t num_monitor_dimensions;
+  /** \brief For each monitoring dimensions the lexicigraphical maximum */
+  size_t monitor_dimension_lexmax;
+  /** \brief For each monitoring dimensions the lexicigraphical minimum */
+  size_t monitor_dimension_lexmin;
   /** \brief The tiling size */
   size_t grid_size;
   /** \brief The statements in CLooG representation */
@@ -219,6 +223,12 @@ unsigned char* acr_runtime_get_runtime_data(struct acr_runtime_data* data);
  * \return The tiling/grid size
  */
 size_t acr_runtime_get_grid_size(struct acr_runtime_data* data);
+
+/**
+ * \brief Initialize the grid with static functions
+ * \param[in,out] static_data The static data structure
+ */
+void acr_static_data_init_grid(struct acr_runtime_data_static *static_data);
 
 #endif // __ACR_RUNTIME_DATA_H
 

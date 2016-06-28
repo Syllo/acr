@@ -86,6 +86,19 @@ void acr_cloog_get_rid_of_parameter_static(
     unsigned int parameter_index,
     long int value);
 
+/**
+ * \brief Take a statement list and generate a new tiled version of it
+ * \param[in] tiling_size The size of the tile
+ * \param[in] start_tiling The first dimension to start tiling
+ * \param[in] num_dimensions_to_tile The number of dimensions to tile
+ * \param[in] ud The statements list
+ */
+CloogUnionDomain* acr_runtime_apply_tiling(
+    size_t tiling_size,
+    size_t dimension_start_tiling,
+    size_t num_dimensions_to_tile,
+    CloogUnionDomain *ud);
+
 #endif // __ACR_RUNTIME_CODE_GENERATION_H
 
 /**

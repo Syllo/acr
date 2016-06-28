@@ -274,6 +274,8 @@ void acr_cloog_get_rid_of_parameter_static(
     statement_list->scattering =
       cloog_scattering_from_isl_map(
           isl_map_remove_dims(scat, isl_dim_param, parameter_index, 1));
+    /*fprintf(stderr, "Statement before\n");*/
+    /*cloog_domain_print_constraints(stderr, statement_list->domain, 0);*/
     isl_set *domain = isl_set_from_cloog_domain(statement_list->domain);
     isl_ctx *ctx = isl_set_get_ctx(domain);
     isl_val *val = isl_val_int_from_si(ctx, value);
@@ -283,10 +285,81 @@ void acr_cloog_get_rid_of_parameter_static(
     isl_constraint *constraint = isl_constraint_alloc_equality(lspace);
     constraint = isl_constraint_set_constant_val(constraint, val);
     constraint = isl_constraint_set_coefficient_si(constraint, isl_dim_param,
-        0, -1);
+        (int)parameter_index, -1);
     domain = isl_set_add_constraint(domain, constraint);
     domain = isl_set_project_out(domain, isl_dim_param, parameter_index, 1);
     statement_list->domain = cloog_domain_from_isl_set(domain);
+    /*fprintf(stderr, "Statement after\n");*/
+    /*cloog_domain_print_constraints(stderr, statement_list->domain, 0);*/
     statement_list = statement_list->next;
   }
+}
+
+CloogUnionDomain* acr_runtime_apply_tiling(
+    size_t tiling_size,
+    size_t dimension_start_tiling,
+    size_t num_dimensions_to_tile,
+    CloogUnionDomain *ud) {
+  CloogUnionDomain *tiled_domain =
+    cloog_union_domain_alloc((int)isl_set_n_param(
+          isl_set_from_cloog_domain(ud->domain->domain)));
+  CloogNamedDomainList *statement = ud->domain;
+  while (statement) {
+    isl_set *domain =
+      isl_set_copy(isl_set_from_cloog_domain(statement->domain));
+    isl_map *scattering =
+      isl_map_copy(isl_map_from_cloog_scattering(statement->scattering));
+    isl_map_print_internal(scattering, stderr, 0);
+
+    const unsigned int scat_dim_start =
+        2*(unsigned int)dimension_start_tiling+1;
+    const unsigned int dim_start =
+      scat_dim_start + (unsigned int)num_dimensions_to_tile*2;
+
+    scattering = isl_map_insert_dims(scattering, isl_dim_out,
+        scat_dim_start,
+        (unsigned int)num_dimensions_to_tile * 2);
+    /*const unsigned int new_dims2 = isl_map_n_out(scattering);*/
+    /*scattering = isl_map_insert_dims(scattering, isl_dim_out,*/
+        /*new_dims2,*/
+        /*(unsigned int)num_dimensions_to_tile * 2);*/
+    for (size_t i = 0; i < num_dimensions_to_tile; ++i) {
+      isl_val *tiling = isl_val_int_from_ui(isl_set_get_ctx(domain), tiling_size);
+      isl_space *space = isl_map_get_space(scattering);
+      isl_local_space *lspace = isl_local_space_from_space(space);
+      isl_constraint *c1 = isl_constraint_alloc_equality(isl_local_space_copy(lspace));
+      isl_constraint *c2 = isl_constraint_alloc_inequality(isl_local_space_copy(lspace));
+
+      /*isl_constraint *c4 = isl_constraint_alloc_equality(isl_local_space_copy(lspace));*/
+      /*isl_constraint *c5 = isl_constraint_alloc_equality(isl_local_space_copy(lspace));*/
+      /*c4 = isl_constraint_set_coefficient_si(c4, isl_dim_out, (int)new_dims2+(int)i*2+1, 1);*/
+      /*c5 = isl_constraint_set_coefficient_si(c5, isl_dim_out, (int)new_dims2+(int)i*2, -25);*/
+      /*c5 = isl_constraint_set_coefficient_si(c5, isl_dim_out, (int)dim_start+(int)i*2, 1);*/
+      /*scattering = isl_map_add_constraint(scattering, c4);*/
+      /*scattering = isl_map_add_constraint(scattering, c5);*/
+
+      isl_constraint *c3 = isl_constraint_alloc_inequality(lspace);
+
+      c1 = isl_constraint_set_coefficient_si(c1, isl_dim_out, (int)scat_dim_start+(int)i*2+1, 1);
+      c2 = isl_constraint_set_coefficient_val(c2, isl_dim_out,
+          (int)scat_dim_start+(int)i*2, isl_val_neg(isl_val_copy(tiling)));
+      c2 = isl_constraint_set_coefficient_si(c2, isl_dim_out,
+          (int)dim_start+(int)i*2, 1);
+      c3 = isl_constraint_set_coefficient_val(c3, isl_dim_out,
+          (int)scat_dim_start+(int)i*2, (isl_val_copy(tiling)));
+      c3 = isl_constraint_set_coefficient_si(c3, isl_dim_out,
+          (int)dim_start+(int)i*2, -1);
+      c3 = isl_constraint_set_constant_val(c3, isl_val_sub_ui(tiling, 1));
+      scattering = isl_map_add_constraint(scattering, c1);
+      scattering = isl_map_add_constraint(scattering, c2);
+      scattering = isl_map_add_constraint(scattering, c3);
+    }
+
+    /*scattering = isl_map_project_out(scattering, isl_dim_out, dim_start, 2* num_dimensions_to_tile);*/
+    isl_map_print_internal(scattering, stderr, 10);
+    tiled_domain = cloog_union_domain_add_domain(tiled_domain, NULL, cloog_domain_from_isl_set(domain), cloog_scattering_from_isl_map(scattering), NULL);
+
+    statement = statement->next;
+  }
+  return tiled_domain;
 }
