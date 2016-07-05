@@ -1194,7 +1194,10 @@ static void acr_print_scop_in_file(FILE* output,
     if (buffer[current_position] == '\n') {
       fprintf(output, "\\n\"\n\"");
     } else {
-      fprintf(output, "%c", buffer[current_position]);
+      if(buffer[current_position] == '"')
+        fprintf(output, "\\\"");
+      else
+        fprintf(output, "%c", buffer[current_position]);
     }
     ++current_position;
   }

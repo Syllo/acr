@@ -87,17 +87,15 @@ void acr_cloog_get_rid_of_parameter_static(
     long int value);
 
 /**
- * \brief Take a statement list and generate a new tiled version of it
- * \param[in] tiling_size The size of the tile
- * \param[in] start_tiling The first dimension to start tiling
- * \param[in] num_dimensions_to_tile The number of dimensions to tile
- * \param[in] ud The statements list
+ * \brief Take a domain to tile and generate a function for each tiles.
+ * \param[in] static_data The static data structure storing the kernel infos
+ * \param[out] num_tiles The number of tiles functions generated
+ * \param[out] tiles_functions The string with the tiled functions
  */
-CloogUnionDomain* acr_runtime_apply_tiling(
-    size_t tiling_size,
-    size_t dimension_start_tiling,
-    size_t num_dimensions_to_tile,
-    CloogUnionDomain *ud);
+void acr_code_generation_generate_tiling_library(
+    struct acr_runtime_data_static *static_data,
+    size_t *num_tiles,
+    char **tiles_functions);
 
 #endif // __ACR_RUNTIME_CODE_GENERATION_H
 
