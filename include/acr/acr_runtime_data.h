@@ -147,8 +147,6 @@ enum acr_static_data_reduction_function {
  * \brief Data structure used in static kernel during runtime
  */
 struct acr_runtime_data_static {
-  /** \brief The number of functions */
-  const size_t total_functions;
   /** \brief The functions */
   void **functions;
   /** \brief The number of functions generated for each alternatives */

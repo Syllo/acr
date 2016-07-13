@@ -1163,7 +1163,7 @@ static void acr_print_static_function_call(FILE* out,
   }
   fprintf(out,
       ", &%s_static_runtime.functions[__acr_iterator]"
-      ",%s_static_runtime.functions, %s_static_runtime.num_fun_per_alt);\n  }\n"
+      ",%s_static_runtime.all_functions, %s_static_runtime.num_fun_per_alt);\n  }\n"
       ,prefix, prefix, prefix);
 }
 

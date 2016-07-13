@@ -370,16 +370,16 @@ void acr_static_data_init_grid(struct acr_runtime_data_static *static_data) {
   /*acr_static_data_init_lexicographic_min_max(static_data);*/
 
 
+  acr_time t1, t2;
+  acr_get_current_time(&t1);
   char *tile_library_c_code;
-  double time = omp_get_wtime();
   acr_code_generation_generate_tiling_library(
       static_data, &tile_library_c_code);
 
   acr_code_generation_compile_and_get_functions(static_data, tile_library_c_code);
 
-  double time2 = omp_get_wtime();
-  fprintf(stderr, "LIBRARY CODE in %f sec ####\n", time2 - time);
-  fprintf(stderr, "There is %zu tiles per alternatives\n", static_data->num_fun_per_alt);
+  acr_get_current_time(&t2);
+  fprintf(stderr, "LIBRARY CODE in %f sec ####\n", acr_difftime(t1,t2));
 
   free(tile_library_c_code);
 }

@@ -601,8 +601,6 @@ static void acr_function_print_static_function(
   ud_program = cloog_program_generate(ud_program, options);
   cloog_program_pprint(out, ud_program, options);
   cloog_program_free(ud_program);
-  fprintf(out, "}\n");
-  return;
 
   if (reduction_function == acr_reduction_avg)
     fprintf(out, "size_t __acr_num_values = 0;\n");
@@ -642,7 +640,7 @@ static void acr_apply_alternative_to_cloog_ud(CloogUnionDomain *ud,
               isl_val_copy(parameter_value));
         parameter_constraint =
           isl_constraint_set_coefficient_val(parameter_constraint, isl_dim_param,
-              0, negone);
+              0, isl_val_copy(negone));
         domain = isl_set_add_constraint(domain, parameter_constraint);
         domain = isl_set_project_out(domain, isl_dim_param, 0, 1);
         statement->domain = (CloogDomain*) domain;
