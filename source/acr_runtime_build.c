@@ -18,7 +18,9 @@
 
 #include "acr/acr_runtime_build.h"
 #include "acr/compiler_name.h"
+#include "acr/acr_runtime_data.h"
 
+#include <dlfcn.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -135,3 +137,63 @@ TCCState* acr_compile_with_tcc(
 }
 
 #endif
+
+void acr_code_generation_compile_and_get_functions(
+    struct acr_runtime_data_static *static_data,
+    const char *library_code) {
+  static_data->all_functions =
+    malloc(static_data->num_alternatives * static_data->num_fun_per_alt
+                                         * sizeof(*static_data->functions));
+  static_data->functions =
+    malloc(static_data->num_fun_per_alt * sizeof(*static_data->functions));
+
+  char **compile_options;
+  size_t num_compile_options;
+  acr_compile_flags(&compile_options, &num_compile_options);
+
+  char *compiled_filename = acr_compile_with_system_compiler(NULL,
+      library_code, num_compile_options, compile_options);
+
+  static_data->dl_handle = dlopen(compiled_filename, RTLD_LAZY);
+  if (static_data->dl_handle == NULL) {
+    char *dlerror_str = dlerror();
+    fprintf(stderr, "%s\n", dlerror_str);
+    exit(EXIT_FAILURE);
+  }
+  unlink(compiled_filename);
+  free(compiled_filename);
+
+  char name_buffer[1024];
+  name_buffer[0] = 'a';
+  size_t index;
+  for (size_t alt = 0; alt < static_data->num_alternatives; ++alt) {
+    index = 1;
+    int printed = snprintf(name_buffer+index, 1024-index, "%zu", alt);
+    if (printed < 0 || printed >= 1024-(int)index) {
+      fprintf(stderr, "Could not generate function name\n");
+      exit(EXIT_FAILURE);
+    }
+    index += (size_t) printed;
+    for(size_t tile_id = 0; tile_id < static_data->num_fun_per_alt; ++tile_id) {
+      printed = snprintf(name_buffer+index, 1024-index, "_%zu", tile_id);
+      if (printed < 0 || printed >= 1024-(int)index) {
+        fprintf(stderr, "Could not generate function name\n");
+        exit(EXIT_FAILURE);
+      }
+      void *function = dlsym(static_data->dl_handle, name_buffer);
+      if (function == NULL) {
+        char *dlerror_str = dlerror();
+        fprintf(stderr, "%s\n", dlerror_str);
+        exit(EXIT_FAILURE);
+      }
+      static_data->all_functions[alt*static_data->num_fun_per_alt + tile_id] =
+        function;
+    }
+  }
+
+  for(size_t tile_id = 0; tile_id < static_data->num_fun_per_alt; ++tile_id) {
+    static_data->functions[tile_id] = static_data->all_functions[tile_id];
+  }
+
+  acr_free_compile_flags(compile_options);
+}

@@ -19,6 +19,7 @@
 #include <acr/acr_runtime_code_generation.h>
 
 #include <string.h>
+#include <inttypes.h>
 
 #include <cloog/domain.h>
 #include <cloog/isl/domain.h>
@@ -312,13 +313,10 @@ static void acr_runtime_apply_tiling(
       num_dims_in_statement < dimension_start_tiling ? 0 :
       (unsigned int) (num_dims_in_statement - dimension_start_tiling);
 
-    fprintf(stderr, "NUM dims %u\n", num_tiling_dim_in_statement);
-
     if (num_tiling_dim_in_statement == 0) {
       statement = statement->next;
       continue;
     }
-    isl_map_print_internal(scattering, stderr, 0);
 
     const unsigned int scat_dim_start =
         2*(unsigned int)dimension_start_tiling+1;
@@ -360,7 +358,6 @@ static void acr_runtime_apply_tiling(
       scattering = isl_map_add_constraint(scattering, c1);
       scattering = isl_map_add_constraint(scattering, c2);
     }
-    isl_map_print_internal(scattering, stderr, 0);
 
     statement->domain = cloog_domain_from_isl_set(domain);
     statement->scattering = cloog_scattering_from_isl_map(scattering);
@@ -369,38 +366,475 @@ static void acr_runtime_apply_tiling(
   }
 }
 
+static void acr_runtime_apply_reduction_function(
+    CloogDomain *context,
+    CloogUnionDomain const *ud,
+    size_t first_monitor_dimension,
+    size_t number_of_monitoring_dimensions,
+    CloogUnionDomain **new_ud,
+    CloogDomain **new_context,
+    osl_scop_p *new_scop,
+    const char *const scan_corpse,
+    char const*const iterators[]) {
+
+  isl_set *context_isl = isl_set_copy(isl_set_from_cloog_domain(context));
+
+  CloogNamedDomainList *statement = ud->domain;
+  while (statement) {
+    if (isl_set_n_dim(isl_set_from_cloog_domain(statement->domain)) >=
+        first_monitor_dimension + number_of_monitoring_dimensions)
+      break;
+    statement = statement->next;
+  }
+
+  *new_ud = cloog_union_domain_alloc(0);
+
+  isl_set *domain =
+    isl_set_copy(isl_set_from_cloog_domain(statement->domain));
+  isl_map *scatt =
+    isl_map_copy(isl_map_from_cloog_scattering(statement->scattering));
+
+  if (first_monitor_dimension > 0) {
+    domain = isl_set_project_out(domain, isl_dim_out, 0,
+        (unsigned int)first_monitor_dimension);
+    scatt = isl_map_project_out(scatt, isl_dim_out, 0,
+        (unsigned int)first_monitor_dimension*2);
+    scatt = isl_map_project_out(scatt, isl_dim_in, 0,
+        (unsigned int)first_monitor_dimension);
+  }
+  if (number_of_monitoring_dimensions < isl_set_n_dim(domain)) {
+    domain = isl_set_project_out(domain, isl_dim_out,
+        (unsigned int)number_of_monitoring_dimensions,
+        isl_set_n_dim(domain) - (unsigned int)number_of_monitoring_dimensions);
+    scatt = isl_map_project_out(scatt, isl_dim_in,
+        (unsigned int)number_of_monitoring_dimensions,
+        isl_set_n_dim(domain) - (unsigned int)number_of_monitoring_dimensions);
+    scatt = isl_map_project_out(scatt, isl_dim_in,
+        (unsigned int)number_of_monitoring_dimensions*2,
+        2*(isl_set_n_dim(domain) - (unsigned int)number_of_monitoring_dimensions));
+  }
+  isl_val *one = isl_val_one(isl_set_get_ctx(domain));
+  for (size_t i = 0; i < 2*number_of_monitoring_dimensions; ++i) {
+    isl_constraint *c = isl_constraint_alloc_equality(
+        isl_local_space_from_space(isl_map_get_space(scatt)));
+    c = isl_constraint_set_coefficient_val(c, isl_dim_out, (int)i*2, isl_val_copy(one));
+    scatt = isl_map_drop_constraints_involving_dims(scatt, isl_dim_out,
+        (unsigned int)i*2, 1);
+    scatt = isl_map_add_constraint(scatt, c);
+  }
+  isl_val_free(one);
+
+  domain = isl_set_project_out(domain, isl_dim_param, 0,
+      isl_set_n_param(domain));
+  scatt = isl_map_project_out(scatt, isl_dim_param, 0, isl_map_n_param(scatt));
+  context_isl = isl_set_project_out(context_isl, isl_dim_param, 0,
+      isl_set_n_param(context_isl));
+
+  *new_ud = cloog_union_domain_add_domain(*new_ud,
+      NULL, cloog_domain_from_isl_set(domain),
+      cloog_scattering_from_isl_map(scatt), NULL);
+
+  osl_scop_p scop = osl_scop_malloc();
+  scop->registry = osl_interface_get_default_registry();
+  scop->statement = osl_statement_malloc();
+  osl_body_p body = osl_body_malloc();
+  osl_strings_p osl_iterators = osl_strings_malloc();
+  osl_strings_p corpse = osl_strings_malloc();
+  size_t i = 0;
+  while (iterators[i] != NULL) {
+    osl_strings_add(osl_iterators, iterators[i]);
+    ++i;
+  }
+  osl_strings_add(corpse, scan_corpse);
+  body->iterators = osl_iterators;
+  body->expression = corpse;
+  osl_generic_add(&scop->statement->extension, osl_generic_shell(body, osl_body_interface()));
+  *new_scop = scop;
+
+  *new_context = cloog_domain_from_isl_set(context_isl);
+}
+
+static void acr_print_tiling_library_preamble(FILE *out) {
+  fprintf(out,
+      "#include <stdlib.h>\n"
+      "#include \"acr_required_functions.h\"\n"
+      "static inline void const* __acr_tmp_to_function(size_t, unsigned char, void const*const*);\n");
+}
+
+static void acr_print_tiling_library_postamble(
+    FILE *out,
+    struct acr_runtime_data_static *static_data) {
+  fprintf(out,
+      "static inline void const* __acr_tmp_to_function(size_t tile_num,"
+      " unsigned char li, void const*const*const all_functions) {\n"
+      "  if (li > %zu)\n"
+      "    return NULL;\n"
+      "  else\n"
+      "    return all_functions[%zu*li+tile_num];\n"
+      "}\n", static_data->num_alternatives, static_data->num_fun_per_alt);
+}
+
+static inline CloogUnionDomain* acr_copy_cloog_ud(CloogUnionDomain const *ud) {
+  CloogUnionDomain *ud_copy =
+    cloog_union_domain_alloc(ud->n_name[CLOOG_PARAM]);
+  CloogNamedDomainList *statement = ud->domain;
+  while (statement) {
+    ud_copy = cloog_union_domain_add_domain(ud_copy, NULL,
+        (CloogDomain*)isl_set_copy((isl_set*)statement->domain),
+        (CloogScattering*)isl_map_copy((isl_map*)statement->scattering),
+        NULL);
+    statement = statement->next;
+  }
+  return ud_copy;
+}
+
+static inline isl_val* get_val_dim(isl_set *set, unsigned int dimi) {
+  isl_val *valdim = NULL;
+  isl_basic_set_list *bsl = isl_set_get_basic_set_list(set);
+  assert(isl_basic_set_list_n_basic_set(bsl) == 1);
+  isl_basic_set *bs = isl_basic_set_list_get_basic_set(bsl, 0);
+  isl_constraint_list *cl = isl_basic_set_get_constraint_list(bs);
+  int size = isl_constraint_list_n_constraint(cl);
+  for (int i = 0; i < size; ++i) {
+    isl_constraint *c = isl_constraint_list_get_constraint(cl, i);
+    if (isl_constraint_involves_dims(c, isl_dim_out, dimi, 1)) {
+      valdim = isl_constraint_get_constant_val(c);
+      valdim = isl_val_div(valdim,
+          isl_val_neg(isl_constraint_get_coefficient_val(c, isl_dim_out, (int)dimi)));
+      isl_constraint_free(c);
+      break;
+    }
+    isl_constraint_free(c);
+  }
+  isl_constraint_list_free(cl);
+  isl_basic_set_free(bs);
+  isl_basic_set_list_free(bsl);
+  return valdim;
+}
+
+static void min_max_scan(isl_set *scan_domain,
+    intmax_t ***min_max) {
+  *min_max = malloc(2*sizeof(**min_max));
+  isl_set *lexmin = isl_set_lexmin(isl_set_copy(scan_domain));
+  isl_set *lexmax = isl_set_lexmax(isl_set_copy(scan_domain));
+  unsigned int ndims = isl_set_n_dim(scan_domain);
+  (*min_max)[0] = malloc(ndims*sizeof(***min_max));
+  (*min_max)[1] = malloc(ndims*sizeof(***min_max));
+  for (unsigned int i = 0; i < ndims; ++i) {
+    isl_val *min_val = get_val_dim(lexmin, i);
+    isl_val *max_val = get_val_dim(lexmax, i);
+    assert(isl_val_is_int(min_val));
+    assert(isl_val_is_int(max_val));
+    intmax_t min = (intmax_t) isl_val_get_num_si(min_val);
+    intmax_t max = (intmax_t) isl_val_get_num_si(max_val);
+    (*min_max)[0][i] = min;
+    (*min_max)[1][i] = max;
+    isl_val_free(min_val);
+    isl_val_free(max_val);
+  }
+  isl_set_free(lexmin);
+  isl_set_free(lexmax);
+}
+
+static void acr_specialize_id(size_t id,
+    intmax_t min, intmax_t max, CloogUnionDomain *ud) {
+
+  /*fprintf(stderr, "id%zu min %"PRIdMAX" max %"PRIdMAX"\n", id, min, max-1);*/
+
+  isl_val *min_val = isl_val_int_from_si(isl_set_get_ctx((isl_set*)ud->domain->domain), min);
+  isl_val *max_val = isl_val_int_from_si(isl_val_get_ctx(min_val), max-1);
+
+  CloogNamedDomainList *statements = ud->domain;
+  while (statements) {
+    isl_set *domain = (isl_set*) statements->domain;
+    /*isl_set_print_internal(domain, stderr, 0);*/
+    if (isl_set_n_dim(domain) > id) {
+      isl_local_space *ls = isl_local_space_from_space(isl_set_get_space(domain));
+      isl_constraint *c1 = isl_constraint_alloc_inequality(isl_local_space_copy(ls));
+      isl_constraint *c2 = isl_constraint_alloc_inequality(ls);
+      c1 = isl_constraint_set_constant_val(c1, isl_val_neg(min_val));
+      c1 = isl_constraint_set_coefficient_si(c1, isl_dim_out, (int)id, 1);
+      c2 = isl_constraint_set_constant_val(c2, max_val);
+      c2 = isl_constraint_set_coefficient_si(c2, isl_dim_out, (int)id, -1);
+      domain = isl_set_add_constraint(domain, c1);
+      domain = isl_set_add_constraint(domain, c2);
+      statements->domain = (CloogDomain*) domain;
+    }
+    /*isl_set_print_internal(domain, stderr, 10);*/
+    statements = statements->next;
+  }
+}
+
+static void acr_fill_temporary_buffer_with_scan(FILE *bs,
+    CloogOptions *options,
+    CloogUnionDomain *scan,
+    isl_set *context_scan,
+    osl_scop_t *scan_scop) {
+  options->scop = scan_scop;
+  CloogProgram *scan_program =
+    cloog_program_alloc((CloogDomain*)isl_set_copy(context_scan),
+        scan, options);
+  scan_program = cloog_program_generate(scan_program, options);
+  cloog_program_pprint(bs, scan_program, options);
+  cloog_program_free(scan_program);
+}
+
+static void acr_function_print_static_function(
+    FILE *out,
+    CloogOptions *options,
+    CloogUnionDomain *ud,
+    isl_set *context_ud,
+    osl_scop_t *ud_scop,
+    const char *scan_loop_nest,
+    const size_t alternative_num,
+    size_t tile_id,
+    const char *function_parameters,
+    const enum acr_static_data_reduction_function reduction_function) {
+
+  fprintf(out, "void a%zu_%zu%s {\n",
+      alternative_num, tile_id, function_parameters);
+
+  options->scop = ud_scop;
+  CloogProgram *ud_program =
+    cloog_program_alloc((CloogDomain*)isl_set_copy(context_ud),
+        ud, options);
+  ud_program = cloog_program_generate(ud_program, options);
+  cloog_program_pprint(out, ud_program, options);
+  cloog_program_free(ud_program);
+  fprintf(out, "}\n");
+  return;
+
+  if (reduction_function == acr_reduction_avg)
+    fprintf(out, "size_t __acr_num_values = 0;\n");
+  fprintf(out,
+      "size_t __acr_tmp = 0;\n"
+      "%s", scan_loop_nest);
+  if (reduction_function == acr_reduction_avg)
+    fprintf(out, "__acr_tmp = __acr_tmp / __acr_num_values;\n");
+  fprintf(out, "*__acr_function_pointer = __acr_tmp_to_function(\n"
+      "  %zu,\n"
+      "  __acr_tmp,\n"
+      "  __acr_function_array);\n"
+      "}\n"
+      , tile_id);
+}
+
+static void acr_apply_alternative_to_cloog_ud(CloogUnionDomain *ud,
+    const struct runtime_alternative *al) {
+  isl_val *parameter_value =
+        isl_val_int_from_si(isl_set_get_ctx((isl_set*)ud->domain->domain),
+            al->value.alt.parameter.parameter_value);
+  isl_val *negone = isl_val_negone(isl_set_get_ctx((isl_set*)ud->domain->domain));
+  CloogNamedDomainList *statement;
+  switch (al->type) {
+    case acr_runtime_alternative_parameter:
+      statement = ud->domain;
+      while (statement) {
+        isl_set *domain = (isl_set*) statement->domain;
+        isl_map *scatt = (isl_map*) statement->scattering;
+        scatt = isl_map_remove_dims(scatt, isl_dim_param, 0, 1);
+        isl_local_space *const lspace =
+          isl_local_space_from_space(isl_set_get_space(domain));
+        isl_constraint *parameter_constraint =
+          isl_constraint_alloc_equality(lspace);
+        parameter_constraint =
+          isl_constraint_set_constant_val(parameter_constraint,
+              isl_val_copy(parameter_value));
+        parameter_constraint =
+          isl_constraint_set_coefficient_val(parameter_constraint, isl_dim_param,
+              0, negone);
+        domain = isl_set_add_constraint(domain, parameter_constraint);
+        domain = isl_set_project_out(domain, isl_dim_param, 0, 1);
+        statement->domain = (CloogDomain*) domain;
+        statement->scattering = (CloogScattering*) scatt;
+        statement = statement->next;
+      }
+      break;
+    case acr_runtime_alternative_function:
+      fprintf(stderr, "[ACR] errot: Alternative function not yet supported\n");
+      exit(EXIT_FAILURE);
+      break;
+  }
+  isl_val_free(parameter_value);
+  isl_val_free(negone);
+}
+
+static const char* acr_string_goto_first_for(char const* string) {
+  size_t position = 0;
+  while (string[position] != 'f' || string[position+1] != 'o' || string[position+2] != 'r') {
+    position += 1;
+  }
+  return string + position;
+}
+
+static void acr_generate_tile_at_level(
+    FILE *tile_library,
+    FILE *temp_buffer,
+    char **temp_buffer_string,
+    CloogOptions *options,
+    const size_t alternative_num,
+    const size_t level,
+    const intmax_t tiling_size,
+    const size_t first_monitor_dimension,
+    const size_t number_of_monitoring_dimensions,
+    CloogUnionDomain *ud,
+    CloogUnionDomain *scan,
+    isl_set *context_ud,
+    isl_set *context_scan,
+    osl_scop_t *ud_scop,
+    osl_scop_t *scan_scop,
+    intmax_t *const*const min_max,
+    size_t *const num_tiles,
+    const enum acr_static_data_reduction_function reduction_function,
+    struct runtime_alternative *alts,
+    char const*const function_parameters) {
+
+  intmax_t min = min_max[0][level];
+  intmax_t max = min_max[1][level];
+  for (intmax_t minval = min; minval <= max; minval += tiling_size) {
+    CloogUnionDomain *ud_specialized = acr_copy_cloog_ud(ud);
+    CloogUnionDomain *scan_specialized = acr_copy_cloog_ud(scan);
+    acr_specialize_id(level, minval, minval+tiling_size, scan_specialized);
+    acr_specialize_id(level+first_monitor_dimension, minval,
+        minval+tiling_size, ud_specialized);
+    if (level < number_of_monitoring_dimensions - 1) {
+      if (!isl_set_is_empty((isl_set*)scan_specialized->domain->domain)) {
+        acr_generate_tile_at_level(
+            tile_library,
+            temp_buffer,
+            temp_buffer_string,
+            options,
+            alternative_num,
+            level + 1,
+            tiling_size,
+            first_monitor_dimension,
+            number_of_monitoring_dimensions,
+            ud_specialized,
+            scan_specialized,
+            context_ud,
+            context_scan,
+            ud_scop,
+            scan_scop,
+            min_max,
+            num_tiles,
+            reduction_function,
+            alts,
+            function_parameters);
+      }
+      cloog_union_domain_free(scan_specialized);
+      cloog_union_domain_free(ud_specialized);
+    } else {
+      if (isl_set_is_empty((isl_set*)scan_specialized->domain->domain)) {
+        cloog_union_domain_free(scan_specialized);
+        cloog_union_domain_free(ud_specialized);
+      } else {
+        fseek(temp_buffer, 0, SEEK_SET);
+        acr_fill_temporary_buffer_with_scan(temp_buffer, options,
+            scan_specialized, context_scan, scan_scop);
+        fflush(temp_buffer);
+        char const* scan_str = acr_string_goto_first_for(*temp_buffer_string);
+        for (size_t i = 0; i < alternative_num-1; ++i) {
+          CloogUnionDomain *ud_alt = acr_copy_cloog_ud(ud_specialized);
+          acr_apply_alternative_to_cloog_ud(
+              ud_alt, &alts[i]);
+          acr_function_print_static_function(tile_library, options,
+              ud_alt,
+              context_ud,
+              ud_scop,
+              scan_str,
+              i, *num_tiles, function_parameters, reduction_function);
+        }
+        acr_apply_alternative_to_cloog_ud(
+            ud_specialized, &alts[alternative_num-1]);
+        acr_function_print_static_function(tile_library, options,
+            ud_specialized,
+            context_ud,
+            ud_scop,
+            scan_str,
+            alternative_num - 1, *num_tiles, function_parameters, reduction_function);
+        /*cloog_union_domain_free(ud_specialized);*/
+        *num_tiles += 1;
+      }
+    }
+  }
+}
+
 void acr_code_generation_generate_tiling_library(
     struct acr_runtime_data_static *static_data,
-    size_t *num_tiles,
     char **tiles_functions) {
 
-    acr_runtime_apply_tiling(
-        static_data->grid_size,
-        static_data->first_monitor_dimension,
-        static_data->num_monitor_dimensions,
-        static_data->union_domain);
+  acr_runtime_apply_tiling(
+      static_data->grid_size,
+      static_data->first_monitor_dimension,
+      static_data->num_monitor_dimensions,
+      static_data->union_domain);
 
-  FILE *tile_library = open_memstream(tiles_functions, num_tiles);
+  size_t size_tiles_functions;
+  FILE *tile_library = open_memstream(tiles_functions, &size_tiles_functions);
+
+  acr_print_tiling_library_preamble(tile_library);
+
+  CloogUnionDomain *scan_ud;
+  osl_scop_p new_scop;
+  CloogDomain *scan_context;
+  acr_runtime_apply_reduction_function(
+      static_data->context,
+      static_data->union_domain,
+      static_data->first_monitor_dimension,
+      static_data->num_monitor_dimensions,
+      &scan_ud, &scan_context, &new_scop,
+      static_data->scan_corpse, static_data->iterators);
 
   CloogOptions *cloog_option = cloog_options_malloc(static_data->state);
   cloog_option->quiet = 1;
   cloog_option->openscop = 1;
-  cloog_option->scop = static_data->scop;
   cloog_option->otl = 1;
   cloog_option->language = 0;
-  CloogDomain *context =
-    static_data->context;
-  CloogProgram *cloog_program = cloog_program_alloc(context,
-      static_data->union_domain, cloog_option);
-  cloog_program = cloog_program_generate(cloog_program, cloog_option);
 
-  cloog_program_pprint(stderr, cloog_program, cloog_option);
+  isl_set *ud_context =
+    isl_set_from_cloog_domain(static_data->context);
+  ud_context = isl_set_remove_dims(ud_context, isl_dim_param, 0, 1);
+  static_data->context = cloog_domain_from_isl_set(ud_context);
 
-  cloog_option->openscop = 0;
-  cloog_option->scop = NULL;
-  cloog_program_free(cloog_program);
+  intmax_t **min_max;
+  min_max_scan((isl_set*)scan_ud->domain->domain, &min_max);
+
+  static_data->num_fun_per_alt = 0;
+  char *tbs;
+  size_t tbs_size;
+  FILE *tb = open_memstream(&tbs, &tbs_size);
+  acr_generate_tile_at_level(
+      tile_library,
+      tb,
+      &tbs,
+      cloog_option,
+      static_data->num_alternatives,
+      0,
+      (intmax_t) static_data->grid_size,
+      static_data->first_monitor_dimension,
+      static_data->num_monitor_dimensions,
+      static_data->union_domain,
+      scan_ud,
+      (isl_set*) static_data->context,
+      (isl_set*) scan_context,
+      static_data->scop,
+      new_scop,
+      min_max,
+      &static_data->num_fun_per_alt,
+      static_data->reduction_function,
+      static_data->alternatives,
+      static_data->function_parameters);
+  free(min_max[0]);
+  free(min_max[1]);
+  free(min_max);
   free(cloog_option);
+  fclose(tb);
+  free(tbs);
+
+  acr_print_tiling_library_postamble(tile_library, static_data);
 
   fclose(tile_library);
-
+  cloog_union_domain_free(scan_ud);
+  osl_scop_free(new_scop);
+  cloog_domain_free(scan_context);
 }

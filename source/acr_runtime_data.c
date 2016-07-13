@@ -22,6 +22,7 @@
 #include "acr/acr_runtime_osl.h"
 
 #include <cloog/isl/domain.h>
+#include <dlfcn.h>
 #include <isl/constraint.h>
 #include <isl/set.h>
 #include <isl/map.h>
@@ -80,7 +81,6 @@ void free_acr_runtime_data(struct acr_runtime_data* data) {
 isl_map* isl_map_from_cloog_scattering(CloogScattering *scat);
 
 static void init_isl_tiling_domain(struct acr_runtime_data *data) {
-
   data->tiles_domains =
     malloc(data->num_codegen_threads * sizeof(*data->tiles_domains));
   data->empty_monitor_set =
@@ -147,8 +147,7 @@ static void init_isl_tiling_domain(struct acr_runtime_data *data) {
   }
 }
 
-static void init_compile_flags(struct acr_runtime_data *data) {
-
+void acr_compile_flags(char ***opt, size_t *num_opt) {
   char *env_val = getenv("ACR_EXTRA_CFLAGS");
   char **options = NULL;
   size_t num_options = 0;
@@ -197,6 +196,20 @@ default_flags:
     memcpy(options[0], "-O2", 4*sizeof(char));
   }
   acr_append_necessary_compile_flags(&num_options, &options);
+  *opt = options;
+  *num_opt = num_options;
+}
+
+void acr_free_compile_flags(char **flags) {
+  free(flags[1]);
+  free(flags);
+}
+
+static void init_compile_flags(struct acr_runtime_data *data) {
+  char **options;
+  size_t num_options;
+  acr_compile_flags(&options, &num_options);
+
   data->compiler_flags =
     malloc(data->num_compile_threads * sizeof(*data->compiler_flags));
   data->compiler_flags[0] = options;
@@ -347,22 +360,26 @@ void init_acr_static_data(
 
 void free_acr_static_data(struct acr_runtime_data_static *static_data) {
   osl_scop_free(static_data->scop);
+  cloog_union_domain_free(static_data->union_domain);
+  cloog_domain_free(static_data->context);
+  cloog_state_free(static_data->state);
+  dlclose(static_data->dl_handle);
 }
 
 void acr_static_data_init_grid(struct acr_runtime_data_static *static_data) {
-  const size_t num_alternatives = static_data->num_alternatives;
-  static_data->functions =
-    malloc(num_alternatives * sizeof(*static_data->functions));
   /*acr_static_data_init_lexicographic_min_max(static_data);*/
 
 
   char *tile_library_c_code;
-  size_t library_size;
+  double time = omp_get_wtime();
   acr_code_generation_generate_tiling_library(
-      static_data, &library_size, &tile_library_c_code);
+      static_data, &tile_library_c_code);
 
-  fprintf(stderr, "LIBRARY CODE #####\n%s\nEND LIBRARY CODE ####\n", tile_library_c_code);
+  acr_code_generation_compile_and_get_functions(static_data, tile_library_c_code);
+
+  double time2 = omp_get_wtime();
+  fprintf(stderr, "LIBRARY CODE in %f sec ####\n", time2 - time);
+  fprintf(stderr, "There is %zu tiles per alternatives\n", static_data->num_fun_per_alt);
 
   free(tile_library_c_code);
-  exit(1);
 }

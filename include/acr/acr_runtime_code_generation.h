@@ -94,7 +94,6 @@ void acr_cloog_get_rid_of_parameter_static(
  */
 void acr_code_generation_generate_tiling_library(
     struct acr_runtime_data_static *static_data,
-    size_t *num_tiles,
     char **tiles_functions);
 
 #endif // __ACR_RUNTIME_CODE_GENERATION_H

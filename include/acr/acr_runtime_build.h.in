@@ -31,6 +31,7 @@
 #define __ACR_RUNTIME_BUILD_H
 
 #include <stdlib.h>
+#include "acr/acr_runtime_data.h"
 
 #if @ACR_TCC@ // Build option ACR_TCC
 
@@ -75,6 +76,15 @@ char* acr_compile_with_system_compiler(
 void acr_append_necessary_compile_flags(
     size_t *num_options,
     char ***options);
+
+/**
+ * \brief Compile and assign the values
+ * \param[in,out] static_data The static data structure
+ * \param[in] library_code The C code to compile
+ */
+void acr_code_generation_compile_and_get_functions(
+    struct acr_runtime_data_static *static_data,
+    const char *library_code);
 
 #endif // __ACR_RUNTIME_BUILD_H
 

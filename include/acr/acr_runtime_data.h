@@ -132,35 +132,57 @@ struct acr_runtime_data {
 };
 
 /**
+ * \brief The reduction function used for each tile
+ */
+enum acr_static_data_reduction_function {
+  /** \brief Use minumum */
+  acr_reduction_min,
+  /** \brief Use maximum */
+  acr_reduction_max,
+  /** \brief Use average */
+  acr_reduction_avg,
+};
+
+/**
  * \brief Data structure used in static kernel during runtime
  */
 struct acr_runtime_data_static {
   /** \brief The number of functions */
-  size_t total_functions;
+  const size_t total_functions;
   /** \brief The functions */
-  void ***functions;
+  void **functions;
+  /** \brief The number of functions generated for each alternatives */
+  size_t num_fun_per_alt;
+  /** \brief The array where all the generated functions pointer are stored */
+  void **all_functions;
   /** \brief The number of alternatives */
-  size_t num_alternatives;
+  const size_t num_alternatives;
   /** \brief The alternatives array */
   struct runtime_alternative *alternatives;
   /** \brief The OpenScop format of the kernel */
   struct osl_scop *scop;
   /** \brief The first monitor dimension */
-  size_t first_monitor_dimension;
+  const size_t first_monitor_dimension;
   /** \brief The number of monitoring dimensions */
-  size_t num_monitor_dimensions;
-  /** \brief For each monitoring dimensions the lexicigraphical maximum */
-  size_t monitor_dimension_lexmax;
-  /** \brief For each monitoring dimensions the lexicigraphical minimum */
-  size_t monitor_dimension_lexmin;
+  const size_t num_monitor_dimensions;
   /** \brief The tiling size */
-  size_t grid_size;
+  const size_t grid_size;
   /** \brief The statements in CLooG representation */
   CloogUnionDomain *union_domain;
   /** \brief The context */
   CloogDomain *context;
   /** \brief The CLooG state */
   CloogState *state;
+  /** \brief The reduction function */
+  const enum acr_static_data_reduction_function reduction_function;
+  /** \brief The scanning corpse for acr */
+  char const*const scan_corpse;
+  /** \brief Null terminated iterators ids */
+  char const*const*const iterators;
+  /** \brief Function parameters for tiles */
+  char const*const function_parameters;
+  /** \brief dlopen handle */
+  void *dl_handle;
 };
 
 /**
@@ -229,6 +251,19 @@ size_t acr_runtime_get_grid_size(struct acr_runtime_data* data);
  * \param[in,out] static_data The static data structure
  */
 void acr_static_data_init_grid(struct acr_runtime_data_static *static_data);
+
+/**
+ * \brief Initialize the compiler flags
+ * \param[out] opt The compiler options to initialize
+ * \param[out] num_opt The number of compiler options inside of opt
+ */
+void acr_compile_flags(char ***opt, size_t *num_opt);
+
+/**
+ * \brief Free compile flags
+ * \param[in] flags The compile flags
+ */
+void acr_free_compile_flags(char **flags);
 
 #endif // __ACR_RUNTIME_DATA_H
 

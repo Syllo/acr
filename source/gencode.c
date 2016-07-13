@@ -744,6 +744,74 @@ char const*const acr_kernel_strategy_type_string[acr_runtime_kernel_unknown] =
     [acr_runtime_kernel_stencil]     = "acr_kernel_strategy_stencil",
   };
 
+static char* acr_static_scan_code_corpse(const acr_option monitor) {
+  char *retbuffer;
+  size_t retbuffer_size;
+  FILE *tmp_stream = open_memstream(&retbuffer, &retbuffer_size);
+  const char *filter = acr_monitor_get_filter_name(monitor);
+  acr_array_declaration *arr_decl = acr_monitor_get_array_declaration(monitor);
+  const char *array_name = acr_array_decl_get_array_name(arr_decl);
+
+  fprintf(tmp_stream,
+      "  const unsigned char __acr_char_val = %s(%s", filter, array_name);
+  size_t num_dims = acr_array_decl_get_num_dimensions(arr_decl);
+  acr_array_dimensions_list adl = acr_array_decl_get_dimensions_list(arr_decl);
+  for (size_t i = 0; i < num_dims; ++i) {
+    char const*const identifier = acr_array_dimension_get_identifier(adl[i]);
+    fprintf(tmp_stream, "[%s]", identifier);
+  }
+  fprintf(tmp_stream, ");");
+
+  switch(acr_monitor_get_function(monitor)) {
+    case acr_monitor_function_min:
+      fprintf(tmp_stream,
+          " __acr_tmp = __acr_tmp < __acr_char_val ? __acr_tmp : __acr_char_val;");
+      break;
+    case acr_monitor_function_max:
+      fprintf(tmp_stream,
+          " __acr_tmp = __acr_tmp > __acr_char_val ? __acr_tmp : __acr_char_val;");
+      break;
+    case acr_monitor_function_avg:
+      fprintf(tmp_stream,
+          " __acr_tmp += __acr_char_val; __acr_num_values += 1;");
+      break;
+    case acr_monitor_function_unknown:
+      break;
+  }
+  fclose(tmp_stream);
+  return retbuffer;
+}
+
+static void acr_print_static_monitor_ids(FILE *out,
+    const acr_option monitor) {
+  acr_array_declaration *arr_decl = acr_monitor_get_array_declaration(monitor);
+  size_t num_dims = acr_array_decl_get_num_dimensions(arr_decl);
+  acr_array_dimensions_list adl = acr_array_decl_get_dimensions_list(arr_decl);
+
+  fprintf(out, "  .iterators = (char const*const[]){\n");
+  for (size_t i = 0; i < num_dims; ++i) {
+    char const*const identifier = acr_array_dimension_get_identifier(adl[i]);
+    fprintf(out, "    [%zu] = \"%s\",\n", i, identifier);
+  }
+  fprintf(out, "    [%zu] = NULL,\n },\n", num_dims);
+}
+#include <errno.h>
+static void acr_print_static_function_parameters(FILE *out,
+                                                 const acr_compute_node node) {
+  const acr_option init = acr_compute_node_get_option_of_type(acr_type_init,
+      node, 1);
+  fprintf(out, "  .function_parameters = \"");
+  acr_print_parameters(out, init);
+  // Get rid of the ')' character
+  // // GLIBC BUG
+  /*fseek(out, 0L, SEEK_END);*/
+  /*fseek(out, -1L, SEEK_CUR);*/
+  if(fseek(out, ftell(out)-1, SEEK_SET)) {
+    perror("fseek");
+    exit(1);
+  }
+  fprintf(out, ", void const**const __acr_function_pointer, void const*const*const __acr_function_array)\",\n");
+}
 static bool acr_print_static_runtime_init(FILE* out,
     const osl_scop_p scop,
     const acr_compute_node node) {
@@ -775,6 +843,27 @@ static bool acr_print_static_runtime_init(FILE* out,
     return false;
   }
 
+  char *reduction_function;
+  acr_option monitor =
+    acr_compute_node_get_option_of_type(acr_type_monitor, node, 1);
+  enum acr_monitor_processing_funtion proc_fun_type =
+    acr_monitor_get_function(monitor);
+  char *scan_code = acr_static_scan_code_corpse(monitor);
+  switch (proc_fun_type) {
+    case acr_monitor_function_min:
+      reduction_function = "acr_reduction_min";
+      break;
+    case acr_monitor_function_max:
+      reduction_function = "acr_reduction_max";
+      break;
+    case acr_monitor_function_avg:
+      reduction_function = "acr_reduction_avg";
+      break;
+    default:
+      reduction_function = NULL;
+      break;
+  }
+
   fprintf(out,
       "static struct acr_runtime_data_static %s_static_runtime = {\n"
       "  .num_alternatives = %zu,\n"
@@ -782,11 +871,16 @@ static bool acr_print_static_runtime_init(FILE* out,
       "  .first_monitor_dimension = %zu,\n"
       "  .num_monitor_dimensions = %zu,\n"
       "  .grid_size = %zu,\n"
-      "};\n"
+      "  .reduction_function = %s,\n"
+      "  .scan_corpse = \"%s\",\n"
       , prefix, num_alternatives, prefix, first_monitor_dimension,
-      num_monitor_dims, acr_grid_get_grid_size(grid));
+      num_monitor_dims, acr_grid_get_grid_size(grid), reduction_function,
+      scan_code);
+  acr_print_static_monitor_ids(out, monitor);
+  acr_print_static_function_parameters(out, node);
+  fprintf(out, "};\n");
+  free(scan_code);
   return true;
-
 }
 
 static void acr_print_acr_runtime_init(FILE* out,
@@ -1046,18 +1140,31 @@ static void acr_print_static_function_call(FILE* out,
     const struct acr_build_options *build_options) {
   const char* prefix = acr_get_scop_prefix(node);
   fprintf(out,
-      "  const size_t __acr_total_size = %s_static_runtime.total_functions;\n"
+      "  const size_t __acr_total_size = %s_static_runtime.num_fun_per_alt;\n"
       "  for (size_t __acr_iterator = 0; __acr_iterator < __acr_total_size; __acr_iterator += 1) {\n"
       "    void (*__acr_function_call)"
       , prefix);
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   acr_print_parameters(out, init);
+  if(fseek(out, ftell(out)-3, SEEK_SET)) {
+    perror("fseek");
+    exit(1);
+  }
   fprintf(out,
+      ", void *const*const __acr_function_pointer,"
+      " void const*const __acr_function_array, size_t __acr_num_of_fun_per_alt)"
       " = %s_static_runtime.functions[__acr_iterator];\n"
       "    __acr_function_call"
       , prefix);
   acr_print_init_function_call(out, init, build_options);
-  fprintf(out, "  }\n");
+  if(fseek(out, ftell(out)-3, SEEK_SET)) {
+    perror("fseek");
+    exit(1);
+  }
+  fprintf(out,
+      ", &%s_static_runtime.functions[__acr_iterator]"
+      ",%s_static_runtime.functions, %s_static_runtime.num_fun_per_alt);\n  }\n"
+      ,prefix, prefix, prefix);
 }
 
 void acr_print_static_function(FILE* out,
