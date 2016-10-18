@@ -234,6 +234,7 @@ list(APPEND ACR_EXECUTABLE_C_FILES
 add_library(acr
   SHARED
   ${ACR_LIBRARY_C_FILES})
+set_target_properties(acr PROPERTIES SOVERSION 1)
 message(STATUS "Add acr library (shared)"
   " ${CMAKE_SHARED_LIBRARY_PREFIX}acr${CMAKE_SHARED_LIBRARY_SUFFIX}")
 target_link_libraries(acr
@@ -254,6 +255,7 @@ target_compile_definitions(acr
 add_library(acrrun
   SHARED
   ${ACR_RUNTIME_LIBRARY_C_FILES})
+set_target_properties(acrrun PROPERTIES SOVERSION 1)
 message(STATUS "Add acrrun library (shared)"
   " ${CMAKE_SHARED_LIBRARY_PREFIX}acrrun${CMAKE_SHARED_LIBRARY_SUFFIX}")
 target_link_libraries(acrrun
@@ -301,16 +303,31 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/doc")
 #                             INSTALL                               #
 #///////////////////////////////////////////////////////////////////#
 
-#install(TARGETS acr LIBRARY
-#  DESTINATION lib)
-#install(TARGETS acr_static ARCHIVE
-#  DESTINATION lib)
-#install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
-#  DESTINATION include FILES_MATCHING PATTERN "*.h")
-#install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/"
-#  DESTINATION include FILES_MATCHING PATTERN "*.h")
-#install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/acr-config.cmake"
-#  DESTINATION lib/)
+install(TARGETS acr_exe
+  RUNTIME DESTINATION bin)
+install(TARGETS acr acrrun
+  LIBRARY DESTINATION lib)
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include"
+  DESTINATION include
+  FILES_MATCHING PATTERN *.h)
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/autogen/include"
+  DESTINATION include
+  FILES_MATCHING PATTERN *.h)
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/dep-install/bin"
+  DESTINATION bin)
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/dep-install/include"
+  DESTINATION include)
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/dep-install/lib"
+  DESTINATION lib)
+
+# Uninstall
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+  IMMEDIATE @ONLY)
+
+add_custom_target(uninstall
+  COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
 
 #///////////////////////////////////////////////////////////////////#
 #                               MISC                                #
