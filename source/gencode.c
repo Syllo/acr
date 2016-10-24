@@ -909,6 +909,13 @@ static void acr_print_acr_runtime_init(FILE* out,
 
   acr_option grid = acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
   fprintf(out, "static void %s_monitoring_function(unsigned char*);\n", prefix);
+
+  fprintf(out,
+      "#ifdef ACR_STATS_ENABLED\n"
+      "static struct acr_runtime_stats %s_runtime_stats;\n"
+      "#endif // ACR_STATS_ENABLED\n"
+      , prefix);
+
   fprintf(out, "static struct acr_runtime_data %s_runtime_data = {\n"
       "  .kernel_strategy_type = %s,\n"
       "  .kernel_prefix = \"%s\",\n"
@@ -930,14 +937,18 @@ static void acr_print_acr_runtime_init(FILE* out,
     fprintf(out, "    [%zu] = %zu",
         i, current_bound->num_dimensions);
   }
-  fprintf(out, "\n  },\n");
+
   fprintf(out,
+      "\n  },\n"
+      "#ifdef ACR_STATS_ENABLED\n"
+      "  .acr_stats = &%s_runtime_stats,\n"
+      "#endif // ACR_STATS_ENABLED\n"
       "  .alternative_from_val = %s_get_alternative_from_val,\n"
       "  .monitoring_function = %s_monitoring_function,\n"
       "  .alternative_still_usable = 0,\n"
       "  .monitor_thread_continue = true,\n"
       "  .function_prototype = \"",
-      prefix, prefix);
+      prefix, prefix, prefix);
   acr_print_parameters(out, init);
   fprintf(out, "\",\n");
   fprintf(out,
@@ -1201,8 +1212,8 @@ void acr_print_node_init_function_call(FILE* out,
       "  acr_time t1;\n"
       "  acr_get_current_time(&t1);\n"
       "  pthread_spin_lock(&%s_runtime_data.alternative_lock);\n"
-      "  %s_runtime_data.sim_stats.total_time += acr_difftime(t0, t1);\n"
-      "  %s_runtime_data.sim_stats.num_simmulation_step += 1;\n"
+      "  %s_runtime_data.acr_stats->sim_stats.total_time += acr_difftime(t0, t1);\n"
+      "  %s_runtime_data.acr_stats->sim_stats.num_simmulation_step += 1;\n"
       "#else\n"
       "  pthread_spin_lock(&%s_runtime_data.alternative_lock);\n"
       "#endif\n"
@@ -1344,7 +1355,7 @@ static void acr_print_destroy(FILE* out, const char *prefix,
       fprintf(out,
           "#ifdef ACR_STATS_ENABLED\n"
           "  acr_print_stats(stdout, %s_runtime_data.kernel_prefix,"
-          "  &%s_runtime_data.sim_stats,\n  &%s_runtime_data.thread_stats,\n"
+          "  &%s_runtime_data.acr_stats->sim_stats,\n  &%s_runtime_data.acr_stats->thread_stats,\n"
           "  %s_runtime_data.num_codegen_threads,\n"
           "  %s_runtime_data.num_compile_threads);\n"
           "#endif\n",

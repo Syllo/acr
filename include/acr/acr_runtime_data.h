@@ -55,6 +55,17 @@ enum acr_kernel_strategy_type {
 };
 
 /**
+/**
+ * Statistics for acr
+ */
+struct acr_runtime_stats {
+  /** Statistics about running threads */
+  struct acr_threads_time_stats thread_stats;
+  /** Statistics about the computation kernel */
+  struct acr_simulation_time_stats sim_stats;
+};
+
+/**
  * \brief The main data structure having all the data needed at runtime
  */
 struct acr_runtime_data {
@@ -122,10 +133,7 @@ struct acr_runtime_data {
   /** The stop condition of the coordinator */
   bool monitor_thread_continue;
 #ifdef ACR_STATS_ENABLED
-  /** Statistics about running threads */
-  struct acr_threads_time_stats thread_stats;
-  /** Statistics about the computation kernel */
-  struct acr_simulation_time_stats sim_stats;
+  struct acr_runtime_stats *acr_stats;
 #endif
   /** The kernel strategy type */
   enum acr_kernel_strategy_type kernel_strategy_type;

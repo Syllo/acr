@@ -885,6 +885,10 @@ void* acr_verification_and_coordinator_function(void *in_data) {
           &functions, &monitor_data, &compile_threads_data, &cloog_thread_data);
       break;
     case acr_kernel_strategy_unknown:
+    default:
+      fprintf(stderr, "Warning unknown strategy number %d\n",
+          init_data->kernel_strategy_type);
+      exit(1);
       break;
   }
 
@@ -937,21 +941,21 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   }
 
 #ifdef ACR_STATS_ENABLED
-    init_data->thread_stats.num_measurements[acr_thread_time_cloog] =
+    init_data->acr_stats->thread_stats.num_measurements[acr_thread_time_cloog] =
       cloog_thread_data.num_mesurement;
-    init_data->thread_stats.total_time[acr_thread_time_cloog] =
+    init_data->acr_stats->thread_stats.total_time[acr_thread_time_cloog] =
       cloog_thread_data.total_time;
-    init_data->thread_stats.num_measurements[acr_thread_time_monitor] =
+    init_data->acr_stats->thread_stats.num_measurements[acr_thread_time_monitor] =
       monitor_data.num_mesurement;
-    init_data->thread_stats.total_time[acr_thread_time_monitor] =
+    init_data->acr_stats->thread_stats.total_time[acr_thread_time_monitor] =
       monitor_data.total_time;
-    init_data->thread_stats.num_measurements[acr_thread_time_cc] =
+    init_data->acr_stats->thread_stats.num_measurements[acr_thread_time_cc] =
       compile_threads_data.num_mesurement;
-    init_data->thread_stats.total_time[acr_thread_time_cc] =
+    init_data->acr_stats->thread_stats.total_time[acr_thread_time_cc] =
       compile_threads_data.total_time;
-    init_data->thread_stats.num_measurements[acr_thread_time_tcc] =
+    init_data->acr_stats->thread_stats.num_measurements[acr_thread_time_tcc] =
       compile_threads_data.num_tcc_mesurement;
-    init_data->thread_stats.total_time[acr_thread_time_tcc] =
+    init_data->acr_stats->thread_stats.total_time[acr_thread_time_tcc] =
       compile_threads_data.total_tcc_time;
 #endif
 
