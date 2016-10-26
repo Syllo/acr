@@ -81,6 +81,7 @@ struct acr_simulation_time_stats {
  * \param[in] prefix The function prefix
  * \param[in] sim_stats The simulation stats
  * \param[in] thread_stats The threads statistics
+ * \param[in] mean_step_time The mean time between two steps of the simulation.
  */
 void acr_print_stats(
     FILE *out,
@@ -88,7 +89,8 @@ void acr_print_stats(
     const struct acr_simulation_time_stats *sim_stats,
     const struct acr_threads_time_stats *thread_stats,
     size_t num_gen_threads,
-    size_t num_compile_threads);
+    size_t num_compile_threads,
+    double mean_step_time);
 
 #endif // __ACR_STATS_H
 #endif // Build option ACR_STAT

@@ -916,7 +916,10 @@ static void acr_print_acr_runtime_init(FILE* out,
       "#endif // ACR_STATS_ENABLED\n"
       , prefix);
 
-  fprintf(out, "static struct acr_runtime_data %s_runtime_data = {\n"
+  fprintf(out,
+      "static struct acr_runtime_kernel_info %s_runtime_kernel_info;\n"
+      "static struct acr_runtime_data %s_runtime_data = {\n"
+      "  .kernel_info = &%s_runtime_kernel_info,\n"
       "  .kernel_strategy_type = %s,\n"
       "  .kernel_prefix = \"%s\",\n"
       "  .num_alternatives = %zu,\n"
@@ -925,6 +928,7 @@ static void acr_print_acr_runtime_init(FILE* out,
       "  .grid_size = %zu,\n"
       "  .num_statements = %zu,\n"
       "  .dimensions_per_statements = (unsigned int [%zu]) {\n",
+      prefix, prefix,
       prefix, acr_kernel_strategy_type_string[build_options->kernel_version],
       prefix, num_alternatives, prefix,
       num_monitor_dims, acr_grid_get_grid_size(grid),
@@ -1051,6 +1055,9 @@ static void acr_print_acr_runtime_init(FILE* out,
       prefix, prefix, prefix);
 
   acr_print_get_rid_of_parameters(out, prefix, scop);
+
+  fprintf(out, "  acr_get_current_time(&%s_runtime_data.kernel_info->step_temp_time);\n",
+      prefix);
 
   acr_option_list list = acr_compute_node_get_option_list(node);
   size_t list_size = acr_compute_node_get_option_list_size(node);
@@ -1207,6 +1214,16 @@ void acr_print_node_init_function_call(FILE* out,
       "#endif\n");
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
   acr_print_init_function_call(out, init, b_options);
+
+  fprintf(out, "  acr_time sim_step_t2;\n"
+      "  acr_get_current_time(&sim_step_t2);\n"
+      "  double current_sim_step_time = acr_difftime(%s_runtime_data.kernel_info->step_temp_time, sim_step_t2);\n"
+      "  %s_runtime_data.kernel_info->sim_step_time = %s_runtime_data.kernel_info->sim_step_time * 0.8 +"
+      "  current_sim_step_time * 0.2;\n"
+      "  %s_runtime_data.kernel_info->step_temp_time = sim_step_t2;\n"
+      "  %s_runtime_data.kernel_info->num_calls += 1;\n"
+      , prefix, prefix, prefix, prefix, prefix);
+
   fprintf(out,
       "#ifdef ACR_STATS_ENABLED\n"
       "  acr_time t1;\n"
@@ -1357,9 +1374,10 @@ static void acr_print_destroy(FILE* out, const char *prefix,
           "  acr_print_stats(stdout, %s_runtime_data.kernel_prefix,"
           "  &%s_runtime_data.acr_stats->sim_stats,\n  &%s_runtime_data.acr_stats->thread_stats,\n"
           "  %s_runtime_data.num_codegen_threads,\n"
-          "  %s_runtime_data.num_compile_threads);\n"
-          "#endif\n",
-          prefix, prefix, prefix, prefix, prefix);
+          "  %s_runtime_data.num_compile_threads,\n"
+          "  %s_runtime_data.kernel_info->sim_step_time);\n"
+          "#endif\n"
+          , prefix, prefix, prefix, prefix, prefix, prefix);
       break;
     default:
       break;

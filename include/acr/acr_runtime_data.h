@@ -55,6 +55,18 @@ enum acr_kernel_strategy_type {
 };
 
 /**
+ * Runtime main thread timing infos
+ */
+struct acr_runtime_kernel_info {
+  /** The number of kernel calls */
+  size_t num_calls;
+  /** The mean time between two kernel call */
+  double sim_step_time;
+  /** The temporaty time for a simulation step */
+  acr_time step_temp_time;
+};
+
+
 /**
  * Statistics for acr
  */
@@ -132,6 +144,8 @@ struct acr_runtime_data {
   pthread_t monitor_thread;
   /** The stop condition of the coordinator */
   bool monitor_thread_continue;
+  /** Kernel informations */
+  struct acr_runtime_kernel_info *kernel_info;
 #ifdef ACR_STATS_ENABLED
   struct acr_runtime_stats *acr_stats;
 #endif

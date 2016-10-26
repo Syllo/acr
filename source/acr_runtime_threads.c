@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <time.h>
 
 #include "acr/acr_runtime_build.h"
 #include "acr/acr_runtime_code_generation.h"
@@ -89,19 +90,32 @@ struct acr_avaliable_functions {
   struct func_value **function_priority;
 };
 
-struct acr_monitoring_computation {
-  void (*monitoring_function)(unsigned char*);
+struct acr_monitoring_shared {
   unsigned char *current_valid_computation;
   unsigned char *scrap_values;
-  unsigned char *version_computed;
+  pthread_spinlock_t spinlock;
+  bool i_need_data;
+};
+
+struct acr_monitoring_computation {
+  void (*monitoring_function)(unsigned char*);
   size_t monitor_result_size;
 #ifdef ACR_STATS_ENABLED
   size_t num_mesurement;
   double total_time;
 #endif
-  pthread_spinlock_t spinlock;
-  bool end_yourself;
+  struct acr_runtime_kernel_info *kernel_info;
+  struct acr_monitoring_shared *shared_buffer;
+  volatile bool end_yourself;
 };
+
+static inline void lock_monitor (struct acr_monitoring_computation *mon){
+  pthread_spin_lock(&mon->shared_buffer->spinlock);
+}
+
+static inline void unlock_monitor (struct acr_monitoring_computation *mon){
+  pthread_spin_unlock(&mon->shared_buffer->spinlock);
+}
 
 struct acr_runtime_threads_cloog_gencode {
   size_t thread_num;
@@ -117,7 +131,7 @@ struct acr_runtime_threads_cloog_gencode {
   pthread_cond_t compiler_thread_sleep;
   pthread_cond_t coordinator_sleep;
   bool generate_function;
-  bool end_yourself;
+  volatile bool end_yourself;
 };
 
 struct acr_runtime_threads_compile_data {
@@ -136,7 +150,7 @@ struct acr_runtime_threads_compile_data {
   pthread_cond_t compiler_thread_sleep;
   pthread_cond_t coordinator_sleep;
   bool compile_something;
-  bool end_yourself;
+  volatile bool end_yourself;
 };
 
 #ifdef TCC_PRESENT
@@ -149,7 +163,7 @@ struct acr_runtime_threads_compile_tcc {
   pthread_mutex_t mutex;
   pthread_cond_t waking_up;
   bool compile_something;
-  bool end_yourself;
+  volatile bool end_yourself;
 };
 #endif
 
@@ -162,45 +176,66 @@ static void* acr_runtime_monitoring_function(void *in_data) {
   size_t num_mesurement = 0;
 #endif
 
+  struct acr_runtime_kernel_info volatile* kernel_info = input_data->kernel_info;
+
   unsigned char *monitor_result =
     malloc(input_data->monitor_result_size * sizeof(*monitor_result));
 
   void (*const monitoring_function)(unsigned char*) =
     input_data->monitoring_function;
 
-  bool end_myself;
-  while(1) {
+  double last_time_updated, compute_time;
+  size_t last_kernel_id = 0;
+  acr_time t1, t2;
+  acr_get_current_time(&t1);
+  while(!input_data->end_yourself) {
+
+    struct acr_runtime_kernel_info kinfo = *kernel_info;
+    if (last_kernel_id != kinfo.num_calls) {
+      last_kernel_id = kinfo.num_calls;
+
+      acr_time tstart;
+      acr_get_current_time(&tstart);
+
+      monitoring_function(monitor_result);
+
+      acr_get_current_time(&t1);
+      compute_time = acr_difftime(tstart, t1);
 #ifdef ACR_STATS_ENABLED
-    acr_time tstart;
-    acr_get_current_time(&tstart);
+      total_time += compute_time;
+      num_mesurement += 1;
 #endif
-    monitoring_function(monitor_result);
-#ifdef ACR_STATS_ENABLED
-    acr_time tend;
-    acr_get_current_time(&tend);
-    total_time += acr_difftime(tstart, tend);
-    num_mesurement += 1;
-#endif
-    pthread_spin_lock(&input_data->spinlock);
-    if (input_data->current_valid_computation == NULL) {
-      input_data->current_valid_computation = monitor_result;
-      monitor_result = input_data->scrap_values;
-    } else {
-      input_data->scrap_values = input_data->current_valid_computation;;
-      input_data->current_valid_computation = monitor_result;
-      monitor_result = input_data->scrap_values;
+
+      lock_monitor(input_data);
+      if (input_data->shared_buffer->current_valid_computation == NULL) {
+        input_data->shared_buffer->current_valid_computation = monitor_result;
+        monitor_result = input_data->shared_buffer->scrap_values;
+      } else {
+        input_data->shared_buffer->scrap_values = input_data->shared_buffer->current_valid_computation;;
+        input_data->shared_buffer->current_valid_computation = monitor_result;
+        monitor_result = input_data->shared_buffer->scrap_values;
+      }
+      unlock_monitor(input_data);
     }
-    end_myself = input_data->end_yourself;
-    pthread_spin_unlock(&input_data->spinlock);
-    if (end_myself)
-      break;
+
+    if (kinfo.sim_step_time >= 1.) {
+      acr_get_current_time(&t2);
+      last_time_updated = (kinfo.sim_step_time - acr_difftime(t1, t2)) / 2.;
+      if (last_time_updated >= 0.) {
+        struct timespec sleep_time, remaining_time;
+        sleep_time.tv_sec = (time_t) last_time_updated;
+        sleep_time.tv_nsec = (long) (last_time_updated * 1e9);
+        nanosleep(&sleep_time, &remaining_time);
+      }
+    }
+
   }
 
   free(monitor_result);
-  if (input_data->current_valid_computation) {
-    free(input_data->current_valid_computation);
+  if (input_data->shared_buffer->current_valid_computation) {
+    free(input_data->shared_buffer->current_valid_computation);
   } else {
-    free(input_data->scrap_values);
+    free(input_data->shared_buffer->scrap_values);
   }
 
 #ifdef ACR_STATS_ENABLED
@@ -324,17 +359,14 @@ static void acr_get_most_recent_monitor_result(
     unsigned char **const restrict valid_monitor_result,
     unsigned char **const restrict invalid_monitor_result,
     struct acr_monitoring_computation *const monitor_data) {
-  // Wait for one valid monitor data
-  while (*valid_monitor_result == NULL) {
-    pthread_spin_lock(&monitor_data->spinlock);
-    if (monitor_data->current_valid_computation) {
-      *valid_monitor_result = monitor_data->current_valid_computation;
-      monitor_data->current_valid_computation = NULL;
-      monitor_data->scrap_values = *invalid_monitor_result;
-    }
-    pthread_spin_unlock(&monitor_data->spinlock);
+  lock_monitor(monitor_data);
+  if (monitor_data->shared_buffer->current_valid_computation) {
+    *valid_monitor_result = monitor_data->shared_buffer->current_valid_computation;
+    monitor_data->shared_buffer->current_valid_computation = NULL;
+    monitor_data->shared_buffer->scrap_values = *invalid_monitor_result;
+    *invalid_monitor_result = NULL;
   }
-  *invalid_monitor_result = NULL;
+  unlock_monitor(monitor_data);
 }
 
 static void acr_cloog_compilation(
@@ -417,9 +449,9 @@ static void acr_kernel_stencil(
 
   unsigned char *valid_monitor_result = NULL;
   unsigned char *invalid_monitor_result =
-    malloc(init_data->monitor_total_size * sizeof(*monitor_data->scrap_values));
+    malloc(init_data->monitor_total_size * sizeof(*monitor_data->shared_buffer->scrap_values));
   unsigned char *maximized_version =
-    malloc(init_data->monitor_total_size * sizeof(*monitor_data->scrap_values));
+    malloc(init_data->monitor_total_size * sizeof(*monitor_data->shared_buffer->scrap_values));
   size_t most_recent_function = 0;
   size_t function_proposed_to_kernel = 0;
   size_t function_used_by_kernel = functions->total_functions - 1;
@@ -432,9 +464,11 @@ static void acr_kernel_stencil(
           sizeof(*functions->value[i].monitor_untouched));
   }
 
-  acr_get_most_recent_monitor_result(&valid_monitor_result,
-                                     &invalid_monitor_result,
-                                     monitor_data);
+  do {
+    acr_get_most_recent_monitor_result(&valid_monitor_result,
+                                      &invalid_monitor_result,
+                                      monitor_data);
+  } while (valid_monitor_result == NULL);
 
   pthread_mutex_lock(&cloog_thread_data->mutex);
   acr_cloog_compilation(&valid_monitor_result,
@@ -448,19 +482,27 @@ static void acr_kernel_stencil(
 
   enum acr_avaliable_function_type most_recent_function_type;
 
+  bool monitor_still_valid = false;
   while (init_data->monitor_thread_continue) {
+    bool validity, required_compilation;
 
     acr_get_most_recent_monitor_result(&valid_monitor_result,
                                        &invalid_monitor_result,
                                        monitor_data);
 
-    bool validity, required_compilation;
-    acr_verify_2dstencil(
-        init_data->monitor_dim_max,
-        functions->function_priority[most_recent_function]->monitor_untouched,
-        valid_monitor_result,
-        functions->function_priority[most_recent_function]->monitor_result,
-        maximized_version, &required_compilation, &validity);
+    if (valid_monitor_result == NULL) {
+      valid_monitor_result = invalid_monitor_result;
+      invalid_monitor_result = NULL;
+      monitor_still_valid = true;
+    } else {
+      monitor_still_valid = false;
+      acr_verify_2dstencil(
+          init_data->monitor_dim_max,
+          functions->function_priority[most_recent_function]->monitor_untouched,
+          valid_monitor_result,
+          functions->function_priority[most_recent_function]->monitor_result,
+          maximized_version, &required_compilation, &validity);
+    }
 
     if (validity) {
 
@@ -485,20 +527,23 @@ static void acr_kernel_stencil(
             compile_threads_data);
       }
 
-      if (required_compilation) {
+      if (!monitor_still_valid && required_compilation) {
+        function_used_by_kernel_type = acr_kernel_function_initial;
         goto recompilation;
       }
 
       invalid_monitor_result = valid_monitor_result;
       valid_monitor_result = NULL;
     } else { // Version no more suitable
+      if (monitor_still_valid) {
+        invalid_monitor_result = valid_monitor_result;
+        valid_monitor_result = NULL;
+        continue;
+      }
 
       discard_kernel_function(init_data, &function_used_by_kernel_type);
 
-      if (0) {
 recompilation:
-        function_used_by_kernel_type = acr_kernel_function_initial;
-      }
       most_recent_function_type = acr_function_empty;
 
       pthread_mutex_lock(&cloog_thread_data->mutex);
@@ -551,18 +596,20 @@ static void acr_kernel_versioning(
 
   unsigned char *valid_monitor_result = NULL;
   unsigned char *invalid_monitor_result =
-    malloc(init_data->monitor_total_size * sizeof(*monitor_data->scrap_values));
+    malloc(init_data->monitor_total_size * sizeof(*monitor_data->shared_buffer->scrap_values));
   unsigned char *maximized_version =
-    malloc(init_data->monitor_total_size * sizeof(*monitor_data->scrap_values));
+    malloc(init_data->monitor_total_size * sizeof(*monitor_data->shared_buffer->scrap_values));
   size_t most_recent_function = 0;
   size_t function_proposed_to_kernel = 0;
   size_t function_used_by_kernel = functions->total_functions - 1;
   enum acr_kernel_function_type function_used_by_kernel_type =
     acr_kernel_function_initial;
 
-  acr_get_most_recent_monitor_result(&valid_monitor_result,
-                                     &invalid_monitor_result,
-                                     monitor_data);
+  do {
+    acr_get_most_recent_monitor_result(&valid_monitor_result,
+                                      &invalid_monitor_result,
+                                      monitor_data);
+  } while (valid_monitor_result == NULL);
 
   pthread_mutex_lock(&cloog_thread_data->mutex);
   acr_cloog_compilation(&valid_monitor_result,
@@ -575,7 +622,7 @@ static void acr_kernel_versioning(
   size_t total_version_update = 0;
 
   enum acr_avaliable_function_type most_recent_function_type;
-
+  bool is_monitor_still_accurate;
   while (init_data->monitor_thread_continue) {
 
     acr_get_most_recent_monitor_result(&valid_monitor_result,
@@ -584,10 +631,17 @@ static void acr_kernel_versioning(
 
     bool validity;
     double delta;
-    acr_verify_versioning(init_data->monitor_total_size,
-        functions->function_priority[most_recent_function]->monitor_result,
-        valid_monitor_result, maximized_version, init_data->num_alternatives,
-        &delta, &validity);
+    if (valid_monitor_result == NULL) {
+      valid_monitor_result = invalid_monitor_result;
+      invalid_monitor_result = NULL;
+      is_monitor_still_accurate = true;
+    } else {
+      is_monitor_still_accurate = false;
+      acr_verify_versioning(init_data->monitor_total_size,
+          functions->function_priority[most_recent_function]->monitor_result,
+          valid_monitor_result, maximized_version, init_data->num_alternatives,
+          &delta, &validity);
+    }
 
     if (validity) {
 
@@ -615,6 +669,11 @@ static void acr_kernel_versioning(
       invalid_monitor_result = valid_monitor_result;
       valid_monitor_result = NULL;
     } else { // Version no more suitable
+      if (is_monitor_still_accurate) {
+        invalid_monitor_result = valid_monitor_result;
+        valid_monitor_result = NULL;
+        continue;
+      }
 
       discard_kernel_function(init_data, &function_used_by_kernel_type);
       most_recent_function_type = acr_function_empty;
@@ -673,15 +732,17 @@ static void acr_kernel_simple(
 
   unsigned char *valid_monitor_result = NULL;
   unsigned char *invalid_monitor_result =
-    malloc(init_data->monitor_total_size * sizeof(*monitor_data->scrap_values));
+    malloc(init_data->monitor_total_size * sizeof(*monitor_data->shared_buffer->scrap_values));
   size_t most_recent_function = 0;
   size_t function_used_by_kernel = functions->total_functions - 1;
   enum acr_kernel_function_type function_used_by_kernel_type =
     acr_kernel_function_initial;
 
-  acr_get_most_recent_monitor_result(&valid_monitor_result,
-                                     &invalid_monitor_result,
-                                     monitor_data);
+  do {
+    acr_get_most_recent_monitor_result(&valid_monitor_result,
+                                      &invalid_monitor_result,
+                                      monitor_data);
+  } while (valid_monitor_result == NULL);
 
   pthread_mutex_lock(&cloog_thread_data->mutex);
   acr_cloog_compilation(&valid_monitor_result,
@@ -690,16 +751,27 @@ static void acr_kernel_simple(
                               functions,
                               cloog_thread_data);
 
+  bool is_monitor_still_accurate;
   while (init_data->monitor_thread_continue) {
 
     acr_get_most_recent_monitor_result(&valid_monitor_result,
                                        &invalid_monitor_result,
                                        monitor_data);
 
-    // Test current function validity
-    if (acr_verify_me(init_data->monitor_total_size,
+    bool validity;
+    if (valid_monitor_result == NULL) {
+      valid_monitor_result = invalid_monitor_result;
+      invalid_monitor_result = NULL;
+      is_monitor_still_accurate = true;
+    } else {
+      is_monitor_still_accurate = false;
+      validity = acr_verify_me(init_data->monitor_total_size,
           functions->function_priority[most_recent_function]->monitor_result,
-          valid_monitor_result)) { // Valid function
+          valid_monitor_result);
+    }
+
+    // Test current function validity
+    if (validity) { // Valid function
 
       if (function_used_by_kernel != most_recent_function ||
           function_used_by_kernel_type != acr_kernel_function_using_cc) {
@@ -724,6 +796,11 @@ static void acr_kernel_simple(
       invalid_monitor_result = valid_monitor_result;
       valid_monitor_result = NULL;
     } else {
+      if (is_monitor_still_accurate) {
+        invalid_monitor_result = valid_monitor_result;
+        valid_monitor_result = NULL;
+        continue;
+      }
 
       discard_kernel_function(init_data, &function_used_by_kernel_type);
 
@@ -760,6 +837,10 @@ static void acr_kernel_simple(
         acr_get_most_recent_monitor_result(&valid_monitor_result,
             &invalid_monitor_result,
             monitor_data);
+        if (valid_monitor_result == NULL) {
+          valid_monitor_result = invalid_monitor_result;
+          invalid_monitor_result = NULL;
+        }
       }
 
       acr_cloog_compilation(&valid_monitor_result,
@@ -804,9 +885,14 @@ void* acr_verification_and_coordinator_function(void *in_data) {
 
   // Monitoring thread
   pthread_t monitoring_thread;
-  struct acr_monitoring_computation monitor_data = {
-    .monitoring_function = init_data->monitoring_function,
+  struct acr_monitoring_shared shared_monitor_data = {
     .current_valid_computation = NULL,
+    .scrap_values = NULL,
+  };
+  struct acr_monitoring_computation monitor_data = {
+    .kernel_info = init_data->kernel_info,
+    .monitoring_function = init_data->monitoring_function,
+    .shared_buffer = &shared_monitor_data,
     .monitor_result_size = monitor_total_size,
     .end_yourself = false,
 #ifdef ACR_STATS_ENABLED
@@ -814,9 +900,9 @@ void* acr_verification_and_coordinator_function(void *in_data) {
     .total_time = 0.,
 #endif
   };
-  pthread_spin_init(&monitor_data.spinlock, PTHREAD_PROCESS_PRIVATE);
-  monitor_data.scrap_values =
-    malloc(monitor_total_size * sizeof(*monitor_data.scrap_values));
+  pthread_spin_init(&monitor_data.shared_buffer->spinlock, PTHREAD_PROCESS_PRIVATE);
+  monitor_data.shared_buffer->scrap_values =
+    malloc(monitor_total_size * sizeof(*monitor_data.shared_buffer->scrap_values));
   pthread_create(&monitoring_thread, NULL, acr_runtime_monitoring_function,
       (void*) &monitor_data);
 
@@ -918,11 +1004,11 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   pthread_cond_destroy(&cloog_thread_data.coordinator_sleep);
 
   // Quit monitoring thread
-  pthread_spin_lock(&monitor_data.spinlock);
+  lock_monitor(&monitor_data);
   monitor_data.end_yourself = true;
-  pthread_spin_unlock(&monitor_data.spinlock);
+  unlock_monitor(&monitor_data);
   pthread_join(monitoring_thread, NULL);
-  pthread_spin_destroy(&monitor_data.spinlock);
+  pthread_spin_destroy(&monitor_data.shared_buffer->spinlock);
   free(cloog_threads);
 
   // Clean all
@@ -1266,9 +1352,13 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
 
   // Monitoring thread
   pthread_t monitoring_thread;
+  struct acr_monitoring_shared shared_monitor_data = {
+    .current_valid_computation = NULL,
+    .scrap_values = NULL,
+  };
   struct acr_monitoring_computation monitor_data = {
     .monitoring_function = rdata->monitoring_function,
-    .current_valid_computation = NULL,
+    .shared_buffer = &shared_monitor_data,
     .monitor_result_size = rdata->monitor_total_size,
     .end_yourself = false,
 #ifdef ACR_STATS_ENABLED
@@ -1277,9 +1367,9 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
 #endif
   };
 
-  pthread_spin_init(&monitor_data.spinlock, PTHREAD_PROCESS_PRIVATE);
-  monitor_data.scrap_values =
-    malloc(rdata->monitor_total_size * sizeof(*monitor_data.scrap_values));
+  pthread_spin_init(&monitor_data.shared_buffer->spinlock, PTHREAD_PROCESS_PRIVATE);
+  monitor_data.shared_buffer->scrap_values =
+    malloc(rdata->monitor_total_size * sizeof(*monitor_data.shared_buffer->scrap_values));
   pthread_create(&monitoring_thread, NULL, acr_runtime_monitoring_function,
       (void*) &monitor_data);
 
@@ -1291,13 +1381,13 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
 
   while (rdata->monitor_thread_continue && current_element != NULL) {
     while (valid_monitor_result == NULL) {
-      pthread_spin_lock(&monitor_data.spinlock);
-      if (monitor_data.current_valid_computation) {
-        valid_monitor_result = monitor_data.current_valid_computation;
-        monitor_data.current_valid_computation = NULL;
-        monitor_data.scrap_values = invalid_monitor_result;
+      lock_monitor(&monitor_data);
+      if (monitor_data.shared_buffer->current_valid_computation) {
+        valid_monitor_result = monitor_data.shared_buffer->current_valid_computation;
+        monitor_data.shared_buffer->current_valid_computation = NULL;
+        monitor_data.shared_buffer->scrap_values = invalid_monitor_result;
       }
-      pthread_spin_unlock(&monitor_data.spinlock);
+      unlock_monitor(&monitor_data);
     }
     if (acr_verify_me(rdata->monitor_total_size,
           current_element->element.monitor_result,
@@ -1306,13 +1396,12 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
       pthread_spin_lock(&rdata->alternative_lock);
       rdata->alternative_function =
         current_element->element.function;
-      rdata->alternative_still_usable =
-        rdata->usability_inital_value;
+      rdata->alternative_still_usable = true;
       rdata->current_monitoring_data = current_element->element.monitor_result;
       pthread_spin_unlock(&rdata->alternative_lock);
     } else {
       pthread_spin_lock(&rdata->alternative_lock);
-      rdata->alternative_still_usable = 0;
+      rdata->alternative_still_usable = false;
       pthread_spin_unlock(&rdata->alternative_lock);
       rdata->current_monitoring_data = NULL;
       current_element = current_element->next;
@@ -1321,9 +1410,9 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
     valid_monitor_result = NULL;
   }
 
-  pthread_spin_lock(&monitor_data.spinlock);
+  lock_monitor(&monitor_data);
   monitor_data.end_yourself = true;
-  pthread_spin_unlock(&monitor_data.spinlock);
+  unlock_monitor(&monitor_data);
 
   pthread_join(monitoring_thread, NULL);
   free(invalid_monitor_result);

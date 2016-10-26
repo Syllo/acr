@@ -26,7 +26,8 @@ void acr_print_stats(
     const struct acr_simulation_time_stats *sim_stats,
     const struct acr_threads_time_stats *thread_stats,
     size_t num_gen_threads,
-    size_t num_compile_threads) {
+    size_t num_compile_threads,
+    double mean_step_time) {
   double simulation_step_time =
     sim_stats->total_time / (double) sim_stats->num_simmulation_step;
   double monitor_mean_time =
@@ -65,7 +66,8 @@ void acr_print_stats(
       "%29s: %fs\n\n"
       "%29s: %fs\n"
       "%29s: %zu\n"
-      "%29s: %fs\n\n"
+      "%29s: %fs\n"
+      "%29s: %f\n\n"
       "%29s: %fs\n"
       "%29s: %zu\n"
       "%29s: %fs\n\n"
@@ -99,6 +101,8 @@ void acr_print_stats(
       sim_stats->num_simmulation_step,
       "Mean time of kernel",
       simulation_step_time,
+      "Mean step time",
+      mean_step_time,
       "Total monitoring time",
       thread_stats->total_time[acr_thread_time_monitor],
       "Total monitoring loops",
@@ -145,6 +149,7 @@ void acr_print_stats(
       cc_proportion_of_total*100,
       "% of TCC time",
       tcc_proportion_of_total*100);
+
 }
 
 #endif

@@ -31,33 +31,8 @@
 #ifndef __ACR_TIME_H
 #define __ACR_TIME_H
 
-#if _OPENMP
-#include <omp.h>
-
-/** \brief The time type used by acr */
-typedef double acr_time;
-
-/**
- * \brief Get the current time
- * \param[out] time The object to initialize with the current time
- */
-static inline void acr_get_current_time(acr_time *time) {
-  *time = omp_get_wtime();
-}
-
-/**
- * \brief Get the difference in seconds between two times
- * \param[in] t0 A time mesurement
- * \param[in] t1 A time mesurement
- * \return The difference between the two times in seconds
- * \pre t0 must have been mesured **befor** t1
- */
-static inline double acr_difftime(acr_time t0, acr_time t1) {
-  return t1 - t0;
-}
-
-#else // _OPENMP
 #include <time.h>
+#include <stdbool.h>
 
 #ifdef CLOCK_MONOTONIC_RAW
 /** \brief Linux specific clock that does not change with ntp and adjtime */
@@ -78,6 +53,10 @@ static inline void acr_get_current_time(acr_time *time) {
   clock_gettime(ACR_CLOCK, time);
 }
 
+static inline double acr_time_to_double(acr_time time) {
+  return (double) time.tv_sec + (double) time.tv_nsec / 1e9;
+}
+
 /**
  * \brief Get the difference in seconds between two times
  * \param[in] t0 A time measurement
@@ -86,18 +65,47 @@ static inline void acr_get_current_time(acr_time *time) {
  * \pre t0 must have been measured **before** t1
  */
 static inline double acr_difftime(acr_time t0, acr_time t1) {
-  double secdiff = difftime(t1.tv_sec, t0.tv_sec);
+  double secdiff = (double) (t1.tv_sec - t0.tv_sec);
+  long val = t1.tv_nsec - t0.tv_nsec;
   if (t1.tv_nsec < t0.tv_nsec) {
-    long val = 1000000000l - t0.tv_nsec + t1.tv_nsec;
-    secdiff += (double)val / 1e9 - 1.;
-  } else {
-    long val = t1.tv_nsec - t0.tv_nsec;
-    secdiff += (double)val / 1e9;
+    val += 1000000000l;
+    secdiff -= 1.;
   }
+  secdiff += (double)val / 1e9;
   return secdiff;
 }
 
-#endif // _OPENMP
+/**
+ * \brief Get the difference in struct timespec between two times
+ * \param[in] t0 A time measurement
+ * \param[in] t1 A time measurement
+ * \return The difference between the two times in timespec style
+ * \pre t0 must have been measured **before** t1
+ */
+static inline struct timespec acr_difftime_tspec(acr_time t0, acr_time t1) {
+  struct timespec t2;
+  if (t1.tv_nsec < t0.tv_nsec) {
+    t2.tv_sec = -1;
+    t2.tv_nsec = 1000000000;
+  } else {
+    t2.tv_sec = 0;
+    t2.tv_nsec = 0;
+  }
+  t2.tv_nsec += t1.tv_nsec - t0.tv_nsec;
+  t2.tv_sec += t1.tv_sec - t0.tv_sec;
+  return t2;
+}
+
+/**
+ * \brief Test if a time happens befor an other
+ * \param[in] t0 A time measurement
+ * \param[in] t1 A time measurement
+ * \retval true if t0 happens befor t1
+ * \retval false otherwise
+ */
+static inline bool acr_time_is_lower(struct timespec t0, struct timespec t1) {
+  return t0.tv_sec < t1.tv_sec || t0.tv_nsec < t1.tv_nsec;
+}
 
 #endif // __ACR_TIME_H
 
