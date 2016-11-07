@@ -74,7 +74,8 @@ static void perf_new_compilation(struct acr_runtime_perf *perf,
   free(generation_buffer);
   fclose(bodystream);
   FILE *memstring = open_memstream(&generated_function, &generated_function_size);
-  fprintf(memstring, "void acr_function%s {\n%s}\n",
+  fprintf(memstring,  "#include <acr_required_definitions.h>\n"
+      "void acr_function%s {\n%s}\n",
       perf->rdata->function_prototype, body);
   fclose(memstring);
 

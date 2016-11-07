@@ -1103,7 +1103,7 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
 #endif
 
     fseek(stream, 0l, SEEK_SET);
-    fprintf(stream, //"#include \"acr_required_definitions.h\"\n"
+    fprintf(stream, "#include \"acr_required_definitions.h\"\n"
         "void acr_alternative_function%s {\n",
         input_data->rdata->function_prototype);
     acr_cloog_generate_alternative_code_from_input(stream, input_data->rdata,
