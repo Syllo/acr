@@ -96,6 +96,32 @@ void acr_code_generation_generate_tiling_library(
     struct acr_runtime_data_static *static_data,
     char **tiles_functions);
 
+/**
+ * \brief Take a domain union and apply a tiling on. IT starts at a given
+ * dimension and do a tiling for the given nth underneath
+ * \param[in] tiling_size The size of each tile
+ * \param[in] dimension_start_tiling The first dimension to start tiling
+ * \param[in] num_dimensions_to_tile The number of dimension to tile
+ * \param[in,out] ud The union domain to tile
+ */
+void acr_runtime_apply_tiling(
+    size_t tiling_size,
+    size_t dimension_start_tiling,
+    size_t num_dimensions_to_tile,
+    CloogUnionDomain *ud);
+
+void acr_runtime_apply_reduction_function(
+    CloogDomain *context,
+    CloogUnionDomain const *ud,
+    size_t first_monitor_dimension,
+    size_t number_of_monitoring_dimensions,
+    CloogUnionDomain **new_ud,
+    CloogDomain **new_context,
+    osl_scop_p *new_scop,
+    const char *const scan_corpse,
+    char const*const iterators[],
+    bool keep_parameters);
+
 #endif // __ACR_RUNTIME_CODE_GENERATION_H
 
 /**

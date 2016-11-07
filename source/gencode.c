@@ -22,6 +22,7 @@
 #include <limits.h>
 #include <string.h>
 
+#include <acr/acr_runtime_code_generation.h>
 #include <clan/scop.h>
 #include <cloog/cloog.h>
 #include <cloog/isl/domain.h>
@@ -782,19 +783,32 @@ static char* acr_static_scan_code_corpse(const acr_option monitor) {
   return retbuffer;
 }
 
-static void acr_print_static_monitor_ids(FILE *out,
-    const acr_option monitor) {
+static const char** acr_get_monitor_id_list(const acr_option monitor) {
   acr_array_declaration *arr_decl = acr_monitor_get_array_declaration(monitor);
   size_t num_dims = acr_array_decl_get_num_dimensions(arr_decl);
   acr_array_dimensions_list adl = acr_array_decl_get_dimensions_list(arr_decl);
-
-  fprintf(out, "  .iterators = (char const*const[]){\n");
+  char const**const identifiers_id = malloc((num_dims + 1) * sizeof(*identifiers_id));
   for (size_t i = 0; i < num_dims; ++i) {
     char const*const identifier = acr_array_dimension_get_identifier(adl[i]);
-    fprintf(out, "    [%zu] = \"%s\",\n", i, identifier);
+    identifiers_id[i] = identifier;
   }
-  fprintf(out, "    [%zu] = NULL,\n },\n", num_dims);
+  identifiers_id[num_dims] = NULL;
+  return identifiers_id;
 }
+
+static void acr_print_static_monitor_ids(FILE *out,
+    const acr_option monitor) {
+  const char**const identifier_list = acr_get_monitor_id_list(monitor);
+  fprintf(out, "  .iterators = (char const*const[]){\n");
+  size_t identifier_num = 0;
+  while (identifier_list[identifier_num] != NULL) {
+    fprintf(out, "    [%zu] = \"%s\",\n", identifier_num,
+        identifier_list[identifier_num]);
+  }
+  fprintf(out, "    [%zu] = NULL,\n },\n", identifier_num);
+  free(identifier_list);
+}
+
 #include <errno.h>
 static void acr_print_static_function_parameters(FILE *out,
                                                  const acr_compute_node node) {
@@ -1427,21 +1441,50 @@ static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
       break;
   }
 
+  osl_scop_free(new_scop);
+
+
   CloogState *cloog_state = cloog_state_malloc();
-  CloogInput *cloog_input = cloog_input_from_osl_scop(cloog_state, new_scop);
+  CloogInput *cloog_input = cloog_input_from_osl_scop(cloog_state, scop);
+
+  size_t first_monitor_dimension, num_monitor_dims;
+  acr_openscop_get_monitoring_position_and_num(
+      node, scop, &first_monitor_dimension, &num_monitor_dims);
+
+  acr_runtime_apply_tiling(grid_size, first_monitor_dimension, num_monitor_dims, cloog_input->ud);
+
+  const char **const identifiers_id = acr_get_monitor_id_list(monitor);
+
+  CloogUnionDomain *new_ud;
+  CloogDomain *new_context;
+  acr_runtime_apply_reduction_function(
+      cloog_input->context, cloog_input->ud,
+      first_monitor_dimension, num_monitor_dims,
+      &new_ud, &new_context, &new_scop,
+      "\n// Mystatement\n", identifiers_id, true);
+
+  free(identifiers_id);
+
+  new_ud->n_name[CLOOG_PARAM] = cloog_input->ud->n_name[CLOOG_PARAM];
+  new_ud->name[CLOOG_PARAM] = cloog_input->ud->name[CLOOG_PARAM];
+  cloog_input->ud->n_name[CLOOG_PARAM] = 0;
+  cloog_input->ud->name[CLOOG_PARAM] = NULL;
+
   CloogOptions *cloog_option = cloog_options_malloc(cloog_state);
   cloog_option->quiet = 1;
   cloog_option->openscop = 1;
   cloog_option->scop = new_scop;
   cloog_option->otl = 1;
   cloog_option->language = 0;
-  CloogProgram *cloog_program = cloog_program_alloc(cloog_input->context,
-      cloog_input->ud, cloog_option);
+  CloogProgram *cloog_program = cloog_program_alloc(new_context,
+      new_ud, cloog_option);
   cloog_program = cloog_program_generate(cloog_program, cloog_option);
 
   cloog_program_pprint(out, cloog_program, cloog_option);
   fprintf(out, "}\n");
 
+  cloog_union_domain_free(cloog_input->ud);
+  cloog_domain_free(cloog_input->context);
   cloog_program_free(cloog_program);
   cloog_state_free(cloog_state);
   cloog_options_free(cloog_option);

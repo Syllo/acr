@@ -296,7 +296,7 @@ void acr_cloog_get_rid_of_parameter_static(
   }
 }
 
-static void acr_runtime_apply_tiling(
+void acr_runtime_apply_tiling(
     size_t tiling_size,
     size_t dimension_start_tiling,
     size_t num_dimensions_to_tile,
@@ -366,7 +366,7 @@ static void acr_runtime_apply_tiling(
   }
 }
 
-static void acr_runtime_apply_reduction_function(
+void acr_runtime_apply_reduction_function(
     CloogDomain *context,
     CloogUnionDomain const *ud,
     size_t first_monitor_dimension,
@@ -375,7 +375,8 @@ static void acr_runtime_apply_reduction_function(
     CloogDomain **new_context,
     osl_scop_p *new_scop,
     const char *const scan_corpse,
-    char const*const iterators[]) {
+    char const*const iterators[],
+    bool keep_parameters) {
 
   isl_set *context_isl = isl_set_copy(isl_set_from_cloog_domain(context));
 
@@ -424,11 +425,13 @@ static void acr_runtime_apply_reduction_function(
   }
   isl_val_free(one);
 
-  domain = isl_set_project_out(domain, isl_dim_param, 0,
-      isl_set_n_param(domain));
-  scatt = isl_map_project_out(scatt, isl_dim_param, 0, isl_map_n_param(scatt));
-  context_isl = isl_set_project_out(context_isl, isl_dim_param, 0,
-      isl_set_n_param(context_isl));
+  if (!keep_parameters) {
+    domain = isl_set_project_out(domain, isl_dim_param, 0,
+        isl_set_n_param(domain));
+    scatt = isl_map_project_out(scatt, isl_dim_param, 0, isl_map_n_param(scatt));
+    context_isl = isl_set_project_out(context_isl, isl_dim_param, 0,
+        isl_set_n_param(context_isl));
+  }
 
   *new_ud = cloog_union_domain_add_domain(*new_ud,
       NULL, cloog_domain_from_isl_set(domain),
@@ -781,7 +784,7 @@ void acr_code_generation_generate_tiling_library(
       static_data->first_monitor_dimension,
       static_data->num_monitor_dimensions,
       &scan_ud, &scan_context, &new_scop,
-      static_data->scan_corpse, static_data->iterators);
+      static_data->scan_corpse, static_data->iterators, NULL);
 
   CloogOptions *cloog_option = cloog_options_malloc(static_data->state);
   cloog_option->quiet = 1;
