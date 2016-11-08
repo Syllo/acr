@@ -784,7 +784,7 @@ void acr_code_generation_generate_tiling_library(
       static_data->first_monitor_dimension,
       static_data->num_monitor_dimensions,
       &scan_ud, &scan_context, &new_scop,
-      static_data->scan_corpse, static_data->iterators, NULL);
+      static_data->scan_corpse, static_data->iterators, false);
 
   CloogOptions *cloog_option = cloog_options_malloc(static_data->state);
   cloog_option->quiet = 1;

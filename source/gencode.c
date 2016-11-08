@@ -804,6 +804,7 @@ static void acr_print_static_monitor_ids(FILE *out,
   while (identifier_list[identifier_num] != NULL) {
     fprintf(out, "    [%zu] = \"%s\",\n", identifier_num,
         identifier_list[identifier_num]);
+    identifier_num += 1;
   }
   fprintf(out, "    [%zu] = NULL,\n },\n", identifier_num);
   free(identifier_list);
@@ -1398,6 +1399,202 @@ static void acr_print_destroy(FILE* out, const char *prefix,
   }
 }
 
+static void print_monitor_array_access(
+    FILE *out,
+    const char *array_name,
+    size_t num_monitor_dims) {
+  fprintf(out, "%s[", array_name);
+  for(size_t current_dim = 0; current_dim < num_monitor_dims; ++current_dim) {
+    if (current_dim)
+      fprintf(out, " + ");
+    fprintf(out, "(c%zu", current_dim * 2 + 2);
+    for(size_t j = current_dim + 1; j < num_monitor_dims; ++j) {
+      fprintf(out, " * __acr_monitor_dim_%zu", j);
+    }
+    fprintf(out, ")");
+  }
+  fprintf(out, "]");
+}
+
+static void print_array_access_function(
+    FILE *out,
+    const char *array_name,
+    const char *filter_name,
+    acr_array_declaration *arr_decl) {
+
+  size_t num_dims = acr_array_decl_get_num_dimensions(arr_decl);
+  if (filter_name)
+    fprintf(out, "%s(%s", filter_name, array_name);
+  else
+    fprintf(out, "%s", array_name);
+  acr_array_dimensions_list dim_list = acr_array_decl_get_dimensions_list(arr_decl);
+  for(size_t i = 0; i < num_dims; ++i) {
+    const char *dim_name = acr_array_dimension_get_identifier(dim_list[i]);
+      fprintf(out, "[%s]", dim_name);
+  }
+  if (filter_name)
+    fprintf(out, ")");
+}
+
+struct monitoring_statement{
+  char *main_statement;
+  char *init_statement;
+  char *end_statement;
+};
+
+static struct monitoring_statement get_main_statements(
+    enum acr_monitor_processing_funtion processing_function,
+    const char *monitor_array_name,
+    const acr_option monitor,
+    size_t num_monitor_dims) {
+  bool is_max;
+  acr_array_declaration *arr_decl =  acr_monitor_get_array_declaration(monitor);
+  const char* array_name = acr_array_decl_get_array_name(arr_decl);
+  const char* filter = acr_monitor_get_filter_name(monitor);
+
+  char *buffer1, *buffer2, *buffer3;
+  size_t size_buffer1, size_buffer2, size_buffer3;
+  FILE *temp_buffer1, *temp_buffer2, *temp_buffer3;
+  temp_buffer1 = open_memstream(&buffer1, &size_buffer1);
+  temp_buffer2 = open_memstream(&buffer2, &size_buffer2);
+
+  struct monitoring_statement monstate;
+  switch(processing_function) {
+
+    case acr_monitor_function_max:
+    case acr_monitor_function_min:
+      print_monitor_array_access(temp_buffer1, monitor_array_name, num_monitor_dims);
+      fprintf(temp_buffer1, " = ");
+      print_monitor_array_access(temp_buffer1, monitor_array_name, num_monitor_dims);
+      if (processing_function == acr_monitor_function_max) {
+        fprintf(temp_buffer1, " > ");
+      } else {
+        fprintf(temp_buffer1, " < ");
+      }
+      print_array_access_function(temp_buffer1, array_name, filter, arr_decl);
+      fprintf(temp_buffer1, " ? ");
+      print_monitor_array_access(temp_buffer1, monitor_array_name, num_monitor_dims);
+      fprintf(temp_buffer1, " : ");
+      print_array_access_function(temp_buffer1, array_name, filter, arr_decl);
+      fprintf(temp_buffer1, ";");
+      print_monitor_array_access(temp_buffer2, monitor_array_name, num_monitor_dims);
+      fprintf(temp_buffer2, " = ");
+      print_array_access_function(temp_buffer2, array_name, filter, arr_decl);
+      fprintf(temp_buffer2, ";");
+      break;
+
+    case acr_monitor_function_avg:
+      temp_buffer3 = open_memstream(&buffer3, &size_buffer3);
+      fprintf(temp_buffer1, "__acr_tmp_avg += ");
+      print_array_access_function(temp_buffer1, array_name, filter, arr_decl);
+      fprintf(temp_buffer1, "; __acr_num_values += 1;");
+      fprintf(temp_buffer2, "__acr_tmp_avg = 0; "
+                            "__acr_num_values = 0;");
+      print_monitor_array_access(temp_buffer3, monitor_array_name, num_monitor_dims);
+      fprintf(temp_buffer3, " = __acr_tmp_avg / __acr_num_values;");
+      fclose(temp_buffer3);
+      monstate.end_statement = buffer3;
+      break;
+    case acr_monitor_function_unknown:
+      break;
+  }
+  fclose(temp_buffer1);
+  monstate.main_statement = buffer1;
+  fclose(temp_buffer2);
+  monstate.init_statement = buffer2;
+
+  return monstate;
+}
+
+static void acr_set_dimensions_to_equality(
+    size_t dim_num,
+    size_t dim2_num,
+    size_t multiplier,
+    isl_map **map) {
+  isl_val *constval = isl_val_int_from_ui(isl_map_get_ctx(*map), multiplier);
+  isl_space *myspace = isl_map_get_space(*map);
+  isl_constraint *c =
+    isl_constraint_alloc_equality(isl_local_space_from_space(myspace));
+  c = isl_constraint_set_coefficient_val(c, isl_dim_out, dim_num, constval);
+  c = isl_constraint_set_coefficient_si(c, isl_dim_out, dim2_num, -1);
+  *map = isl_map_add_constraint(*map, c);
+}
+
+static void acr_set_dimension_to_value(
+    size_t dim_num,
+    size_t value,
+    isl_map **map) {
+  isl_val *constval = isl_val_int_from_ui(isl_map_get_ctx(*map), value);
+  isl_space *myspace = isl_map_get_space(*map);
+  isl_constraint *c =
+    isl_constraint_alloc_equality(isl_local_space_from_space(myspace));
+  c = isl_constraint_set_constant_val(c, constval);
+  c = isl_constraint_set_coefficient_si(c, isl_dim_out, dim_num, -1);
+  *map = isl_map_drop_constraints_involving_dims(*map, isl_dim_out, dim_num, 1);
+  *map = isl_map_add_constraint(*map, c);
+}
+
+static void acr_modify_main_statement_for_test_type(
+    size_t tiling_size,
+    size_t num_monitor_dims,
+    enum acr_monitor_processing_funtion processing_function,
+    struct monitoring_statement mon_statements,
+    osl_scop_p scop,
+    CloogUnionDomain **ud) {
+  osl_body_p initial_body =
+    osl_generic_lookup(scop->statement->extension, OSL_URI_BODY);
+  if (!initial_body) {
+    fprintf(stderr, "No body in original scop\n");
+    exit(1);
+  }
+  osl_statement_p new_statement = osl_statement_malloc();
+  osl_strings_p corpse = osl_strings_malloc();
+  osl_strings_add(corpse, mon_statements.init_statement);
+  osl_body_p body = osl_body_malloc();
+  body->iterators = osl_strings_clone(initial_body->iterators);
+  body->expression = corpse;
+  osl_generic_add(&new_statement->extension, osl_generic_shell(body, osl_body_interface()));
+  osl_statement_add(&scop->statement, new_statement);
+
+  isl_set *copied_domain =
+    isl_set_copy((isl_set*) (*ud)->domain->domain);
+  isl_map *copied_scattering =
+    isl_map_copy((isl_map*) (*ud)->domain->scattering);
+  for (size_t i = 0; i < num_monitor_dims; ++i) {
+    acr_set_dimensions_to_equality(
+        i*2+1,
+        i*2+1+num_monitor_dims*2,
+        tiling_size, &copied_scattering);
+  }
+  acr_set_dimension_to_value(num_monitor_dims * 2, 0, &copied_scattering);
+  acr_set_dimension_to_value(num_monitor_dims * 2, 1,
+      (isl_map**) &(*ud)->domain->scattering);
+  *ud = cloog_union_domain_add_domain(*ud, NULL, (CloogDomain*) copied_domain, (CloogScattering*) copied_scattering, NULL);
+
+  if (processing_function == acr_monitor_function_avg) {
+    copied_domain =
+      isl_set_copy((isl_set*) (*ud)->domain->domain);
+    copied_scattering =
+      isl_map_copy((isl_map*) (*ud)->domain->scattering);
+    for (size_t i = 0; i < num_monitor_dims; ++i) {
+      acr_set_dimensions_to_equality(
+          i*2+1,
+          i*2+1+num_monitor_dims*2,
+          tiling_size, &copied_scattering);
+    }
+    acr_set_dimension_to_value(num_monitor_dims * 2, 2, &copied_scattering);
+    *ud = cloog_union_domain_add_domain(*ud, NULL, (CloogDomain*) copied_domain, (CloogScattering*) copied_scattering, NULL);
+    new_statement = osl_statement_malloc();
+    corpse = osl_strings_malloc();
+    osl_strings_add(corpse, mon_statements.end_statement);
+    body = osl_body_malloc();
+    body->iterators = osl_strings_clone(initial_body->iterators);
+    body->expression = corpse;
+    osl_generic_add(&new_statement->extension, osl_generic_shell(body, osl_body_interface()));
+    osl_statement_add(&scop->statement, new_statement);
+  }
+}
+
 static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     osl_scop_p scop,
     const dimensions_upper_lower_bounds_all_statements *dims,
@@ -1435,14 +1632,13 @@ static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
     case acr_monitor_function_max:
       break;
     case acr_monitor_function_avg:
-      fprintf(out, "size_t temp_avg, num_value;\n");
+      fprintf(out, "size_t __acr_tmp_avg, __acr_num_values;\n");
       break;
     case acr_monitor_function_unknown:
       break;
   }
 
   osl_scop_free(new_scop);
-
 
   CloogState *cloog_state = cloog_state_malloc();
   CloogInput *cloog_input = cloog_input_from_osl_scop(cloog_state, scop);
@@ -1455,15 +1651,35 @@ static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
 
   const char **const identifiers_id = acr_get_monitor_id_list(monitor);
 
+  for (size_t i = 0; i < num_monitor_dims; ++i) {
+    fprintf(out,
+        "size_t __acr_monitor_dim_%zu = %s_runtime_data.monitor_dim_max[%zu];\n"
+        , i, prefix, i);
+  }
+
+  struct monitoring_statement mon_statements =
+    get_main_statements(
+        acr_monitor_get_function(monitor),
+        "monitor_result",
+        monitor,
+        num_monitor_dims);
+
   CloogUnionDomain *new_ud;
   CloogDomain *new_context;
   acr_runtime_apply_reduction_function(
       cloog_input->context, cloog_input->ud,
       first_monitor_dimension, num_monitor_dims,
       &new_ud, &new_context, &new_scop,
-      "\n// Mystatement\n", identifiers_id, true);
+      mon_statements.main_statement, identifiers_id, true);
 
   free(identifiers_id);
+  acr_modify_main_statement_for_test_type(
+      grid_size,
+      num_monitor_dims,
+      acr_monitor_get_function(monitor),
+      mon_statements,
+      new_scop,
+      &new_ud);
 
   new_ud->n_name[CLOOG_PARAM] = cloog_input->ud->n_name[CLOOG_PARAM];
   new_ud->name[CLOOG_PARAM] = cloog_input->ud->name[CLOOG_PARAM];
@@ -1489,6 +1705,10 @@ static bool acr_print_scanning_function(FILE* out, const acr_compute_node node,
   cloog_state_free(cloog_state);
   cloog_options_free(cloog_option);
   free(cloog_input);
+  free(mon_statements.main_statement);
+  free(mon_statements.init_statement);
+  if (acr_monitor_get_function(monitor) == acr_monitor_function_avg)
+    free(mon_statements.end_statement);
   return true;
 }
 
