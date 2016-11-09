@@ -193,13 +193,17 @@ void acr_cloog_generate_alternative_code_from_input(
     isl_set *alternative_set = NULL;
     const unsigned int num_dims = data_info->dimensions_per_statements[i];
     for (size_t j = 0; j < data_info->num_alternatives; ++j) {
-
+      isl_set *adjusted_set;
+      if (i == data_info->num_statements - 1)
+        adjusted_set = temporary_alt_domain[j];
+      else
+        adjusted_set = isl_set_copy(temporary_alt_domain[j]);
       for(unsigned int k = 0; k < num_dims; ++k) {
         switch (data_info->statement_dimension_types[i][k]) {
           case acr_dimension_type_bound_to_alternative:
           case acr_dimension_type_free_dim:
-            temporary_alt_domain[j] =
-              isl_set_insert_dims(temporary_alt_domain[j],
+             adjusted_set =
+              isl_set_insert_dims(adjusted_set,
                   isl_dim_set, k, 1);
             break;
           case acr_dimension_type_bound_to_monitor:
@@ -210,7 +214,7 @@ void acr_cloog_generate_alternative_code_from_input(
       }
 
       isl_set *alternative_real_domain =
-        isl_set_intersect(temporary_alt_domain[j],
+        isl_set_intersect(adjusted_set,
             isl_set_copy(data_info->alternatives[j].restricted_domains[thread_num][i]));
       switch (data_info->alternatives[j].type) {
         case acr_runtime_alternative_parameter:
