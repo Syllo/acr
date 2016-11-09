@@ -600,13 +600,11 @@ void acr_openscop_get_monitoring_position_and_num(
   while (!found && current_statement) {
     const osl_body_p body = osl_generic_lookup(current_statement->extension, OSL_URI_BODY);
     const size_t num_iterators = osl_strings_size(body->iterators);
-      const size_t position = osl_strings_find(body->iterators, ids[0]);
-      if (position >= num_iterators) {
-        break;
-      } else {
-        found = true;
-        *starting_position = position;
-      }
+    const size_t position = osl_strings_find(body->iterators, ids[0]);
+    if ((position + num_id) <= num_iterators) {
+      found = true;
+      *starting_position = position;
+    }
     current_statement = current_statement->next;
   }
   if (!found) {

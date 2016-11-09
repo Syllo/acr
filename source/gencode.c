@@ -1447,7 +1447,6 @@ static struct monitoring_statement get_main_statements(
     const char *monitor_array_name,
     const acr_option monitor,
     size_t num_monitor_dims) {
-  bool is_max;
   acr_array_declaration *arr_decl =  acr_monitor_get_array_declaration(monitor);
   const char* array_name = acr_array_decl_get_array_name(arr_decl);
   const char* filter = acr_monitor_get_filter_name(monitor);
@@ -1515,8 +1514,8 @@ static void acr_set_dimensions_to_equality(
   isl_space *myspace = isl_map_get_space(*map);
   isl_constraint *c =
     isl_constraint_alloc_equality(isl_local_space_from_space(myspace));
-  c = isl_constraint_set_coefficient_val(c, isl_dim_out, dim_num, constval);
-  c = isl_constraint_set_coefficient_si(c, isl_dim_out, dim2_num, -1);
+  c = isl_constraint_set_coefficient_val(c, isl_dim_out, (int)dim_num, constval);
+  c = isl_constraint_set_coefficient_si(c, isl_dim_out, (int)dim2_num, -1);
   *map = isl_map_add_constraint(*map, c);
 }
 
@@ -1529,8 +1528,9 @@ static void acr_set_dimension_to_value(
   isl_constraint *c =
     isl_constraint_alloc_equality(isl_local_space_from_space(myspace));
   c = isl_constraint_set_constant_val(c, constval);
-  c = isl_constraint_set_coefficient_si(c, isl_dim_out, dim_num, -1);
-  *map = isl_map_drop_constraints_involving_dims(*map, isl_dim_out, dim_num, 1);
+  c = isl_constraint_set_coefficient_si(c, isl_dim_out, (int) dim_num, -1);
+  *map =
+    isl_map_drop_constraints_involving_dims(*map, isl_dim_out, (unsigned int) dim_num, 1);
   *map = isl_map_add_constraint(*map, c);
 }
 
