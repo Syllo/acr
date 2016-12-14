@@ -30,6 +30,11 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifndef NDEBUG
+#include <isl/options.h>
+#endif
+
+
 void free_acr_runtime_data_thread_specific(struct acr_runtime_data* data) {
   pthread_spin_lock(&data->alternative_lock);
   data->monitor_thread_continue = false;
@@ -312,6 +317,12 @@ void init_acr_runtime_data(
     cloog_inputs[i] = cloog_input_from_osl_scop(data->state[i],
       data->osl_relation);
     data->context[i] = isl_set_from_cloog_domain(cloog_inputs[i]->context);
+
+#ifndef NDEBUG
+    isl_ctx *context = isl_set_get_ctx(data->context[i]);
+    isl_options_set_on_error(context, ISL_ON_ERROR_ABORT);
+#endif
+
     data->statement_maps[i] =
       malloc(data->num_statements * sizeof(**data->statement_maps));
     CloogNamedDomainList *domain_list = cloog_inputs[i]->ud->domain;
