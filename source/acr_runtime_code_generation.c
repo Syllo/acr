@@ -198,6 +198,8 @@ void acr_cloog_generate_alternative_code_from_input(
         adjusted_set = temporary_alt_domain[j];
       else
         adjusted_set = isl_set_copy(temporary_alt_domain[j]);
+      unsigned int num_bound_to_monitor = 0u;
+      int first_monitor_dimension = -1;
       for(unsigned int k = 0; k < num_dims; ++k) {
         switch (data_info->statement_dimension_types[i][k]) {
           case acr_dimension_type_bound_to_alternative:
@@ -207,10 +209,23 @@ void acr_cloog_generate_alternative_code_from_input(
                   isl_dim_set, k, 1);
             break;
           case acr_dimension_type_bound_to_monitor:
+            if (first_monitor_dimension == -1)
+              first_monitor_dimension = (int) k;
+            num_bound_to_monitor += 1;
             break;
           default:
             break;
         }
+      }
+      const unsigned int num_monitor_dims = data_info->num_monitor_dims;
+      if (num_bound_to_monitor != num_monitor_dims) {
+        if (first_monitor_dimension == -1)
+          first_monitor_dimension = (int) num_dims;
+
+        unsigned int position = first_monitor_dimension == -1 ? num_dims :
+          (unsigned int)first_monitor_dimension + num_bound_to_monitor;
+        unsigned int num_dims_to_remove = num_monitor_dims - num_bound_to_monitor;
+        isl_set_remove_dims(adjusted_set, isl_dim_set, position, num_dims_to_remove);
       }
 
       isl_set *alternative_real_domain =
