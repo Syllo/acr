@@ -260,11 +260,26 @@ void free_acr_runtime_data(struct acr_runtime_data* data);
 unsigned char* acr_runtime_get_runtime_data(struct acr_runtime_data* data);
 
 /**
- * \brief Return the grid size
+ * \brief Return the number of monitor dimensions
  * \param[in] data The acr runtime data structure
- * \return The tiling/grid size
+ * \return The number of monitoring dimensions
  */
-size_t acr_runtime_get_grid_size(struct acr_runtime_data* data);
+size_t acr_runtime_get_num_monitor_dims(struct acr_runtime_data* data);
+
+/**
+ * \brief Get the monitoring dimensions upper bounds
+ * \param[in] data The acr runtime data structure
+ * \return The monitoring dimensions upper bounds pointer
+ */
+unsigned long* acr_runtime_get_monitor_dims_upper_bounds(
+    struct acr_runtime_data* data);
+
+/**
+ * \brief Return the number of alternatives
+ * \param[in] data The acr runtime data structure
+ * \return The number of alternatives
+ */
+size_t acr_runtime_get_num_alternatives(struct acr_runtime_data*data);
 
 /**
  * \brief Initialize the grid with static functions

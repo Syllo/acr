@@ -104,7 +104,7 @@ static inline struct timespec acr_difftime_tspec(acr_time t0, acr_time t1) {
  * \retval false otherwise
  */
 static inline bool acr_time_is_lower(struct timespec t0, struct timespec t1) {
-  return t0.tv_sec < t1.tv_sec || t0.tv_nsec < t1.tv_nsec;
+  return t0.tv_sec < t1.tv_sec || (t0.tv_sec == t1.tv_sec && t0.tv_nsec < t1.tv_nsec);
 }
 
 #endif // __ACR_TIME_H

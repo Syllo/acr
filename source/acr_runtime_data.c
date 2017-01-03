@@ -353,8 +353,17 @@ unsigned char* acr_runtime_get_runtime_data(struct acr_runtime_data* data) {
   return data->current_monitoring_data;
 }
 
-size_t acr_runtime_get_grid_size(struct acr_runtime_data* data) {
-  return data->grid_size;
+size_t acr_runtime_get_num_monitor_dims(struct acr_runtime_data* data) {
+  return data->num_monitor_dims;
+}
+
+unsigned long* acr_runtime_get_monitor_dims_upper_bounds(
+    struct acr_runtime_data* data) {
+  return data->monitor_dim_max;
+}
+
+size_t acr_runtime_get_num_alternatives(struct acr_runtime_data*data) {
+  return data->num_alternatives;
 }
 
 void init_acr_static_data(

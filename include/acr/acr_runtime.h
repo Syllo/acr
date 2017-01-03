@@ -45,6 +45,7 @@
 #ifndef __ACR_RUNTIME_H
 #define __ACR_RUNTIME_H
 
+#define _POSIX_C_SOURCE 200809L
 #include <acr/acr_runtime_code_generation.h>
 #include <acr/acr_runtime_data.h>
 #include <acr/acr_runtime_perf.h>
