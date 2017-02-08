@@ -1281,13 +1281,15 @@ void acr_print_node_init_function_call(FILE* out,
   } else {
     fprintf(out,
         ") %s_runtime_data.alternative_function;\n"
+        "      %s_runtime_data.alternative_function = NULL;\n"
+        "    }\n"
         /*"    fprintf(stderr, \"[Compute] Using new\\n\");\n"*/
         "  } else {\n"
         "    %s = %s_acr_initial;\n"
         /*"    fprintf(stderr, \"[Compute] Using initial\\n\");\n"*/
         "  }\n"
         "  pthread_spin_unlock(&%s_runtime_data.alternative_lock);\n",
-        prefix, prefix, prefix, prefix);
+        prefix, prefix, prefix, prefix, prefix);
   }
 }
 
