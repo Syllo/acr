@@ -252,7 +252,7 @@ static void acr_populate_strategy_and_alternative_list(
 
 static void sort_osl_strings(osl_strings_p a, osl_strings_p b) {
   size_t size_a = osl_strings_size(a);
-  for (size_t end = size_a-1; end > 0; --end) {
+  for (size_t end = size_a-1; end < size_a; --end) {
     for (size_t to_end = 0; to_end < end; ++to_end) {
       if (osl_strings_find(b, a->string[to_end]) > osl_strings_find(b, a->string[to_end+1])) {
         char *tmp = a->string[to_end];
