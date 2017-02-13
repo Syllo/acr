@@ -228,9 +228,17 @@ void acr_cloog_generate_alternative_code_from_input(
         isl_set_remove_dims(adjusted_set, isl_dim_set, position, num_dims_to_remove);
       }
 
+      /*fprintf(stderr, "isl_set\n\n");*/
+      /*adjusted_set = isl_set_coalesce(adjusted_set);*/
+      /*isl_set_print_internal(adjusted_set, stderr, 0);*/
+      /*fprintf(stderr, "Restriction\n\n");*/
+      /*isl_set_print_internal(data_info->alternatives[j].restricted_domains[thread_num][i], stderr, 0);*/
+
       isl_set *alternative_real_domain =
         isl_set_intersect(adjusted_set,
             isl_set_copy(data_info->alternatives[j].restricted_domains[thread_num][i]));
+      /*fprintf(stderr, "Real domain\n\n");*/
+      /*isl_set_print_internal(alternative_real_domain, stderr, 0);*/
       switch (data_info->alternatives[j].type) {
         case acr_runtime_alternative_parameter:
           if (alternative_set)
@@ -250,11 +258,15 @@ void acr_cloog_generate_alternative_code_from_input(
       }
     }
 
-    cloog_domain = cloog_domain_from_isl_set(alternative_set);
-    cloog_scatt = cloog_scattering_from_isl_map(statement_map_copy);
+    if (alternative_set) {
+      cloog_domain = cloog_domain_from_isl_set(alternative_set);
+      cloog_scatt = cloog_scattering_from_isl_map(statement_map_copy);
+    } else {
+      cloog_domain = cloog_domain_from_isl_set(isl_set_copy(data_info->empty_monitor_set[thread_num]));
+      cloog_scatt = cloog_scattering_from_isl_map(statement_map_copy);
+    }
     pragma_parameter_domain->scattering = cloog_scatt;
     pragma_parameter_domain->domain = cloog_domain;
-
   }
 
   CloogOptions *cloog_option = cloog_options_malloc(data_info->state[thread_num]);

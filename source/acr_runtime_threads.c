@@ -1117,6 +1117,8 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
     where_to_add->type = acr_function_finished_cloog_gen;
     pthread_spin_unlock(&where_to_add->lock);
 
+    /*fprintf(stderr, "%s\n", where_to_add->generated_code);*/
+
 #ifdef ACR_STATS_ENABLED
     acr_time tend;
     acr_get_current_time(&tend);
