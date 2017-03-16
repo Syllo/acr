@@ -376,6 +376,16 @@ void init_acr_static_data(
   static_data->union_domain = cloog_inputs->ud;
   static_data->context = cloog_inputs->context;
   free(cloog_inputs);
+#ifndef NDEBUG
+    isl_ctx *ctx = isl_set_get_ctx((isl_set*)static_data->context);
+    isl_options_set_on_error(ctx, ISL_ON_ERROR_ABORT);
+#endif
+
+  struct acr_runtime_data data_runtime = {
+    .osl_relation = static_data->scop,
+    .num_alternatives = static_data->num_alternatives,
+    .alternatives = static_data->alternatives};
+  acr_gencode_init_scop_to_match_alternatives(&data_runtime);
 }
 
 void free_acr_static_data(struct acr_runtime_data_static *static_data) {
@@ -395,6 +405,10 @@ void acr_static_data_init_grid(struct acr_runtime_data_static *static_data) {
   char *tile_library_c_code;
   acr_code_generation_generate_tiling_library(
       static_data, &tile_library_c_code);
+
+  FILE *library_code_file = fopen("lib_acr_code.c", "w");
+  fprintf(library_code_file, "%s", tile_library_c_code);
+  fclose(library_code_file);
 
   acr_code_generation_compile_and_get_functions(static_data, tile_library_c_code);
 

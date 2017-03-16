@@ -64,7 +64,7 @@ static osl_body_p _acr_body_copy_and_set_alternative_function(
   expr = reprep(expr,
       alternative->value.name_to_swap,
       alternative->value.alt.function_to_swap);
-  fprintf(stderr, "SWAPPED\n%s\n", expr);
+  /*fprintf(stderr, "SWAPPED\n%s\n", expr);*/
   new_body->expression = osl_strings_encapsulate(expr);
   return new_body;
 }
@@ -638,11 +638,24 @@ static void acr_function_print_static_function(
 
   if (reduction_function == acr_reduction_avg)
     fprintf(out, "size_t __acr_num_values = 0;\n");
-  fprintf(out,
-      "size_t __acr_tmp = 0;\n"
-      "%s", scan_loop_nest);
+
+  switch(reduction_function) {
+    case acr_reduction_min:
+      fprintf(out,
+          "size_t __acr_tmp = 255;\n"
+          "%s", scan_loop_nest);
+      break;
+    case acr_reduction_max:
+    case acr_reduction_avg:
+      fprintf(out,
+          "size_t __acr_tmp = 0;\n"
+          "%s", scan_loop_nest);
+      break;
+  }
+
   if (reduction_function == acr_reduction_avg)
     fprintf(out, "__acr_tmp = __acr_tmp / __acr_num_values;\n");
+
   fprintf(out, "*__acr_function_pointer = __acr_tmp_to_function(\n"
       "  %zu,\n"
       "  __acr_tmp,\n"
@@ -652,14 +665,17 @@ static void acr_function_print_static_function(
 }
 
 static void acr_apply_alternative_to_cloog_ud(CloogUnionDomain *ud,
-    const struct runtime_alternative *al) {
-  isl_val *parameter_value =
-        isl_val_int_from_si(isl_set_get_ctx((isl_set*)ud->domain->domain),
-            al->value.alt.parameter.parameter_value);
+    const struct runtime_alternative *al, const struct runtime_alternative *all_alternatives) {
+  isl_val *parameter_value;
   isl_val *negone = isl_val_negone(isl_set_get_ctx((isl_set*)ud->domain->domain));
+  isl_set *empty_domain;
+  isl_map *empty_map;
   CloogNamedDomainList *statement;
   switch (al->type) {
     case acr_runtime_alternative_parameter:
+      parameter_value =
+        isl_val_int_from_si(isl_set_get_ctx((isl_set*)ud->domain->domain),
+            al->value.alt.parameter.parameter_value);
       statement = ud->domain;
       while (statement) {
         isl_set *domain = (isl_set*) statement->domain;
@@ -681,13 +697,35 @@ static void acr_apply_alternative_to_cloog_ud(CloogUnionDomain *ud,
         statement->scattering = (CloogScattering*) scatt;
         statement = statement->next;
       }
+      isl_val_free(parameter_value);
       break;
     case acr_runtime_alternative_function:
-      fprintf(stderr, "[ACR] errot: Alternative function not yet supported\n");
-      exit(EXIT_FAILURE);
+      empty_domain =
+        isl_set_empty(isl_set_get_space((isl_set*)ud->domain->domain));
+      empty_map =
+        isl_map_empty(isl_map_get_space((isl_map*)ud->domain->scattering));
+
+
+      while (&all_alternatives[0] != al) {
+        if(all_alternatives[0].type == acr_runtime_alternative_function)
+          cloog_union_domain_add_domain(
+              ud,
+              NULL,
+              (CloogDomain*) isl_set_copy(empty_domain),
+              (CloogScattering*) isl_map_copy(empty_map),
+              NULL);
+        all_alternatives++;
+      }
+      cloog_union_domain_add_domain(
+          ud,
+          NULL,
+          ud->domain->domain,
+          ud->domain->scattering,
+          NULL);
+      ud->domain->domain = (CloogDomain*) empty_domain;
+      ud->domain->scattering = (CloogScattering*) empty_map;
       break;
   }
-  isl_val_free(parameter_value);
   isl_val_free(negone);
 }
 
@@ -768,7 +806,7 @@ static void acr_generate_tile_at_level(
         for (size_t i = 0; i < alternative_num-1; ++i) {
           CloogUnionDomain *ud_alt = acr_copy_cloog_ud(ud_specialized);
           acr_apply_alternative_to_cloog_ud(
-              ud_alt, &alts[i]);
+              ud_alt, &alts[i], alts);
           acr_function_print_static_function(tile_library, options,
               ud_alt,
               context_ud,
@@ -777,7 +815,7 @@ static void acr_generate_tile_at_level(
               i, *num_tiles, function_parameters, reduction_function);
         }
         acr_apply_alternative_to_cloog_ud(
-            ud_specialized, &alts[alternative_num-1]);
+            ud_specialized, &alts[alternative_num-1], alts);
         acr_function_print_static_function(tile_library, options,
             ud_specialized,
             context_ud,
@@ -825,7 +863,7 @@ void acr_code_generation_generate_tiling_library(
 
   isl_set *ud_context =
     isl_set_from_cloog_domain(static_data->context);
-  ud_context = isl_set_remove_dims(ud_context, isl_dim_param, 0, 1);
+  ud_context = isl_set_remove_dims(ud_context, isl_dim_param, 0, isl_set_n_param(ud_context));
   static_data->context = cloog_domain_from_isl_set(ud_context);
 
   intmax_t **min_max;
