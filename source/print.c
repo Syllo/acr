@@ -109,6 +109,18 @@ void pprint_acr_alternative(FILE* out, acr_option option, size_t indent_level) {
           acr_alternative_get_object_to_swap_name(option),
           acr_alternative_get_replacement_function(option));
       break;
+    case acr_alternative_corner_computation:
+      pprint_acr_indent(out, indent_level + 1);
+      fprintf(out, "|   |   |---| Corner computation\n");
+      break;
+    case acr_alternative_zero_computation:
+      pprint_acr_indent(out, indent_level + 1);
+      fprintf(out, "|   |   |---| Zero computation\n");
+      break;
+    case acr_alternative_full_computation:
+      pprint_acr_indent(out, indent_level + 1);
+      fprintf(out, "|   |   |---| Full computation\n");
+      break;
     case acr_alternative_unknown:
       break;
   }

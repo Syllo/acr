@@ -240,6 +240,9 @@ void acr_cloog_generate_alternative_code_from_input(
       /*fprintf(stderr, "Real domain\n\n");*/
       /*isl_set_print_internal(alternative_real_domain, stderr, 0);*/
       switch (data_info->alternatives[j].type) {
+        case acr_runtime_alternative_full_computation:
+        case acr_runtime_alternative_zero_computation:
+        case acr_runtime_alternative_corner_computation:
         case acr_runtime_alternative_parameter:
           if (alternative_set)
             alternative_set = isl_set_union(alternative_set,
@@ -724,6 +727,10 @@ static void acr_apply_alternative_to_cloog_ud(CloogUnionDomain *ud,
           NULL);
       ud->domain->domain = (CloogDomain*) empty_domain;
       ud->domain->scattering = (CloogScattering*) empty_map;
+      break;
+    case acr_runtime_alternative_zero_computation:
+    case acr_runtime_alternative_corner_computation:
+    case acr_runtime_alternative_full_computation:
       break;
   }
   isl_val_free(negone);

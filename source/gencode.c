@@ -293,7 +293,13 @@ static void acr_print_acr_alternatives(FILE *out,
 
   static const char*const alternative_types_char[] = {
     [acr_alternative_function] = "acr_runtime_alternative_function",
-    [acr_alternative_parameter] = "acr_runtime_alternative_parameter"};
+    [acr_alternative_parameter] = "acr_runtime_alternative_parameter",
+    [acr_alternative_zero_computation] =
+      "acr_runtime_alternative_zero_computation",
+    [acr_alternative_corner_computation] =
+      "acr_runtime_alternative_corner_computation",
+    [acr_alternative_full_computation] =
+      "acr_runtime_alternative_full_computation"};
   fprintf(out, "static struct runtime_alternative %s_alternatives[] = {\n",
       prefix);
   size_t num_function = 0;
@@ -342,6 +348,9 @@ static void acr_print_acr_alternatives(FILE *out,
             acr_alternative_get_replacement_function(alternative),
             name);
         break;
+      case acr_alternative_corner_computation:
+      case acr_alternative_zero_computation:
+      case acr_alternative_full_computation:
       case acr_alternative_unknown:
         break;
     }

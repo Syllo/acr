@@ -42,6 +42,13 @@ enum acr_runtime_alternative_type {
   acr_runtime_alternative_parameter,
   /** \brief It is an alternative calling a function */
   acr_runtime_alternative_function,
+  /** \brief It is an alternative that disable computations entirely */
+  acr_runtime_alternative_zero_computation,
+  /** \brief It is an alternative that preserve the loops intact */
+  acr_runtime_alternative_full_computation,
+  /** \brief Alternative that disable computations in the middle of
+   * the tile */
+  acr_runtime_alternative_corner_computation,
 };
 
 /**

@@ -349,7 +349,35 @@ acr_alternative_options
         free($5.replacement_function);
       }
     }
-
+  | IDENTIFIER '(' IDENTIFIER ')'
+    {
+      if (strcmp($3, acr_pragma_alternative_names[acr_alternative_zero_computation].name) != 0 &&
+        strcmp($3,
+        acr_pragma_alternative_names[acr_alternative_corner_computation].name) != 0 &&
+        strcmp($3, acr_pragma_alternative_names[acr_alternative_full_computation].name) != 0) {
+          fprintf(stderr, "%s",
+          acr_pragma_alternative_names[acr_alternative_corner_computation].error_message);
+          $$ = NULL;
+          free($1);
+          free($3);
+          YYERROR;
+      } else {
+        if (strcmp($3,
+        acr_pragma_alternative_names[acr_alternative_zero_computation].name) == 0) {
+          $$ = acr_new_alternative_zero_computation($1, last_pragma_start_line);
+        } else {
+          if (strcmp($3,
+          acr_pragma_alternative_names[acr_alternative_corner_computation].name)
+          == 0) {
+            $$ = acr_new_alternative_corner_computation($1, last_pragma_start_line);
+          } else {
+            $$ = acr_new_alternative_full_computation($1, last_pragma_start_line);
+          }
+        }
+        free($1);
+        free($3);
+      }
+    }
   | error '(' IDENTIFIER ',' acr_alternative_parameter_swap ')'
     {
       $$ = NULL;
@@ -753,7 +781,7 @@ static void handle_carriage_return(void) {
 
 void yyerror(const char *s)
 {
-  char row_buffer[100]; // Buffered read
+  char row_buffer[101]; // Buffered read
 
   fflush(stdout);
   fprintf(stderr, "[ACR] Error: %s\n", s);
@@ -770,14 +798,15 @@ void yyerror(const char *s)
   size_t i = 101;
   do {
     if (i == 101) {
-      fscanf(acrin, "%100c", row_buffer);
+      if (fscanf(acrin, "%101c", row_buffer) == EOF)
+        break;
       i = 1;
     }
     else
       ++i;
 
     fprintf(stderr, "%c", row_buffer[i - 1]);
-  } while (row_buffer[i] != '\0' && row_buffer[i] != '\n');
+  } while (i == 101 || (row_buffer[i] != '\0' && row_buffer[i] != '\n'));
 
   fprintf(stderr, "\n");
 

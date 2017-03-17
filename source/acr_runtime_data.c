@@ -338,6 +338,7 @@ void init_acr_runtime_data(
       for(size_t k = 0; k < data->num_statements; ++k, domain_list = domain_list->next) {
         alt->restricted_domains[i][k] =
           isl_set_copy(isl_set_from_cloog_domain(domain_list->domain));
+        acr_runtime_data_specialize_alternative_domain(data, alt, k, &alt->restricted_domains[i][k]);
       }
     }
     cloog_union_domain_free(cloog_inputs[i]->ud);
@@ -416,4 +417,72 @@ void acr_static_data_init_grid(struct acr_runtime_data_static *static_data) {
   fprintf(stderr, "LIBRARY CODE in %f sec ####\n", acr_difftime(t1,t2));
 
   free(tile_library_c_code);
+}
+
+void acr_runtime_data_specialize_alternative_domain(
+    struct acr_runtime_data *data, struct runtime_alternative *alt,
+    size_t statement_id, isl_set **restricted_domains) {
+
+  for (size_t i = 0; i < data->dimensions_per_statements[statement_id]; ++i) {
+    switch (data->statement_dimension_types[statement_id][i]) {
+      case acr_dimension_type_bound_to_monitor:
+        switch(alt->type) {
+          case acr_runtime_alternative_zero_computation:
+            {
+              isl_space *spa = isl_set_get_space(*restricted_domains);
+              isl_set *dim_requirement =
+                isl_set_universe(isl_space_copy(spa));
+              isl_constraint * c1 =
+                isl_constraint_alloc_equality(
+                    isl_local_space_from_space(isl_space_copy(spa)));
+              isl_constraint * c2 =
+                isl_constraint_alloc_equality(
+                    isl_local_space_from_space(spa));
+              c1 = isl_constraint_set_coefficient_si(c1, isl_dim_set, (int)i, 1);
+              c2 = isl_constraint_set_coefficient_si(c1, isl_dim_set, (int)i, 0);
+              dim_requirement = isl_set_add_constraint(dim_requirement, c1);
+              dim_requirement = isl_set_add_constraint(dim_requirement, c2);
+              *restricted_domains = isl_set_intersect(*restricted_domains, dim_requirement);
+            }
+            break;
+          case acr_runtime_alternative_corner_computation:
+            {
+              isl_set *original_domain = *restricted_domains;
+              isl_val *tiling_size_val = isl_val_int_from_ui(
+                    isl_set_get_ctx(*restricted_domains), data->grid_size);
+              isl_set *left_border = isl_set_copy(original_domain);
+              left_border = isl_set_add_dims(left_border, isl_dim_set, 1);
+              isl_constraint *c = isl_constraint_alloc_equality(
+                  isl_local_space_from_space(isl_set_get_space(left_border)));
+              unsigned int added_dim_pos = isl_set_n_dim(left_border);
+              c = isl_constraint_set_coefficient_val(c, isl_dim_set, (int)added_dim_pos-1,
+                    isl_val_copy(tiling_size_val));
+              c = isl_constraint_set_coefficient_si(c, isl_dim_set, (int)i, -1);
+              left_border = isl_set_add_constraint(left_border, c);
+              left_border = isl_set_project_out(left_border, isl_dim_set, added_dim_pos-1, 1);
+              isl_set *right_border = original_domain;
+              right_border = isl_set_add_dims(right_border, isl_dim_set, 1);
+              c = isl_constraint_alloc_equality(
+                  isl_local_space_from_space(isl_set_get_space(right_border)));
+              added_dim_pos = isl_set_n_dim(right_border);
+              c = isl_constraint_set_coefficient_val(c, isl_dim_set, (int)added_dim_pos-1,
+                    isl_val_add(tiling_size_val,
+                      isl_val_negone(isl_val_get_ctx(tiling_size_val))));
+              c = isl_constraint_set_coefficient_si(c, isl_dim_set, (int)i, -1);
+              right_border = isl_set_add_constraint(right_border, c);
+              right_border = isl_set_project_out(right_border, isl_dim_set, added_dim_pos-1, 1);
+              *restricted_domains = isl_set_union(left_border, right_border);
+            }
+            break;
+          case acr_runtime_alternative_full_computation:
+          case acr_runtime_alternative_parameter:
+          case acr_runtime_alternative_function:
+            break;
+        }
+        break;
+      case acr_dimension_type_bound_to_alternative:
+      case acr_dimension_type_free_dim:
+        break;
+    }
+  }
 }

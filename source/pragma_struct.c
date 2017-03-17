@@ -57,6 +57,42 @@ acr_option acr_new_alternative_parameter(const char* alternative_name,
   return option;
 }
 
+acr_option acr_new_alternative_corner_computation(const char* alternative_name,
+                                         size_t pragma_position) {
+  acr_option option = malloc(sizeof(*option));
+  acr_try_or_die(option == NULL, "Malloc");
+
+  option->options.alternative.pragma_position = pragma_position;
+  option->type = acr_type_alternative;
+  option->options.alternative.type = acr_alternative_corner_computation;
+  option->options.alternative.alternative_name = acr_strdup(alternative_name);
+  return option;
+}
+
+acr_option acr_new_alternative_zero_computation(const char* alternative_name,
+                                         size_t pragma_position) {
+  acr_option option = malloc(sizeof(*option));
+  acr_try_or_die(option == NULL, "Malloc");
+
+  option->options.alternative.pragma_position = pragma_position;
+  option->type = acr_type_alternative;
+  option->options.alternative.type = acr_alternative_zero_computation;
+  option->options.alternative.alternative_name = acr_strdup(alternative_name);
+  return option;
+}
+
+acr_option acr_new_alternative_full_computation(const char* alternative_name,
+                                         size_t pragma_position) {
+  acr_option option = malloc(sizeof(*option));
+  acr_try_or_die(option == NULL, "Malloc");
+
+  option->options.alternative.pragma_position = pragma_position;
+  option->type = acr_type_alternative;
+  option->options.alternative.type = acr_alternative_full_computation;
+  option->options.alternative.alternative_name = acr_strdup(alternative_name);
+  return option;
+}
+
 acr_option acr_new_destroy(size_t pragma_position){
   acr_option option = malloc(sizeof(*option));
   acr_try_or_die(option == NULL, "Malloc");
@@ -207,6 +243,7 @@ static inline void acr_free_alternative(acr_alternative* alternative) {
   if (alternative->type == acr_alternative_function)
     free(alternative->swapped_by.replacement_function);
   free(alternative->alternative_name);
+  if (alternative->type == acr_alternative_function || alternative->type == acr_alternative_parameter)
   free(alternative->name_of_object_to_swap);
 }
 
@@ -726,6 +763,18 @@ acr_option acr_copy_alternative(const acr_option alternative) {
     case acr_alternative_function:
       return acr_new_alternative_function(alt->alternative_name,
           alt->name_of_object_to_swap, alt->swapped_by.replacement_function,
+          alt->pragma_position);
+      break;
+    case acr_alternative_corner_computation:
+      return acr_new_alternative_corner_computation(alt->alternative_name,
+          alt->pragma_position);
+      break;
+    case acr_alternative_zero_computation:
+      return acr_new_alternative_zero_computation(alt->alternative_name,
+          alt->pragma_position);
+      break;
+    case acr_alternative_full_computation:
+      return acr_new_alternative_full_computation(alt->alternative_name,
           alt->pragma_position);
       break;
     case acr_alternative_unknown:

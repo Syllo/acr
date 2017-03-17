@@ -300,6 +300,10 @@ void acr_compile_flags(char ***opt, size_t *num_opt);
  */
 void acr_free_compile_flags(char **flags);
 
+void acr_runtime_data_specialize_alternative_domain(
+    struct acr_runtime_data *data, struct runtime_alternative *alt,
+    size_t statement_id, isl_set **restricted_domains);
+
 #endif // __ACR_RUNTIME_DATA_H
 
 /**

@@ -65,6 +65,10 @@ static const struct acr_pragma_parser_name_error_utils
                               " create an alternative parameter construct?\n"},
     [acr_alternative_function]  = {"function",  "[ACR] Hint: did you want to"
                               " create an alternative parameter construct?\n"},
+    [acr_alternative_corner_computation] = {"corner_compute", "[ACR] Hint: did"
+        " you want to create a corner or zero compute alternative construct?\n"},
+    [acr_alternative_zero_computation] = {"zero_compute", ""},
+    [acr_alternative_full_computation] = {"full_compute", ""},
   };
 
 /**

@@ -47,6 +47,12 @@ enum acr_alternative_type {
   acr_alternative_parameter = 0,
   /** \brief Function swap alternative */
   acr_alternative_function,
+  /** \brief Only compute in corners */
+  acr_alternative_corner_computation,
+  /** \brief Not compute at all */
+  acr_alternative_zero_computation,
+  /** \brief Do it all */
+  acr_alternative_full_computation,
   /** \brief Number of alternative types */
   acr_alternative_unknown,
 };
@@ -339,6 +345,33 @@ acr_option acr_new_alternative_function(const char* alternative_name,
 acr_option acr_new_alternative_parameter(const char* alternative_name,
                                          const char* parameter_to_swap,
                                          intmax_t replacement_value,
+                                         size_t pragma_position);
+
+/**
+ * \brief Create a new alternative corner computation
+ * \param[in] alternative_name The tag of the alternative
+ * \param[in] pragma_position The position in file
+ * \return An alternative option
+ */
+acr_option acr_new_alternative_corner_computation(const char* alternative_name,
+                                         size_t pragma_position);
+
+/**
+ * \brief Create a new alternative zero computation
+ * \param[in] alternative_name The tag of the alternative
+ * \param[in] pragma_position The position in file
+ * \return An alternative option
+ */
+acr_option acr_new_alternative_zero_computation(const char* alternative_name,
+                                         size_t pragma_position);
+
+/**
+ * \brief Create a new alternative full computation
+ * \param[in] alternative_name The tag of the alternative
+ * \param[in] pragma_position The position in file
+ * \return An alternative option
+ */
+acr_option acr_new_alternative_full_computation(const char* alternative_name,
                                          size_t pragma_position);
 
 /**
