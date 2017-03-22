@@ -439,7 +439,7 @@ void acr_runtime_data_specialize_alternative_domain(
                 isl_constraint_alloc_equality(
                     isl_local_space_from_space(spa));
               c1 = isl_constraint_set_coefficient_si(c1, isl_dim_set, (int)i, 1);
-              c2 = isl_constraint_set_coefficient_si(c1, isl_dim_set, (int)i, 0);
+              c2 = isl_constraint_set_coefficient_si(c2, isl_dim_set, (int)i, 0);
               dim_requirement = isl_set_add_constraint(dim_requirement, c1);
               dim_requirement = isl_set_add_constraint(dim_requirement, c2);
               *restricted_domains = isl_set_intersect(*restricted_domains, dim_requirement);

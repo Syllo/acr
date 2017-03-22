@@ -2,16 +2,13 @@ option(TCC_BUNDLED "Download and use TCC internaly")
 if(TCC_BUNDLED OR ALL_DEP_BUNDLED)
   ExternalProject_Add(tcc_external
     PREFIX "${CMAKE_CURRENT_BINARY_DIR}/tcc"
-    URL http://download.savannah.gnu.org/releases/tinycc/tcc-0.9.26.tar.bz2
-    URL_HASH
-    SHA256=521e701ae436c302545c3f973a9c9b7e2694769c71d9be10f70a2460705b6d71
+    GIT_REPOSITORY "http://repo.or.cz/tinycc.git"
+    GIT_TAG mob
     BUILD_IN_SOURCE 1
     CONFIGURE_COMMAND
     "./configure"
     "--cc=${CMAKE_C_COMPILER}"
     "--disable-static"
-    "--extra-cflags=-O3 -g ${COMPILER_LTO_FLAG} ${COMPILER_MARCH_NATIVE}"
-    "--extra-ldflags=-O3 -g ${COMPILER_LTO_FLAG} ${COMPILER_MARCH_NATIVE}"
     "--prefix=${DEP_INSTALL_DIR}"
     UPDATE_COMMAND ""
     BUILD_COMMAND
