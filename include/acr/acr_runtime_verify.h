@@ -80,14 +80,14 @@ void acr_verify_versioning(size_t size_buffers,
  * \param[out] still_valid True if the current grid is still valid, false
  * otherwise
  *
- *  This version applies the Von Neumann 2D stencil at distance 1. So we try to
+ *  This version applies the Moore 2D stencil at distance 1. So we try to
  *  anticipate change for nearby cells by looking at the neighbourhood and
  *  over-approximate the cell precision needs.
  *
  */
 void acr_verify_2dstencil(
+    unsigned char max_alt,
     unsigned long const dims_size[2],
-    unsigned char const* current_untouched,
     unsigned char const* more_recent,
     unsigned char const* current_optimized_version,
     unsigned char *new_optimized_version,

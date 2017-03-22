@@ -482,9 +482,9 @@ static void acr_kernel_stencil(
 
   enum acr_avaliable_function_type most_recent_function_type;
 
-  bool monitor_still_valid = false;
+  bool monitor_still_valid = false, validity;
   while (init_data->monitor_thread_continue) {
-    bool validity, required_compilation;
+    bool required_compilation;
 
     acr_get_most_recent_monitor_result(&valid_monitor_result,
                                        &invalid_monitor_result,
@@ -497,8 +497,8 @@ static void acr_kernel_stencil(
     } else {
       monitor_still_valid = false;
       acr_verify_2dstencil(
+          (unsigned char) init_data->num_alternatives - 1,
           init_data->monitor_dim_max,
-          functions->function_priority[most_recent_function]->monitor_untouched,
           valid_monitor_result,
           functions->function_priority[most_recent_function]->monitor_result,
           maximized_version, &required_compilation, &validity);
@@ -622,14 +622,13 @@ static void acr_kernel_versioning(
   size_t total_version_update = 0;
 
   enum acr_avaliable_function_type most_recent_function_type;
-  bool is_monitor_still_accurate;
+  bool is_monitor_still_accurate, validity;
   while (init_data->monitor_thread_continue) {
 
     acr_get_most_recent_monitor_result(&valid_monitor_result,
                                        &invalid_monitor_result,
                                        monitor_data);
 
-    bool validity;
     double delta;
     if (valid_monitor_result == NULL) {
       valid_monitor_result = invalid_monitor_result;
@@ -751,14 +750,13 @@ static void acr_kernel_simple(
                               functions,
                               cloog_thread_data);
 
-  bool is_monitor_still_accurate;
+  bool is_monitor_still_accurate, validity;
   while (init_data->monitor_thread_continue) {
 
     acr_get_most_recent_monitor_result(&valid_monitor_result,
                                        &invalid_monitor_result,
                                        monitor_data);
 
-    bool validity;
     if (valid_monitor_result == NULL) {
       valid_monitor_result = invalid_monitor_result;
       invalid_monitor_result = NULL;

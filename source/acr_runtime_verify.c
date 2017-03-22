@@ -59,184 +59,87 @@ void acr_verify_versioning(size_t size_buffers,
   *still_valid = still_valid_local;
 }
 
-// Von Neumann neighborhood
+
+static inline unsigned char get_min_8_val(
+    unsigned char a, unsigned char b, unsigned char c, unsigned char d,
+    unsigned char e, unsigned char f, unsigned char g, unsigned char h) {
+  unsigned char min = a > b ? b : a;
+  min = min > c ? c : min;
+  min = min > d ? d : min;
+  min = min > e ? e : min;
+  min = min > f ? f : min;
+  min = min > g ? g : min;
+  min = min > h ? h : min;
+  return min;
+}
+
+// Moore neighbourhood
+#include <stdio.h>
 
 void acr_verify_2dstencil(
+    unsigned char max_alt,
     unsigned long const dims_size[2],
-    unsigned char const*const restrict current_untouched,
     unsigned char const*const restrict more_recent,
     unsigned char const*const restrict current_optimized_version,
     unsigned char *restrict new_optimized_version,
     bool *required_compilation,
     bool *still_valid) {
+
   bool still_valid_local = true, required_compilation_local = false;
 
   const size_t isize = dims_size[0], jsize = dims_size[1];
-/*#pragma omp parallel*/
-  {
+  size_t too_much_precision = 0;
 
-/*#pragma omp for schedule(static,1) reduction(&&:still_valid_local) \*/
-    /*reduction(&&:required_compilation_local)*/
-    for(size_t i = 0; i < isize; ++i) {
-      size_t element_position_i = i*jsize;
-      for(size_t j = 0; j < jsize; ++j) {
-        size_t upper, lower, left, right;
-        const size_t element_position_2d = element_position_i + j;
-        upper = element_position_2d - jsize;
-        lower = element_position_2d + jsize;
-        left = element_position_2d - 1;
-        right = element_position_2d + 1;
+  for(size_t i = 0; i < isize; ++i) {
+    size_t element_position_i = i*jsize;
+    for(size_t j = 0; j < jsize; ++j) {
+      size_t n, s, e, w, ne, nw, se, sw;
+      const size_t element_position_2d = element_position_i + j;
+      n  = element_position_2d - jsize;
+      ne = n + 1;
+      nw = n - 1;
+      s  = element_position_2d + jsize;
+      se = s + 1;
+      sw = s - 1;
+      w  = element_position_2d - 1;
+      e  = element_position_2d + 1;
+      unsigned char
+        n_val = i == 0 ? 255 : more_recent[n],
+        s_val = i == (isize-1) ? 255 : more_recent[s],
+        w_val = j == 0 ? 255 : more_recent[w],
+        e_val = j == (jsize-1) ? 255 : more_recent[e],
+        se_val = (i == (isize-1) || j == (jsize-1)) ? 255 : more_recent[se],
+        sw_val = (i == (isize-1) || j == 0) ? 255 : more_recent[sw],
+        ne_val = (i == 0 || j == (jsize-1)) ? 255 : more_recent[ne],
+        nw_val = (i == 0 || j == 0) ? 255 : more_recent[nw];
 
-        if (current_untouched[element_position_2d] >
-            more_recent[element_position_2d]) {
-          new_optimized_version[element_position_2d] =
-            more_recent[element_position_2d];
-          if (current_optimized_version[element_position_2d] > more_recent[element_position_2d])
-            still_valid_local = false;
+      unsigned char min = get_min_8_val(
+          n_val, ne_val, nw_val, s_val, se_val, sw_val, e_val, w_val);
+      if (min < max_alt)
+        min ++;
+      if (min > more_recent[element_position_2d]) {
+        if (more_recent[element_position_2d] < current_optimized_version[element_position_2d]) {
+          still_valid_local = false;
+        }
+        new_optimized_version[element_position_2d] = more_recent[element_position_2d];
+      } else {
+        if (min < current_optimized_version[element_position_2d]) {
+          required_compilation_local = true;
         } else {
-          new_optimized_version[element_position_2d] =
-            current_optimized_version[element_position_2d];
-        }
-
-        if (i > 0 && i < isize -1) {
-          if (j > 0 && j < jsize - 1) {
-            if (current_untouched[upper] > more_recent[upper] &&
-                more_recent[upper] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[upper];
-              required_compilation_local = true;
-            }
-            if (current_untouched[lower] > more_recent[lower] &&
-                more_recent[lower] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[lower];
-              required_compilation_local = true;
-            }
-            if (current_untouched[left] > more_recent[left] &&
-                more_recent[left] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[left];
-              required_compilation_local = true;
-            }
-            if (current_untouched[right] > more_recent[right] &&
-                more_recent[right] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[right];
-              required_compilation_local = true;
-            }
-          } else if (j == 0) {
-            if (current_untouched[upper] > more_recent[upper] &&
-                more_recent[upper] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[upper];
-              required_compilation_local = true;
-            }
-            if (current_untouched[lower] > more_recent[lower] &&
-                more_recent[lower] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[lower];
-              required_compilation_local = true;
-            }
-            if (current_untouched[right] > more_recent[right] &&
-                more_recent[right] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[right];
-              required_compilation_local = true;
-            }
-          } else { // j == jsize - 1
-            if (current_untouched[upper] > more_recent[upper] &&
-                more_recent[upper] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[upper];
-              required_compilation_local = true;
-            }
-            if (current_untouched[lower] > more_recent[lower] &&
-                more_recent[lower] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[lower];
-              required_compilation_local = true;
-            }
-            if (current_untouched[left] > more_recent[left] &&
-                more_recent[left] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[left];
-              required_compilation_local = true;
-            }
-          }
-        } else if (i == 0) {
-          if (j > 0 && j < jsize - 1) {
-            if (current_untouched[lower] > more_recent[lower] &&
-                more_recent[lower] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[lower];
-              required_compilation_local = true;
-            }
-            if (current_untouched[left] > more_recent[left] &&
-                more_recent[left] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[left];
-              required_compilation_local = true;
-            }
-            if (current_untouched[right] > more_recent[right] &&
-                more_recent[right] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[right];
-              required_compilation_local = true;
-            }
-          } else if (j == 0) {
-            if (current_untouched[lower] > more_recent[lower] &&
-                more_recent[lower] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[lower];
-              required_compilation_local = true;
-            }
-            if (current_untouched[right] > more_recent[right] &&
-                more_recent[right] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[right];
-              required_compilation_local = true;
-            }
-          } else { // j == jsize - 1
-            if (current_untouched[lower] > more_recent[lower] &&
-                more_recent[lower] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[lower];
-              required_compilation_local = true;
-            }
-            if (current_untouched[left] > more_recent[left] &&
-                more_recent[left] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[left];
-              required_compilation_local = true;
-            }
-          }
-        } else { // i == isize - 1
-          if (j > 0 && j < jsize - 1) {
-            if (current_untouched[upper] > more_recent[upper] &&
-                more_recent[upper] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[upper];
-              required_compilation_local = true;
-            }
-            if (current_untouched[left] > more_recent[left] &&
-                more_recent[left] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[left];
-              required_compilation_local = true;
-            }
-            if (current_untouched[right] > more_recent[right] &&
-                more_recent[right] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[right];
-              required_compilation_local = true;
-            }
-          } else if (j == 0) {
-            if (current_untouched[upper] > more_recent[upper] &&
-                more_recent[upper] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[upper];
-              required_compilation_local = true;
-            }
-            if (current_untouched[right] > more_recent[right] &&
-                more_recent[right] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[right];
-              required_compilation_local = true;
-            }
-          } else { // j == jsize - 1
-            if (current_untouched[upper] > more_recent[upper] &&
-                more_recent[upper] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[upper];
-              required_compilation_local = true;
-            }
-            if (current_untouched[left] > more_recent[left] &&
-                more_recent[left] < new_optimized_version[element_position_2d]) {
-              new_optimized_version[element_position_2d] = more_recent[left];
-              required_compilation_local = true;
-            }
+          if (min > current_optimized_version[element_position_2d]) {
+            too_much_precision += 1;
           }
         }
+        new_optimized_version[element_position_2d] = min;
       }
     }
   }
+  size_t total_computation = isize * jsize;
+  if ((double) too_much_precision / (double)total_computation > 0.15) {
+    fprintf(stderr, "Compile because too much diff\n");
+    required_compilation_local = true;
+  }
+
   *still_valid = still_valid_local;
   *required_compilation = required_compilation_local;
 }
