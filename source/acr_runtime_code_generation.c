@@ -174,6 +174,11 @@ void acr_cloog_generate_alternative_code_from_input(
 
   acr_isl_set_from_monitor(
       data_info, data, thread_num, temporary_alt_domain);
+
+  /*isl_printer *splinter = isl_printer_to_file(isl_set_get_ctx(*temporary_alt_domain), stderr);*/
+  /*splinter = isl_printer_set_output_format(splinter, ISL_FORMAT_EXT_POLYLIB);*/
+  /*splinter = isl_printer_print_set(splinter, (data_info->context[thread_num]));*/
+
   CloogNamedDomainList *current_domain = NULL;
   for (size_t i = 0; i < data_info->num_statements; ++i) {
     CloogDomain *cloog_domain;
@@ -270,14 +275,18 @@ void acr_cloog_generate_alternative_code_from_input(
     }
     pragma_parameter_domain->scattering = cloog_scatt;
     pragma_parameter_domain->domain = cloog_domain;
+
+    /*splinter = isl_printer_print_set(splinter, ((isl_set*)cloog_domain));*/
+    /*splinter = isl_printer_print_map(splinter, isl_map_coalesce((isl_map*) cloog_scatt));*/
   }
+  /*isl_printer_free(splinter);*/
 
   CloogOptions *cloog_option = cloog_options_malloc(data_info->state[thread_num]);
   cloog_option->quiet = 1;
   cloog_option->openscop = 1;
   cloog_option->scop = data_info->osl_relation;
-  cloog_option->otl = 1;
-  cloog_option->language = 0;
+  cloog_option->esp = 1;
+  cloog_option->strides = 1;
   CloogDomain *context =
     cloog_domain_from_isl_set(isl_set_copy(data_info->context[thread_num]));
   CloogProgram *cloog_program = cloog_program_alloc(context,

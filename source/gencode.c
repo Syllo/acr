@@ -1397,7 +1397,7 @@ static void acr_print_destroy(FILE* out, const char *prefix,
     case acr_perf_compile_time_zero_run:
       fprintf(out,
           "#ifdef ACR_STATS_ENABLED\n"
-          "  acr_print_stats(stdout, %s_runtime_data.kernel_prefix,"
+          "  acr_print_stats(stderr, %s_runtime_data.kernel_prefix,"
           "  &%s_runtime_data.acr_stats->sim_stats,\n  &%s_runtime_data.acr_stats->thread_stats,\n"
           "  %s_runtime_data.num_codegen_threads,\n"
           "  %s_runtime_data.num_compile_threads,\n"

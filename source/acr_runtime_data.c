@@ -107,8 +107,8 @@ static void init_isl_tiling_domain(struct acr_runtime_data *data) {
       calloc(data->num_monitor_dims, sizeof(*current_dimension));
     for(size_t i = 0; i < data->monitor_total_size; ++i) {
       data->tiles_domains[k][i] = isl_set_copy(universe_domain);
-      for (unsigned long j = 0; j < data->num_monitor_dims; ++j) {
-        unsigned long dimensions_pos = current_dimension[data->num_monitor_dims- 1 - j];
+      for (unsigned long j = data->num_monitor_dims-1; j < data->num_monitor_dims; --j) {
+        unsigned long dimensions_pos = current_dimension[j];
         isl_local_space *local_space =
           isl_local_space_from_space(isl_set_get_space(data->tiles_domains[k][i]));
         isl_constraint *c_lower = isl_constraint_alloc_inequality(
@@ -137,7 +137,7 @@ static void init_isl_tiling_domain(struct acr_runtime_data *data) {
           isl_set_add_constraint(data->tiles_domains[k][i], c_upper);
       }
 
-      for (unsigned long j = 0; j < data->num_monitor_dims; ++j) {
+      for (unsigned long j = data->num_monitor_dims - 1; j < data->num_monitor_dims; --j) {
         current_dimension[j] += 1;
         if(current_dimension[j] == data->monitor_dim_max[j]) {
           current_dimension[j] = 0;
@@ -430,33 +430,22 @@ void acr_runtime_data_specialize_alternative_domain(
           case acr_runtime_alternative_zero_computation:
             {
               isl_space *spa = isl_set_get_space(*restricted_domains);
-              isl_set *dim_requirement =
-                isl_set_universe(isl_space_copy(spa));
-              isl_constraint * c1 =
-                isl_constraint_alloc_equality(
-                    isl_local_space_from_space(isl_space_copy(spa)));
-              isl_constraint * c2 =
-                isl_constraint_alloc_equality(
-                    isl_local_space_from_space(spa));
-              c1 = isl_constraint_set_coefficient_si(c1, isl_dim_set, (int)i, 1);
-              c2 = isl_constraint_set_coefficient_si(c2, isl_dim_set, (int)i, 0);
-              dim_requirement = isl_set_add_constraint(dim_requirement, c1);
-              dim_requirement = isl_set_add_constraint(dim_requirement, c2);
+              isl_set *dim_requirement = isl_set_empty(spa);
               *restricted_domains = isl_set_intersect(*restricted_domains, dim_requirement);
             }
             break;
           case acr_runtime_alternative_corner_computation:
             {
               isl_set *original_domain = *restricted_domains;
-              isl_val *tiling_size_val = isl_val_int_from_ui(
-                    isl_set_get_ctx(*restricted_domains), data->grid_size);
+              isl_val *tiling_size_val = isl_val_sub_ui(isl_val_int_from_ui(
+                    isl_set_get_ctx(*restricted_domains), data->grid_size), 1);
               isl_set *left_border = isl_set_copy(original_domain);
               left_border = isl_set_add_dims(left_border, isl_dim_set, 1);
               isl_constraint *c = isl_constraint_alloc_equality(
                   isl_local_space_from_space(isl_set_get_space(left_border)));
               unsigned int added_dim_pos = isl_set_n_dim(left_border);
-              c = isl_constraint_set_coefficient_val(c, isl_dim_set, (int)added_dim_pos-1,
-                    isl_val_copy(tiling_size_val));
+              c = isl_constraint_set_coefficient_val(
+                  c, isl_dim_set, (int)added_dim_pos-1, isl_val_copy(tiling_size_val));
               c = isl_constraint_set_coefficient_si(c, isl_dim_set, (int)i, -1);
               left_border = isl_set_add_constraint(left_border, c);
               left_border = isl_set_project_out(left_border, isl_dim_set, added_dim_pos-1, 1);
@@ -465,10 +454,10 @@ void acr_runtime_data_specialize_alternative_domain(
               c = isl_constraint_alloc_equality(
                   isl_local_space_from_space(isl_set_get_space(right_border)));
               added_dim_pos = isl_set_n_dim(right_border);
-              c = isl_constraint_set_coefficient_val(c, isl_dim_set, (int)added_dim_pos-1,
-                    isl_val_add(tiling_size_val,
-                      isl_val_negone(isl_val_get_ctx(tiling_size_val))));
+              c = isl_constraint_set_coefficient_val(
+                  c, isl_dim_set, (int)added_dim_pos-1, tiling_size_val);
               c = isl_constraint_set_coefficient_si(c, isl_dim_set, (int)i, -1);
+              c = isl_constraint_set_constant_si(c, 1);
               right_border = isl_set_add_constraint(right_border, c);
               right_border = isl_set_project_out(right_border, isl_dim_set, added_dim_pos-1, 1);
               *restricted_domains = isl_set_union(left_border, right_border);
