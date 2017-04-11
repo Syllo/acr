@@ -92,7 +92,6 @@ struct acr_avaliable_functions {
 struct acr_monitoring_shared {
   _Atomic (unsigned char *) current_valid_computation;
   unsigned char *scrap_values;
-  pthread_spinlock_t spinlock;
 };
 
 struct acr_monitoring_computation {
@@ -104,7 +103,7 @@ struct acr_monitoring_computation {
 #endif
   struct acr_runtime_kernel_info *kernel_info;
   struct acr_monitoring_shared *shared_buffer;
-  volatile bool end_yourself;
+  atomic_flag end_yourself;
 };
 
 struct acr_runtime_threads_cloog_gencode {
@@ -179,7 +178,7 @@ static void* acr_runtime_monitoring_function(void *in_data) {
   size_t last_kernel_id = 0;
   acr_time t1, t2;
   acr_get_current_time(&t1);
-  while(!input_data->end_yourself) {
+  while(atomic_flag_test_and_set_explicit(&input_data->end_yourself, memory_order_relaxed)) {
 
     struct acr_runtime_kernel_info kinfo = *kernel_info;
     if (last_kernel_id != kinfo.num_calls) {
@@ -888,13 +887,13 @@ void* acr_verification_and_coordinator_function(void *in_data) {
     .monitoring_function = init_data->monitoring_function,
     .shared_buffer = &shared_monitor_data,
     .monitor_result_size = monitor_total_size,
-    .end_yourself = false,
+    .end_yourself = ATOMIC_FLAG_INIT,
 #ifdef ACR_STATS_ENABLED
     .num_mesurement = 0,
     .total_time = 0.,
 #endif
   };
-  pthread_spin_init(&monitor_data.shared_buffer->spinlock, PTHREAD_PROCESS_PRIVATE);
+  atomic_flag_test_and_set(&monitor_data.end_yourself);
   monitor_data.shared_buffer->scrap_values =
     malloc(monitor_total_size * sizeof(*monitor_data.shared_buffer->scrap_values));
   pthread_create(&monitoring_thread, NULL, acr_runtime_monitoring_function,
@@ -998,9 +997,8 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   pthread_cond_destroy(&cloog_thread_data.coordinator_sleep);
 
   // Quit monitoring thread
-  monitor_data.end_yourself = true;
+  atomic_flag_clear(&monitor_data.end_yourself);
   pthread_join(monitoring_thread, NULL);
-  pthread_spin_destroy(&monitor_data.shared_buffer->spinlock);
   free(cloog_threads);
 
   // Clean all
@@ -1358,14 +1356,14 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
     .monitoring_function = rdata->monitoring_function,
     .shared_buffer = &shared_monitor_data,
     .monitor_result_size = rdata->monitor_total_size,
-    .end_yourself = false,
+    .end_yourself = ATOMIC_FLAG_INIT,
 #ifdef ACR_STATS_ENABLED
     .num_mesurement = 0,
     .total_time = 0.,
 #endif
   };
+  atomic_flag_test_and_set(&monitor_data.end_yourself);
 
-  pthread_spin_init(&monitor_data.shared_buffer->spinlock, PTHREAD_PROCESS_PRIVATE);
   monitor_data.shared_buffer->scrap_values =
     malloc(rdata->monitor_total_size * sizeof(*monitor_data.shared_buffer->scrap_values));
   pthread_create(&monitoring_thread, NULL, acr_runtime_monitoring_function,
@@ -1404,7 +1402,8 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
     valid_monitor_result = NULL;
   }
 
-  monitor_data.end_yourself = true;
+  atomic_flag_clear(&monitor_data.end_yourself);
+
 
   pthread_join(monitoring_thread, NULL);
   free(invalid_monitor_result);

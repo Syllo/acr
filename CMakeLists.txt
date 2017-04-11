@@ -110,12 +110,12 @@ set_property(TARGET dl PROPERTY INTERFACE_INCLUDE_DIRECTORIES
 set_property(TARGET dl PROPERTY INTERFACE_LINK_LIBRARIES
   ${DL_LIBRARIES})
 
-find_package(OpenMP QUIET)
-if(OPENMP_FOUND)
-  message(STATUS "Found OpenMP")
-else()
-  message(WARNING "OpenMP not found, this may lower ACR performances")
-endif()
+#find_package(OpenMP QUIET)
+#if(OPENMP_FOUND)
+  #message(STATUS "Found OpenMP")
+#else()
+  #message(WARNING "OpenMP not found, this may lower ACR performances")
+#endif()
 
 find_package(BISON REQUIRED)
 find_package(FLEX REQUIRED)
