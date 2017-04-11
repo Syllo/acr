@@ -24,6 +24,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <time.h>
+#include <stdatomic.h>
 
 #include "acr/acr_runtime_build.h"
 #include "acr/acr_runtime_code_generation.h"
@@ -44,7 +45,6 @@ enum acr_avaliable_function_type {
   acr_function_started_cloog_gen,
   acr_function_finished_cloog_gen,
   acr_function_proposed_compilation,
-  acr_function_started_compilation,
   acr_function_shared_object_lib,
 #ifdef TCC_PRESENT
   acr_function_tcc_in_memory,
@@ -64,8 +64,7 @@ enum acr_kernel_function_type {
 
 struct acr_avaliable_functions {
   size_t total_functions;
-  struct func_value{
-    pthread_spinlock_t lock;
+  struct func_value {
 #ifdef TCC_PRESENT
     void *tcc_function;
 #endif
@@ -85,16 +84,15 @@ struct acr_avaliable_functions {
       } tcc;
 #endif
     } compiler_specific;
-    enum acr_avaliable_function_type type;
+    _Atomic enum acr_avaliable_function_type type;
   } *value;
   struct func_value **function_priority;
 };
 
 struct acr_monitoring_shared {
-  unsigned char *current_valid_computation;
+  _Atomic (unsigned char *) current_valid_computation;
   unsigned char *scrap_values;
   pthread_spinlock_t spinlock;
-  bool i_need_data;
 };
 
 struct acr_monitoring_computation {
@@ -108,14 +106,6 @@ struct acr_monitoring_computation {
   struct acr_monitoring_shared *shared_buffer;
   volatile bool end_yourself;
 };
-
-static inline void lock_monitor (struct acr_monitoring_computation *mon){
-  pthread_spin_lock(&mon->shared_buffer->spinlock);
-}
-
-static inline void unlock_monitor (struct acr_monitoring_computation *mon){
-  pthread_spin_unlock(&mon->shared_buffer->spinlock);
-}
 
 struct acr_runtime_threads_cloog_gencode {
   size_t thread_num;
@@ -180,6 +170,7 @@ static void* acr_runtime_monitoring_function(void *in_data) {
 
   unsigned char *monitor_result =
     malloc(input_data->monitor_result_size * sizeof(*monitor_result));
+  unsigned char *expected_value = monitor_result;
 
   void (*const monitoring_function)(unsigned char*) =
     input_data->monitoring_function;
@@ -206,16 +197,26 @@ static void* acr_runtime_monitoring_function(void *in_data) {
       num_mesurement += 1;
 #endif
 
-      lock_monitor(input_data);
-      if (input_data->shared_buffer->current_valid_computation == NULL) {
-        input_data->shared_buffer->current_valid_computation = monitor_result;
-        monitor_result = input_data->shared_buffer->scrap_values;
-      } else {
-        input_data->shared_buffer->scrap_values = input_data->shared_buffer->current_valid_computation;;
-        input_data->shared_buffer->current_valid_computation = monitor_result;
-        monitor_result = input_data->shared_buffer->scrap_values;
+      if (atomic_compare_exchange_strong_explicit(
+          &input_data->shared_buffer->current_valid_computation,
+          &expected_value,
+          monitor_result,
+          memory_order_acq_rel,
+          memory_order_acquire)) { // The pointer was what we expexted (monitor swap)
+        unsigned char *old = expected_value;
+        expected_value = monitor_result;
+        monitor_result = old;
+      } else { // The coordinator took the last version
+        unsigned char *old = input_data->shared_buffer->scrap_values;
+        if (expected_value != NULL)
+          fprintf(stderr, "Error in algorithm noob\n");
+        atomic_store_explicit(
+            &input_data->shared_buffer->current_valid_computation,
+            monitor_result,
+            memory_order_release);
+        expected_value = monitor_result;
+        monitor_result = old;
       }
-      unlock_monitor(input_data);
     }
 
     if (kinfo.sim_step_time >= 1.) {
@@ -267,8 +268,10 @@ static void acr_valid_function_switch_to(enum acr_avaliable_function_type type,
         pthread_cond_wait(&compile_threads_data->coordinator_sleep,
             &compile_threads_data->mutex);
       }
-      functions->function_priority[most_recent_function]->type =
-        acr_function_proposed_compilation;
+      atomic_store_explicit(
+          &functions->function_priority[most_recent_function]->type,
+          acr_function_proposed_compilation,
+          memory_order_release);
       compile_threads_data->compile_something = true;
       compile_threads_data->where_to_add =
         functions->function_priority[most_recent_function];
@@ -276,7 +279,6 @@ static void acr_valid_function_switch_to(enum acr_avaliable_function_type type,
       pthread_mutex_unlock(&compile_threads_data->mutex);
       break;
     case acr_function_proposed_compilation: // - Waiting compilation
-    case acr_function_started_compilation: // - Waiting compilation
       break;
 #ifdef TCC_PRESENT
     case acr_function_tcc_in_memory: // Fast compilation finished
@@ -359,14 +361,17 @@ static void acr_get_most_recent_monitor_result(
     unsigned char **const restrict valid_monitor_result,
     unsigned char **const restrict invalid_monitor_result,
     struct acr_monitoring_computation *const monitor_data) {
-  lock_monitor(monitor_data);
-  if (monitor_data->shared_buffer->current_valid_computation) {
-    *valid_monitor_result = monitor_data->shared_buffer->current_valid_computation;
-    monitor_data->shared_buffer->current_valid_computation = NULL;
+  unsigned char *exch = atomic_load_explicit(
+      &monitor_data->shared_buffer->current_valid_computation,
+      memory_order_acquire);
+  if (exch) {
     monitor_data->shared_buffer->scrap_values = *invalid_monitor_result;
     *invalid_monitor_result = NULL;
+    *valid_monitor_result = atomic_exchange_explicit(
+        &monitor_data->shared_buffer->current_valid_computation,
+        NULL,
+        memory_order_acq_rel);
   }
-  unlock_monitor(monitor_data);
 }
 
 static void acr_cloog_compilation(
@@ -384,8 +389,10 @@ static void acr_cloog_compilation(
   *invalid_monitor_result = cloog_thread_data->where_to_add->monitor_result;
   cloog_thread_data->where_to_add->monitor_result = *valid_monitor_result;
   cloog_thread_data->generate_function = true;
-  functions->function_priority[most_recent_function]->type =
-    acr_function_proposed_cloog_gen;
+  atomic_store_explicit(
+      &functions->function_priority[most_recent_function]->type,
+      acr_function_proposed_cloog_gen,
+      memory_order_release);
   pthread_mutex_unlock(&cloog_thread_data->mutex);
   *valid_monitor_result = NULL;
 
@@ -414,7 +421,11 @@ static inline size_t acr_next_free_function_position(
   bool good_function = false;
   while (!good_function) {
     next_good = (next_good+1) == functions->total_functions ? 0 : next_good+1;
-    switch (functions->function_priority[next_good]->type) {
+    enum acr_avaliable_function_type funtype =
+      atomic_load_explicit(
+        &functions->function_priority[next_good]->type,
+        memory_order_acquire);
+    switch (funtype) {
       case acr_function_empty:
       case acr_function_finished_cloog_gen:
 #ifdef TCC_PRESENT
@@ -508,14 +519,9 @@ static void acr_kernel_stencil(
 
       if (function_used_by_kernel != most_recent_function ||
           function_used_by_kernel_type != acr_kernel_function_using_cc) {
-        pthread_spin_lock(
-            &functions->function_priority[most_recent_function]->lock);
 
         most_recent_function_type =
-          functions->function_priority[most_recent_function]->type;
-
-        pthread_spin_unlock(
-            &functions->function_priority[most_recent_function]->lock);
+          atomic_load_explicit(&functions->function_priority[most_recent_function]->type, memory_order_acquire);
 
         acr_valid_function_switch_to(most_recent_function_type,
             &function_used_by_kernel_type,
@@ -646,14 +652,9 @@ static void acr_kernel_versioning(
 
       if (function_used_by_kernel != most_recent_function ||
           function_used_by_kernel_type != acr_kernel_function_using_cc) {
-        pthread_spin_lock(
-            &functions->function_priority[most_recent_function]->lock);
 
-        most_recent_function_type =
-          functions->function_priority[most_recent_function]->type;
+        most_recent_function_type = atomic_load_explicit(&functions->function_priority[most_recent_function]->type, memory_order_acquire);
 
-        pthread_spin_unlock(
-            &functions->function_priority[most_recent_function]->lock);
 
         acr_valid_function_switch_to(most_recent_function_type,
             &function_used_by_kernel_type,
@@ -774,11 +775,7 @@ static void acr_kernel_simple(
       if (function_used_by_kernel != most_recent_function ||
           function_used_by_kernel_type != acr_kernel_function_using_cc) {
       enum acr_avaliable_function_type type;
-      pthread_spin_lock(
-          &functions->function_priority[most_recent_function]->lock);
-      type = functions->function_priority[most_recent_function]->type;
-      pthread_spin_unlock(
-          &functions->function_priority[most_recent_function]->lock);
+      type = atomic_load_explicit(&functions->function_priority[most_recent_function]->type, memory_order_acquire);
 
       size_t no_care;
       acr_valid_function_switch_to(type,
@@ -866,12 +863,11 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   functions.function_priority = malloc(functions.total_functions *
       sizeof(*functions.function_priority));
   for (size_t i = 0; i < functions.total_functions; ++i) {
-    pthread_spin_init(&functions.value[i].lock, PTHREAD_PROCESS_PRIVATE);
 #ifdef TCC_PRESENT
     functions.value[i].compiler_specific.tcc.state = NULL;
 #endif
     functions.value[i].compiler_specific.shared_obj_lib.dlhandle = NULL;
-    functions.value[i].type = acr_function_empty;
+    atomic_store(&functions.value[i].type, acr_function_empty);
     functions.value[i].monitor_result =
       malloc(monitor_total_size *
           sizeof(*functions.value[i].monitor_result));
@@ -1002,9 +998,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
   pthread_cond_destroy(&cloog_thread_data.coordinator_sleep);
 
   // Quit monitoring thread
-  lock_monitor(&monitor_data);
   monitor_data.end_yourself = true;
-  unlock_monitor(&monitor_data);
   pthread_join(monitoring_thread, NULL);
   pthread_spin_destroy(&monitor_data.shared_buffer->spinlock);
   free(cloog_threads);
@@ -1014,7 +1008,6 @@ void* acr_verification_and_coordinator_function(void *in_data) {
     fclose(functions.value[i].memstream);
     free(functions.value[i].generated_code);
     free(functions.value[i].monitor_result);
-    pthread_spin_destroy(&functions.value[i].lock);
     if (functions.value[i].compiler_specific.shared_obj_lib.dlhandle)
         dlclose(functions.value[i].
             compiler_specific.shared_obj_lib.dlhandle);
@@ -1084,9 +1077,7 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
     input_data->num_threads_compiling++;
     has_to_stop = input_data->end_yourself;
     where_to_add = input_data->where_to_add;
-    pthread_spin_lock(&where_to_add->lock);
-    where_to_add->type = acr_function_started_cloog_gen;
-    pthread_spin_unlock(&where_to_add->lock);
+    atomic_store(&where_to_add->type, acr_function_started_cloog_gen);
 
     pthread_mutex_unlock(&input_data->mutex);
 
@@ -1111,9 +1102,7 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
     // Now the pointers in function structure are up to date
     fflush(stream);
 
-    pthread_spin_lock(&where_to_add->lock);
-    where_to_add->type = acr_function_finished_cloog_gen;
-    pthread_spin_unlock(&where_to_add->lock);
+    atomic_store(&where_to_add->type, acr_function_finished_cloog_gen);
 
     /*fprintf(stderr, "%s\n", where_to_add->generated_code);*/
 
@@ -1175,17 +1164,22 @@ static void* acr_runtime_compile_tcc(void* in_data) {
     void *function =
       tcc_get_symbol(tccstate, "acr_alternative_function");
 
-    pthread_spin_lock(&where_to_add->lock);
-
     TCCState *old_tccstate = where_to_add->compiler_specific.tcc.state;
     where_to_add->compiler_specific.tcc.state =
       tccstate;
     where_to_add->tcc_function = function;
-    where_to_add->type =
-     where_to_add->type == acr_function_shared_object_lib ?
-     acr_function_tcc_and_shared : acr_function_tcc_in_memory;
-
-    pthread_spin_unlock(&where_to_add->lock);
+      enum acr_avaliable_function_type t = acr_function_proposed_compilation;
+      if (! atomic_compare_exchange_strong_explicit(
+          &where_to_add->type,
+          &t,
+          acr_function_tcc_in_memory,
+          memory_order_acq_rel,
+          memory_order_acquire)) {
+        atomic_store_explicit(
+            &where_to_add->type,
+            acr_function_tcc_and_shared,
+            memory_order_release);
+      }
 
 #ifdef ACR_STATS_ENABLED
     acr_time tend;
@@ -1290,19 +1284,23 @@ static void* acr_runtime_compile_thread(void* in_data) {
       exit(EXIT_FAILURE);
     }
 
-    pthread_spin_lock(&where_to_add->lock);
     void *old_dlhandle = where_to_add->compiler_specific.shared_obj_lib.dlhandle;
     where_to_add->
       compiler_specific.shared_obj_lib.dlhandle = dlhandle;
     where_to_add->cc_function = function;
-    where_to_add->type =
-#ifdef TCC_PRESENT
-     where_to_add->type == acr_function_tcc_in_memory ?
-     acr_function_tcc_and_shared : acr_function_shared_object_lib;
-#else
-     acr_function_shared_object_lib;
-#endif
-    pthread_spin_unlock(&where_to_add->lock);
+
+    enum acr_avaliable_function_type t = acr_function_proposed_compilation;
+    if (! atomic_compare_exchange_strong_explicit(
+          &where_to_add->type,
+          &t,
+          acr_function_shared_object_lib,
+          memory_order_acq_rel,
+          memory_order_acquire)) {
+      atomic_store_explicit(
+          &where_to_add->type,
+          acr_function_tcc_and_shared,
+          memory_order_release);
+    }
     if(unlink(file) == -1) {
       perror("unlink");
       exit(EXIT_FAILURE);
@@ -1381,13 +1379,9 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
 
   while (rdata->monitor_thread_continue && current_element != NULL) {
     while (valid_monitor_result == NULL) {
-      lock_monitor(&monitor_data);
-      if (monitor_data.shared_buffer->current_valid_computation) {
-        valid_monitor_result = monitor_data.shared_buffer->current_valid_computation;
-        monitor_data.shared_buffer->current_valid_computation = NULL;
-        monitor_data.shared_buffer->scrap_values = invalid_monitor_result;
-      }
-      unlock_monitor(&monitor_data);
+      acr_get_most_recent_monitor_result(&valid_monitor_result,
+                                        &invalid_monitor_result,
+                                        &monitor_data);
     }
     if (acr_verify_me(rdata->monitor_total_size,
           current_element->element.monitor_result,
@@ -1410,9 +1404,7 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
     valid_monitor_result = NULL;
   }
 
-  lock_monitor(&monitor_data);
   monitor_data.end_yourself = true;
-  unlock_monitor(&monitor_data);
 
   pthread_join(monitoring_thread, NULL);
   free(invalid_monitor_result);
