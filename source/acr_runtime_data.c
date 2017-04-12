@@ -39,6 +39,7 @@ void free_acr_runtime_data_thread_specific(struct acr_runtime_data* data) {
   atomic_flag_clear_explicit(
       &data->monitor_thread_continue,
       memory_order_relaxed);
+  pthread_cond_signal(&data->coordinator_continue_cond);
   pthread_join(data->monitor_thread, NULL);
 }
 

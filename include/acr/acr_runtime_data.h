@@ -130,6 +130,8 @@ struct acr_runtime_data {
   size_t num_compiler_flags;
   /** The compiler flags */
   char ***compiler_flags;
+  pthread_cond_t monitor_sleep_cond;
+  pthread_cond_t coordinator_continue_cond;
 
   /** The monitoring data used by the current kernel */
   _Atomic (unsigned char*) current_monitoring_data;

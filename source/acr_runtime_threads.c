@@ -104,6 +104,8 @@ struct acr_monitoring_computation {
   struct acr_runtime_kernel_info *kernel_info;
   struct acr_monitoring_shared *shared_buffer;
   atomic_flag end_yourself;
+  pthread_cond_t *sleep_cond;
+  pthread_cond_t *coordinator_continue_cond;
 };
 
 struct acr_runtime_threads_cloog_gencode {
@@ -119,6 +121,7 @@ struct acr_runtime_threads_cloog_gencode {
   pthread_mutex_t mutex;
   pthread_cond_t compiler_thread_sleep;
   pthread_cond_t coordinator_sleep;
+  pthread_cond_t *coordinator_continue_cond;
   bool generate_function;
   volatile bool end_yourself;
 };
@@ -138,6 +141,7 @@ struct acr_runtime_threads_compile_data {
   pthread_mutex_t mutex;
   pthread_cond_t compiler_thread_sleep;
   pthread_cond_t coordinator_sleep;
+  pthread_cond_t *coordinator_continue_cond;
   bool compile_something;
   volatile bool end_yourself;
 };
@@ -151,6 +155,7 @@ struct acr_runtime_threads_compile_tcc {
 #endif
   pthread_mutex_t mutex;
   pthread_cond_t waking_up;
+  pthread_cond_t *coordinator_continue_cond;
   bool compile_something;
   volatile bool end_yourself;
 };
@@ -178,6 +183,8 @@ static void* acr_runtime_monitoring_function(void *in_data) {
   size_t last_kernel_id = 0;
   acr_time t1, t2;
   acr_get_current_time(&t1);
+  pthread_mutex_t mut;
+  pthread_mutex_init(&mut, NULL);
   while(atomic_flag_test_and_set_explicit(&input_data->end_yourself, memory_order_relaxed)) {
 
     struct acr_runtime_kernel_info kinfo = *kernel_info;
@@ -213,22 +220,15 @@ static void* acr_runtime_monitoring_function(void *in_data) {
             &input_data->shared_buffer->current_valid_computation,
             monitor_result,
             memory_order_release);
+        pthread_cond_signal(input_data->coordinator_continue_cond);
         expected_value = monitor_result;
         monitor_result = old;
       }
+    } else {
+      pthread_mutex_lock(&mut);
+      pthread_cond_wait(input_data->sleep_cond, &mut);
+      pthread_mutex_unlock(&mut);
     }
-
-    if (kinfo.sim_step_time >= 1.) {
-      acr_get_current_time(&t2);
-      last_time_updated = (kinfo.sim_step_time - acr_difftime(t1, t2)) / 2.;
-      if (last_time_updated >= 0.) {
-        struct timespec sleep_time, remaining_time;
-        sleep_time.tv_sec = (time_t) last_time_updated;
-        sleep_time.tv_nsec = (long) (last_time_updated * 1e9);
-        nanosleep(&sleep_time, &remaining_time);
-      }
-    }
-
   }
 
   free(monitor_result);
@@ -493,6 +493,7 @@ static void acr_kernel_stencil(
   enum acr_avaliable_function_type most_recent_function_type;
 
   bool monitor_still_valid = false, validity;
+  pthread_mutex_t sleep_mutex = PTHREAD_MUTEX_INITIALIZER;
   while (atomic_flag_test_and_set_explicit(
         &init_data->monitor_thread_continue, memory_order_relaxed)) {
     bool required_compilation;
@@ -531,6 +532,10 @@ static void acr_kernel_stencil(
             init_data,
             functions,
             compile_threads_data);
+      } else {
+        pthread_mutex_lock(&sleep_mutex);
+        pthread_cond_wait(&init_data->coordinator_continue_cond, &sleep_mutex);
+        pthread_mutex_unlock(&sleep_mutex);
       }
 
       if (!monitor_still_valid && required_compilation) {
@@ -629,6 +634,7 @@ static void acr_kernel_versioning(
 
   enum acr_avaliable_function_type most_recent_function_type;
   bool is_monitor_still_accurate, validity;
+  pthread_mutex_t sleep_mutex = PTHREAD_MUTEX_INITIALIZER;
   while (atomic_flag_test_and_set_explicit(
         &init_data->monitor_thread_continue, memory_order_relaxed)) {
 
@@ -664,6 +670,10 @@ static void acr_kernel_versioning(
             init_data,
             functions,
             compile_threads_data);
+      } else {
+        pthread_mutex_lock(&sleep_mutex);
+        pthread_cond_wait(&init_data->coordinator_continue_cond, &sleep_mutex);
+        pthread_mutex_unlock(&sleep_mutex);
       }
 
       invalid_monitor_result = valid_monitor_result;
@@ -751,6 +761,7 @@ static void acr_kernel_simple(
                               functions,
                               cloog_thread_data);
 
+  pthread_mutex_t sleep_mutex = PTHREAD_MUTEX_INITIALIZER;
   bool is_monitor_still_accurate, validity;
   while (atomic_flag_test_and_set_explicit(
         &init_data->monitor_thread_continue, memory_order_relaxed)) {
@@ -787,6 +798,10 @@ static void acr_kernel_simple(
           init_data,
           functions,
           compile_threads_data);
+      } else {
+        pthread_mutex_lock(&sleep_mutex);
+        pthread_cond_wait(&init_data->coordinator_continue_cond, &sleep_mutex);
+        pthread_mutex_unlock(&sleep_mutex);
       }
 
       invalid_monitor_result = valid_monitor_result;
@@ -890,6 +905,8 @@ void* acr_verification_and_coordinator_function(void *in_data) {
     .shared_buffer = &shared_monitor_data,
     .monitor_result_size = monitor_total_size,
     .end_yourself = ATOMIC_FLAG_INIT,
+    .sleep_cond = &init_data->monitor_sleep_cond,
+    .coordinator_continue_cond = &init_data->coordinator_continue_cond,
 #ifdef ACR_STATS_ENABLED
     .num_mesurement = 0,
     .total_time = 0.,
@@ -909,6 +926,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
     .compile_something = false,
     .num_threads = num_compilation_threads,
     .num_threads_compiling = num_compilation_threads,
+    .coordinator_continue_cond = &init_data->coordinator_continue_cond,
 #ifdef ACR_STATS_ENABLED
     .num_mesurement = 0,
     .total_time = 0.,
@@ -938,6 +956,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
     .generate_function = false,
     .num_threads = num_cloog_threads,
     .num_threads_compiling = num_cloog_threads,
+    .coordinator_continue_cond = &init_data->coordinator_continue_cond,
     .rdata = init_data,
 #ifdef ACR_STATS_ENABLED
     .num_mesurement = 0,
@@ -1000,6 +1019,7 @@ void* acr_verification_and_coordinator_function(void *in_data) {
 
   // Quit monitoring thread
   atomic_flag_clear(&monitor_data.end_yourself);
+  pthread_cond_signal(&init_data->monitor_sleep_cond);
   pthread_join(monitoring_thread, NULL);
   free(cloog_threads);
 
@@ -1102,7 +1122,9 @@ static void* acr_cloog_generate_code_from_alt(void* in_data) {
     // Now the pointers in function structure are up to date
     fflush(stream);
 
-    atomic_store(&where_to_add->type, acr_function_finished_cloog_gen);
+    atomic_store_explicit(&where_to_add->type, acr_function_finished_cloog_gen,
+        memory_order_release);
+    pthread_cond_signal(input_data->coordinator_continue_cond);
 
     /*fprintf(stderr, "%s\n", where_to_add->generated_code);*/
 
@@ -1180,6 +1202,7 @@ static void* acr_runtime_compile_tcc(void* in_data) {
             acr_function_tcc_and_shared,
             memory_order_release);
       }
+      pthread_cond_signal(input_data->coordinator_continue_cond);
 
 #ifdef ACR_STATS_ENABLED
     acr_time tend;
@@ -1220,6 +1243,7 @@ static void* acr_runtime_compile_thread(void* in_data) {
   struct acr_runtime_threads_compile_tcc tcc_data;
   tcc_data.compile_something = true;
   tcc_data.end_yourself = false;
+  tcc_data.coordinator_continue_cond = input_data->coordinator_continue_cond;
   pthread_mutex_init(&tcc_data.mutex, NULL);
   pthread_cond_init(&tcc_data.waking_up, NULL);
   pthread_create(&tcc_thread, NULL, acr_runtime_compile_tcc, (void*)&tcc_data);
@@ -1301,6 +1325,7 @@ static void* acr_runtime_compile_thread(void* in_data) {
           acr_function_tcc_and_shared,
           memory_order_release);
     }
+    pthread_cond_signal(input_data->coordinator_continue_cond);
     if(unlink(file) == -1) {
       perror("unlink");
       exit(EXIT_FAILURE);

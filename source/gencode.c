@@ -1036,6 +1036,8 @@ static void acr_print_acr_runtime_init(FILE* out,
     case acr_perf_compile_time_zero:
       fprintf(out,
           "static struct acr_runtime_perf %s_runtime_perf = {\n"
+          "  .monitor_sleep_cond = PTHREAD_COND_INITIALIZER,\n"
+          "  .coordinator_continue_cond = PTHREAD_COND_INITIALIZER,\n"
           "  .rdata = &%s_runtime_data,\n"
           "  .list_head = NULL,\n"
           "  .compilation_list = NULL,\n"
@@ -1263,6 +1265,7 @@ void acr_print_node_init_function_call(FILE* out,
       "  %s_runtime_data.acr_stats->sim_stats.total_time += acr_difftime(t0, t1);\n"
       "  %s_runtime_data.acr_stats->sim_stats.num_simmulation_step += 1;\n"
       "#endif\n"
+      "  pthread_cond_signal(&%s_runtime_data.monitor_sleep_cond);\n"
       "  void *acr_potential_new_function = atomic_exchange_explicit(\n"
       "      &%s_runtime_data.alternative_function, NULL,\n"
       "      memory_order_relaxed);\n"
