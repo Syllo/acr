@@ -36,11 +36,10 @@
 
 
 void free_acr_runtime_data_thread_specific(struct acr_runtime_data* data) {
-  pthread_spin_lock(&data->alternative_lock);
-  data->monitor_thread_continue = false;
-  pthread_spin_unlock(&data->alternative_lock);
+  atomic_flag_clear_explicit(
+      &data->monitor_thread_continue,
+      memory_order_relaxed);
   pthread_join(data->monitor_thread, NULL);
-  pthread_spin_destroy(&data->alternative_lock);
 }
 
 void free_acr_runtime_data(struct acr_runtime_data* data) {
@@ -229,7 +228,8 @@ static void init_compile_flags(struct acr_runtime_data *data) {
 }
 
 void init_acr_runtime_data_thread_specific(struct acr_runtime_data *data) {
-  pthread_spin_init(&data->alternative_lock, PTHREAD_PROCESS_PRIVATE);
+  atomic_flag_test_and_set_explicit(
+      &data->monitor_thread_continue, memory_order_relaxed);
 }
 
 /**
@@ -296,7 +296,6 @@ void init_acr_runtime_data(
   for (size_t i = 0; i < data->num_monitor_dims; ++i) {
     data->monitor_total_size *= data->monitor_dim_max[i];
   }
-  data->usability_inital_value = 3;
 
   for (size_t j = 0; j < data->num_alternatives; ++j) {
     struct runtime_alternative *alt = &data->alternatives[j];
@@ -351,7 +350,9 @@ void init_acr_runtime_data(
 }
 
 unsigned char* acr_runtime_get_runtime_data(struct acr_runtime_data* data) {
-  return data->current_monitoring_data;
+  return atomic_load_explicit(
+      &data->current_monitoring_data,
+      memory_order_relaxed);
 }
 
 size_t acr_runtime_get_num_monitor_dims(struct acr_runtime_data* data) {

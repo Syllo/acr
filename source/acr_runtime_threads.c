@@ -200,7 +200,7 @@ static void* acr_runtime_monitoring_function(void *in_data) {
           &input_data->shared_buffer->current_valid_computation,
           &expected_value,
           monitor_result,
-          memory_order_acq_rel,
+          memory_order_release,
           memory_order_acquire)) { // The pointer was what we expexted (monitor swap)
         unsigned char *old = expected_value;
         expected_value = monitor_result;
@@ -270,7 +270,7 @@ static void acr_valid_function_switch_to(enum acr_avaliable_function_type type,
       atomic_store_explicit(
           &functions->function_priority[most_recent_function]->type,
           acr_function_proposed_compilation,
-          memory_order_release);
+          memory_order_relaxed);
       compile_threads_data->compile_something = true;
       compile_threads_data->where_to_add =
         functions->function_priority[most_recent_function];
@@ -283,20 +283,19 @@ static void acr_valid_function_switch_to(enum acr_avaliable_function_type type,
     case acr_function_tcc_in_memory: // Fast compilation finished
       if (*function_used_by_kernel_type == acr_kernel_function_initial) {
         /*fprintf(stderr, "Propose tcc %zu\n", most_recent_function);*/
-        pthread_spin_lock(&init_data->alternative_lock);
-        init_data->alternative_function =
-          functions->function_priority[most_recent_function]->tcc_function;
-        init_data->alternative_still_usable = true;
-        init_data->current_monitoring_data =
-          functions->function_priority[most_recent_function]->monitor_result;
-        pthread_spin_unlock(&init_data->alternative_lock);
+        atomic_store_explicit(&init_data->alternative_function,
+            functions->function_priority[most_recent_function]->tcc_function,
+            memory_order_relaxed);
+        atomic_store_explicit(&init_data->current_monitoring_data,
+          functions->function_priority[most_recent_function]->monitor_result,
+          memory_order_relaxed);
         *function_proposed_to_kernel = most_recent_function;
         *function_used_by_kernel_type = acr_kernel_function_proposed_tcc;
       } else {
         if (*function_used_by_kernel_type == acr_kernel_function_proposed_tcc) {
-          pthread_spin_lock(&init_data->alternative_lock);
-          void *function_pointer = init_data->alternative_function;
-          pthread_spin_unlock(&init_data->alternative_lock);
+          void *function_pointer = atomic_load_explicit(
+              &init_data->alternative_function,
+              memory_order_relaxed);
           if (function_pointer == NULL) {
             /*fprintf(stderr, "Kernel use tcc %zu\n", most_recent_function);*/
             *function_used_by_kernel = *function_proposed_to_kernel;
@@ -314,16 +313,13 @@ static void acr_valid_function_switch_to(enum acr_avaliable_function_type type,
 #endif
         if (*function_used_by_kernel_type != acr_kernel_function_using_cc) {
 
-          pthread_spin_lock(&init_data->alternative_lock);
-#ifdef TCC_PRESENT
-          void *function_pointer = init_data->alternative_function;
-#endif
-          init_data->alternative_function =
-            functions->function_priority[most_recent_function]->cc_function;
-          init_data->alternative_still_usable = true;
-          init_data->current_monitoring_data =
-            functions->function_priority[most_recent_function]->monitor_result;
-          pthread_spin_unlock(&init_data->alternative_lock);
+          void *function_pointer = atomic_exchange_explicit(
+              &init_data->alternative_function,
+              functions->function_priority[most_recent_function]->cc_function,
+              memory_order_relaxed);
+          atomic_store_explicit(&init_data->current_monitoring_data,
+              functions->function_priority[most_recent_function]->monitor_result,
+              memory_order_relaxed);
 #ifdef TCC_PRESENT
           if (*function_used_by_kernel_type == acr_kernel_function_proposed_tcc
               && function_pointer == NULL) {
@@ -336,9 +332,9 @@ static void acr_valid_function_switch_to(enum acr_avaliable_function_type type,
           /*fprintf(stderr, "Propose cc %zu\n", most_recent_function);*/
         }
       } else {
-        pthread_spin_lock(&init_data->alternative_lock);
-        void *function_pointer = init_data->alternative_function;
-        pthread_spin_unlock(&init_data->alternative_lock);
+        void *function_pointer = atomic_load_explicit(
+            &init_data->alternative_function,
+            memory_order_relaxed);
         if (function_pointer == NULL) {
           *function_used_by_kernel = *function_proposed_to_kernel;
           /*fprintf(stderr, "Using kernel CC %zu\n", *function_used_by_kernel);*/
@@ -362,7 +358,7 @@ static void acr_get_most_recent_monitor_result(
     struct acr_monitoring_computation *const monitor_data) {
   unsigned char *exch = atomic_load_explicit(
       &monitor_data->shared_buffer->current_valid_computation,
-      memory_order_acquire);
+      memory_order_relaxed);
   if (exch) {
     monitor_data->shared_buffer->scrap_values = *invalid_monitor_result;
     *invalid_monitor_result = NULL;
@@ -391,7 +387,7 @@ static void acr_cloog_compilation(
   atomic_store_explicit(
       &functions->function_priority[most_recent_function]->type,
       acr_function_proposed_cloog_gen,
-      memory_order_release);
+      memory_order_relaxed);
   pthread_mutex_unlock(&cloog_thread_data->mutex);
   *valid_monitor_result = NULL;
 
@@ -403,10 +399,14 @@ static inline void discard_kernel_function(
     struct acr_runtime_data *const init_data,
     enum acr_kernel_function_type *function_used_by_kernel_type) {
 
-  pthread_spin_lock(&init_data->alternative_lock);
-  init_data->alternative_still_usable = false;
-  init_data->current_monitoring_data = NULL;
-  pthread_spin_unlock(&init_data->alternative_lock);
+  atomic_store_explicit(
+      &init_data->alternative_function,
+      init_data->original_function,
+      memory_order_relaxed);
+  atomic_store_explicit(
+      &init_data->current_monitoring_data,
+      NULL,
+      memory_order_relaxed);
   *function_used_by_kernel_type = acr_kernel_function_initial;
 }
 
@@ -423,7 +423,7 @@ static inline size_t acr_next_free_function_position(
     enum acr_avaliable_function_type funtype =
       atomic_load_explicit(
         &functions->function_priority[next_good]->type,
-        memory_order_acquire);
+        memory_order_relaxed);
     switch (funtype) {
       case acr_function_empty:
       case acr_function_finished_cloog_gen:
@@ -493,7 +493,8 @@ static void acr_kernel_stencil(
   enum acr_avaliable_function_type most_recent_function_type;
 
   bool monitor_still_valid = false, validity;
-  while (init_data->monitor_thread_continue) {
+  while (atomic_flag_test_and_set_explicit(
+        &init_data->monitor_thread_continue, memory_order_relaxed)) {
     bool required_compilation;
 
     acr_get_most_recent_monitor_result(&valid_monitor_result,
@@ -628,7 +629,8 @@ static void acr_kernel_versioning(
 
   enum acr_avaliable_function_type most_recent_function_type;
   bool is_monitor_still_accurate, validity;
-  while (init_data->monitor_thread_continue) {
+  while (atomic_flag_test_and_set_explicit(
+        &init_data->monitor_thread_continue, memory_order_relaxed)) {
 
     acr_get_most_recent_monitor_result(&valid_monitor_result,
                                        &invalid_monitor_result,
@@ -653,7 +655,6 @@ static void acr_kernel_versioning(
           function_used_by_kernel_type != acr_kernel_function_using_cc) {
 
         most_recent_function_type = atomic_load_explicit(&functions->function_priority[most_recent_function]->type, memory_order_acquire);
-
 
         acr_valid_function_switch_to(most_recent_function_type,
             &function_used_by_kernel_type,
@@ -751,7 +752,8 @@ static void acr_kernel_simple(
                               cloog_thread_data);
 
   bool is_monitor_still_accurate, validity;
-  while (init_data->monitor_thread_continue) {
+  while (atomic_flag_test_and_set_explicit(
+        &init_data->monitor_thread_continue, memory_order_relaxed)) {
 
     acr_get_most_recent_monitor_result(&valid_monitor_result,
                                        &invalid_monitor_result,
@@ -1171,8 +1173,8 @@ static void* acr_runtime_compile_tcc(void* in_data) {
           &where_to_add->type,
           &t,
           acr_function_tcc_in_memory,
-          memory_order_acq_rel,
-          memory_order_acquire)) {
+          memory_order_release,
+          memory_order_relaxed)) {
         atomic_store_explicit(
             &where_to_add->type,
             acr_function_tcc_and_shared,
@@ -1292,8 +1294,8 @@ static void* acr_runtime_compile_thread(void* in_data) {
           &where_to_add->type,
           &t,
           acr_function_shared_object_lib,
-          memory_order_acq_rel,
-          memory_order_acquire)) {
+          memory_order_release,
+          memory_order_relaxed)) {
       atomic_store_explicit(
           &where_to_add->type,
           acr_function_tcc_and_shared,
@@ -1375,7 +1377,9 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
 
   const struct acr_performance_list *current_element = perf->compilation_list;
 
-  while (rdata->monitor_thread_continue && current_element != NULL) {
+  while (atomic_flag_test_and_set_explicit(
+        &rdata->monitor_thread_continue, memory_order_relaxed) &&
+      current_element != NULL) {
     while (valid_monitor_result == NULL) {
       acr_get_most_recent_monitor_result(&valid_monitor_result,
                                         &invalid_monitor_result,
@@ -1385,17 +1389,23 @@ void* acr_runtime_perf_compile_time_zero(void* in_data) {
           current_element->element.monitor_result,
           valid_monitor_result)) { // Valid function
 
-      pthread_spin_lock(&rdata->alternative_lock);
-      rdata->alternative_function =
-        current_element->element.function;
-      rdata->alternative_still_usable = true;
-      rdata->current_monitoring_data = current_element->element.monitor_result;
-      pthread_spin_unlock(&rdata->alternative_lock);
+      atomic_store_explicit(
+          &rdata->alternative_function,
+          current_element->element.function,
+          memory_order_relaxed);
+      atomic_store_explicit(
+          &rdata->current_monitoring_data,
+          current_element->element.monitor_result,
+          memory_order_relaxed);
     } else {
-      pthread_spin_lock(&rdata->alternative_lock);
-      rdata->alternative_still_usable = false;
-      pthread_spin_unlock(&rdata->alternative_lock);
-      rdata->current_monitoring_data = NULL;
+      atomic_store_explicit(
+          &rdata->alternative_function,
+          rdata->original_function,
+          memory_order_relaxed);
+      atomic_store_explicit(
+          &rdata->current_monitoring_data,
+          NULL,
+          memory_order_relaxed);
       current_element = current_element->next;
     }
     invalid_monitor_result = valid_monitor_result;

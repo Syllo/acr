@@ -51,6 +51,7 @@
 #include <acr/acr_runtime_perf.h>
 #include <acr/acr_runtime_threads.h>
 #include <acr/acr_stats.h>
+#include <stdatomic.h>
 
 #define __ACR_PRESENT__
 

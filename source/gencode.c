@@ -972,8 +972,7 @@ static void acr_print_acr_runtime_init(FILE* out,
       "#endif // ACR_STATS_ENABLED\n"
       "  .alternative_from_val = %s_get_alternative_from_val,\n"
       "  .monitoring_function = %s_monitoring_function,\n"
-      "  .alternative_still_usable = 0,\n"
-      "  .monitor_thread_continue = true,\n"
+      "  .monitor_thread_continue = ATOMIC_FLAG_INIT,\n"
       "  .function_prototype = \"",
       prefix, prefix, prefix);
   acr_print_parameters(out, init);
@@ -1261,54 +1260,20 @@ void acr_print_node_init_function_call(FILE* out,
       "#ifdef ACR_STATS_ENABLED\n"
       "  acr_time t1;\n"
       "  acr_get_current_time(&t1);\n"
-      "  pthread_spin_lock(&%s_runtime_data.alternative_lock);\n"
       "  %s_runtime_data.acr_stats->sim_stats.total_time += acr_difftime(t0, t1);\n"
       "  %s_runtime_data.acr_stats->sim_stats.num_simmulation_step += 1;\n"
-      "#else\n"
-      "  pthread_spin_lock(&%s_runtime_data.alternative_lock);\n"
       "#endif\n"
-      "  if (%s_runtime_data.alternative_still_usable) {\n"
-      "    if (%s_runtime_data.alternative_function) {\n"
-      "      %s = (void (*)",
-      prefix, prefix, prefix, prefix, prefix, prefix, prefix);
+      "  void *acr_potential_new_function = atomic_exchange_explicit(\n"
+      "      &%s_runtime_data.alternative_function, NULL,\n"
+      "      memory_order_relaxed);\n"
+      "  if (acr_potential_new_function != NULL) {\n"
+      "    %s = (void (*)",
+      prefix, prefix, prefix, prefix);
   acr_print_parameters(out, init);
 
-  acr_option_list list = acr_compute_node_get_option_list(node);
-  size_t list_size = acr_compute_node_get_option_list_size(node);
-  bool has_alternative_parameter = false;
-  for (size_t i = 0; !has_alternative_parameter && i < list_size; ++i) {
-    acr_option current_option = acr_option_list_get_option(i, list);
-    if (acr_option_get_type(current_option) == acr_type_alternative &&
-        acr_alternative_get_type(current_option) == acr_alternative_parameter) {
-      has_alternative_parameter = true;
-    }
-  }
-
-  if (has_alternative_parameter) {
-    fprintf(out,
-        ") %s_runtime_data.alternative_function;\n"
-        "      %s_runtime_data.alternative_function = NULL;\n"
-        "    }\n"
-        /*"    fprintf(stderr, \"[Compute] Using new\\n\");\n"*/
-        "  } else {\n"
-        "    %s = %s_acr_initial_0;\n"
-        /*"    fprintf(stderr, \"[Compute] Using initial\\n\");\n"*/
-        "  }\n"
-        "  pthread_spin_unlock(&%s_runtime_data.alternative_lock);\n",
-        prefix, prefix, prefix, prefix, prefix);
-  } else {
-    fprintf(out,
-        ") %s_runtime_data.alternative_function;\n"
-        "      %s_runtime_data.alternative_function = NULL;\n"
-        "    }\n"
-        /*"    fprintf(stderr, \"[Compute] Using new\\n\");\n"*/
-        "  } else {\n"
-        "    %s = %s_acr_initial;\n"
-        /*"    fprintf(stderr, \"[Compute] Using initial\\n\");\n"*/
-        "  }\n"
-        "  pthread_spin_unlock(&%s_runtime_data.alternative_lock);\n",
-        prefix, prefix, prefix, prefix, prefix);
-  }
+  fprintf(out,
+      ") acr_potential_new_function;\n"
+      "  }\n");
 }
 
 void acr_print_node_init_function_call_for_max_perf_run(FILE *out,

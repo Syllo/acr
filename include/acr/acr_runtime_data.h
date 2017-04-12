@@ -38,6 +38,7 @@
 #include <isl/map.h>
 #include <pthread.h>
 #include "acr/acr_stats.h"
+#include <stdatomic.h>
 
 /**
  * \brief The strategy acr uses at runtime
@@ -123,27 +124,22 @@ struct acr_runtime_data {
   struct runtime_alternative* (*alternative_from_val)(unsigned char);
   /** The monitoring function pointer */
   void (*monitoring_function)(unsigned char*);
+  /** The initial function pointer */
+  void *original_function;
   /** The number of compiler flags */
   size_t num_compiler_flags;
   /** The compiler flags */
   char ***compiler_flags;
 
   /** The monitoring data used by the current kernel */
-  unsigned char *current_monitoring_data;
+  _Atomic (unsigned char*) current_monitoring_data;
   /** The alternative function the kernel should be using. NULL for default
    * function */
-  void *alternative_function;
-  /** Lock for thread mutual exclusion */
-  pthread_spinlock_t alternative_lock;
-  /** Number of time the alternative will still be viable (in function call
-   * number */
-  uint_fast8_t alternative_still_usable;
-  /** The function time validity default value */
-  uint_fast8_t usability_inital_value;
+  _Atomic (void *) alternative_function;
   /** The coordinator thread */
   pthread_t monitor_thread;
   /** The stop condition of the coordinator */
-  bool monitor_thread_continue;
+  atomic_flag monitor_thread_continue;
   /** Kernel informations */
   struct acr_runtime_kernel_info *kernel_info;
 #ifdef ACR_STATS_ENABLED
