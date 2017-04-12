@@ -965,7 +965,6 @@ static void acr_print_acr_runtime_init(FILE* out,
     fprintf(out, "    [%zu] = %zu",
         i, current_bound->num_dimensions);
   }
-
   fprintf(out,
       "\n  },\n"
       "#ifdef ACR_STATS_ENABLED\n"
@@ -1006,7 +1005,28 @@ static void acr_print_acr_runtime_init(FILE* out,
     }
     fprintf(out, "}");
   }
-  fprintf(out, "\n  }\n};\n");
+  acr_option_list list = acr_compute_node_get_option_list(node);
+  size_t list_size = acr_compute_node_get_option_list_size(node);
+  bool has_alternative_parameter = false;
+  for (size_t i = 0; !has_alternative_parameter && i < list_size; ++i) {
+    acr_option current_option = acr_option_list_get_option(i, list);
+    if (acr_option_get_type(current_option) == acr_type_alternative &&
+        acr_alternative_get_type(current_option) == acr_alternative_parameter) {
+      has_alternative_parameter = true;
+    }
+  }
+
+  fprintf(out, "\n  },\n");
+
+  if (has_alternative_parameter) {
+      fprintf(out, "  .original_function = %s_acr_initial_0,\n",
+          prefix);
+  } else {
+      fprintf(out, "  .original_function = %s_acr_initial,\n",
+          prefix);
+  }
+
+  fprintf(out, "};\n");
 
   switch (build_options->type) {
     case acr_regular_build:
@@ -1082,17 +1102,6 @@ static void acr_print_acr_runtime_init(FILE* out,
 
   fprintf(out, "  acr_get_current_time(&%s_runtime_data.kernel_info->step_temp_time);\n",
       prefix);
-
-  acr_option_list list = acr_compute_node_get_option_list(node);
-  size_t list_size = acr_compute_node_get_option_list_size(node);
-  bool has_alternative_parameter = false;
-  for (size_t i = 0; !has_alternative_parameter && i < list_size; ++i) {
-    acr_option current_option = acr_option_list_get_option(i, list);
-    if (acr_option_get_type(current_option) == acr_type_alternative &&
-        acr_alternative_get_type(current_option) == acr_alternative_parameter) {
-      has_alternative_parameter = true;
-    }
-  }
 
   // Call function and change pointer to initial function
   if (has_alternative_parameter) {
