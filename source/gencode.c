@@ -1271,7 +1271,7 @@ void acr_print_node_init_function_call(FILE* out,
       "      memory_order_relaxed);\n"
       "  if (acr_potential_new_function != NULL) {\n"
       "    %s = (void (*)",
-      prefix, prefix, prefix, prefix);
+      prefix, prefix, prefix, prefix, prefix);
   acr_print_parameters(out, init);
 
   fprintf(out,

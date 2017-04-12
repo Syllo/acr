@@ -179,9 +179,9 @@ static void* acr_runtime_monitoring_function(void *in_data) {
   void (*const monitoring_function)(unsigned char*) =
     input_data->monitoring_function;
 
-  double last_time_updated, compute_time;
+  double compute_time;
   size_t last_kernel_id = 0;
-  acr_time t1, t2;
+  acr_time t1;
   acr_get_current_time(&t1);
   pthread_mutex_t mut;
   pthread_mutex_init(&mut, NULL);
@@ -509,7 +509,7 @@ static void acr_kernel_stencil(
     } else {
       monitor_still_valid = false;
       acr_verify_2dstencil(
-          (unsigned char) init_data->num_alternatives - 1,
+          (unsigned char) (init_data->num_alternatives - 1),
           init_data->monitor_dim_max,
           valid_monitor_result,
           functions->function_priority[most_recent_function]->monitor_result,
