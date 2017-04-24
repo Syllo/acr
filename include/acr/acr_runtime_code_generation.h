@@ -122,6 +122,13 @@ void acr_runtime_apply_reduction_function(
     char const*const iterators[],
     bool keep_parameters);
 
+void acr_generation_generate_tiling_alternatives(
+    size_t grid_size,
+    size_t first_monitor_dimension,
+    size_t num_monitor_dimensions,
+    osl_scop_p scop,
+    acr_compute_node node);
+
 #endif // __ACR_RUNTIME_CODE_GENERATION_H
 
 /**

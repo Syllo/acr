@@ -792,7 +792,7 @@ static char* acr_static_scan_code_corpse(const acr_option monitor) {
   return retbuffer;
 }
 
-static const char** acr_get_monitor_id_list(const acr_option monitor) {
+const char** acr_get_monitor_id_list(const acr_option monitor) {
   acr_array_declaration *arr_decl = acr_monitor_get_array_declaration(monitor);
   size_t num_dims = acr_array_decl_get_num_dimensions(arr_decl);
   acr_array_dimensions_list adl = acr_array_decl_get_dimensions_list(arr_decl);
@@ -1424,13 +1424,7 @@ static void print_array_access_function(
     fprintf(out, ")");
 }
 
-struct monitoring_statement{
-  char *main_statement;
-  char *init_statement;
-  char *end_statement;
-};
-
-static struct monitoring_statement get_main_statements(
+struct monitoring_statement get_main_statements(
     enum acr_monitor_processing_funtion processing_function,
     const char *monitor_array_name,
     const acr_option monitor,
@@ -1820,6 +1814,26 @@ static void simplify_osl_for_printing(osl_scop_p scop) {
   }
 }
 
+static void acr_print_static_tiled_scop_function(
+    FILE* out,
+    const char* file,
+    osl_scop_p scop,
+    acr_compute_node node) {
+
+  size_t first_monitor_dimension, num_monitor_dims;
+  acr_openscop_get_monitoring_position_and_num(
+      node, scop, &first_monitor_dimension, &num_monitor_dims);
+  acr_option grid =
+    acr_compute_node_get_option_of_type(acr_type_grid, node, 1);
+  uintmax_t grid_size = acr_grid_get_grid_size(grid);
+  acr_generation_generate_tiling_alternatives(
+    grid_size,
+    first_monitor_dimension,
+    num_monitor_dims,
+    scop,
+    node);
+}
+
 static void acr_generate_code_static(
     const char* filename,
     const struct acr_build_options *build_options,
@@ -1880,6 +1894,8 @@ static void acr_generate_code_static(
 
       const char* prefix = acr_get_scop_prefix(node);
       acr_print_scop_in_file(temp_buffer, prefix, scop);
+
+      acr_print_static_tiled_scop_function(stderr, prefix, scop, node);
 
       if (!acr_print_static_alternative_tab(
             temp_buffer, node, scop, build_options)) {
