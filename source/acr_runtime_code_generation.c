@@ -17,7 +17,6 @@
  */
 
 #include <acr/acr_runtime_code_generation.h>
-#include <acr/gencode.h>
 
 #include <string.h>
 #include <inttypes.h>
@@ -755,8 +754,7 @@ static const char* acr_string_goto_first_for(char const* string) {
 }
 
 static void acr_generate_tile_at_level(
-    FILE *tile_library,
-    FILE *temp_buffer,
+    FILE *tile_library, FILE *temp_buffer,
     char **temp_buffer_string,
     CloogOptions *options,
     const size_t alternative_num,
@@ -844,128 +842,6 @@ static void acr_generate_tile_at_level(
       }
     }
   }
-}
-
-void acr_generation_generate_tiling_alternatives(
-    size_t grid_size,
-    size_t first_monitor_dimension,
-    size_t num_monitor_dimensions,
-    osl_scop_p scop,
-    acr_compute_node node) {
-
-  osl_scop_print(stderr, scop);
-
-  CloogState *state = cloog_state_malloc();
-  CloogInput *input = cloog_input_from_osl_scop(state, scop);
-  CloogDomain *context = input->context;
-  context = cloog_domain_from_isl_set(
-      isl_set_add_dims((isl_set*)context,
-        isl_dim_param,
-        (unsigned int)num_monitor_dimensions*2));
-  fprintf(stderr, "Context\n");
-  isl_set_print_internal((isl_set*)context, stderr, 0);
-  CloogUnionDomain *ud = input->ud;
-  size_t previous_num_params = (size_t) ud->n_name[CLOOG_PARAM];
-  ud->n_name[CLOOG_PARAM] += 2*num_monitor_dimensions;
-  size_t num_params = (size_t) ud->n_name[CLOOG_PARAM];
-  ud->name[CLOOG_PARAM] = realloc(ud->name[CLOOG_PARAM],
-      num_params * sizeof(*ud->name[CLOOG_PARAM]));
-  char **lower_names =
-    cloog_names_generate_items((int)num_monitor_dimensions, "acr_monitor_dimension_lower_", '0');
-  char **upper_names =
-    cloog_names_generate_items((int)num_monitor_dimensions, "acr_monitor_dimension_upper_", '0');
-  for (size_t i = previous_num_params; i < num_params; i += 2) {
-    ud->name[CLOOG_PARAM][i] = lower_names[i-previous_num_params];
-    ud->name[CLOOG_PARAM][i+1] = upper_names[i-previous_num_params];
-  }
-  free(lower_names);
-  free(upper_names);
-  free(input);
-  for (CloogNamedDomainList *d = ud->domain; d != NULL; d=d->next) {
-    size_t upper_dims = first_monitor_dimension+num_monitor_dimensions;
-    for (size_t i = first_monitor_dimension; i < upper_dims; ++i) {
-      isl_set *domain = (isl_set*)d->domain;
-      isl_map *scattering = (isl_map*)d->scattering;
-      unsigned int numdims = isl_set_n_dim(domain);
-      fprintf(stderr, "Domain before\n");
-      isl_set_print_internal(domain, stderr, 0);
-      if (i < numdims) {
-        fprintf(stderr, "Dropping constraints\n");
-        domain = isl_set_drop_constraints_involving_dims(
-            domain, isl_dim_set, (unsigned int) i, 1);
-      }
-      domain = isl_set_add_dims(domain, isl_dim_param, 2);
-      scattering = isl_map_add_dims(scattering, isl_dim_param, 2);
-      isl_space *s = isl_set_get_space(domain);
-      int num_parameters = (int)isl_set_n_param(domain);
-      isl_constraint *c1 =
-        isl_constraint_alloc_inequality(
-            isl_local_space_from_space(isl_space_copy(s)));
-      isl_constraint *c2 =
-        isl_constraint_alloc_inequality(
-            isl_local_space_from_space(isl_space_copy(s)));
-      isl_constraint *c3 =
-        isl_constraint_alloc_inequality(
-            isl_local_space_from_space(s));
-      c1 = isl_constraint_set_coefficient_si(c1, isl_dim_set, (int)i, 1);
-      c1 = isl_constraint_set_coefficient_si(c1, isl_dim_param, (int)num_parameters-2, -1);
-      c2 = isl_constraint_set_coefficient_si(c2, isl_dim_set, (int)i, -1);
-      c2 = isl_constraint_set_coefficient_si(c2, isl_dim_param, (int)num_parameters-1, 1);
-      c3 = isl_constraint_set_coefficient_si(c3, isl_dim_param, (int)num_parameters-1, 1);
-      c3 = isl_constraint_set_constant_si(c3, 1);
-      c3 = isl_constraint_set_coefficient_si(c3, isl_dim_param, (int)num_parameters-2, -1);
-      domain = isl_set_add_constraint(domain, c1);
-      domain = isl_set_add_constraint(domain, c2);
-      domain = isl_set_add_constraint(domain, c3);
-      fprintf(stderr, "Domain after\n");
-      isl_set_print_internal(domain, stderr, 0);
-      d->domain = cloog_domain_from_isl_set(domain);
-      d->scattering = (CloogScattering*) scattering;
-    }
-  }
-
-
-  acr_option monitor = acr_compute_node_get_option_of_type(acr_type_monitor, node, 1);
-
-  struct monitoring_statement mon_statements =
-    get_main_statements(
-        acr_monitor_get_function(monitor),
-        "monitor_result",
-        monitor,
-        num_monitor_dimensions);
-  fprintf(stderr, "Scan\n%s\n%s\n%s\n", mon_statements.init_statement,
-      mon_statements.main_statement, mon_statements.end_statement);
-  CloogUnionDomain *new_ud;
-  osl_scop_p new_scop;
-  CloogDomain *new_context;
-  const char **const identifiers_id = acr_get_monitor_id_list(monitor);
-  acr_runtime_apply_reduction_function(
-      context, ud,
-      first_monitor_dimension, num_monitor_dimensions,
-      &new_ud, &new_context, &new_scop,
-      mon_statements.main_statement, identifiers_id, true);
-  free(identifiers_id);
-  new_ud->n_name[CLOOG_PARAM] = ud->n_name[CLOOG_PARAM];
-  new_ud->name[CLOOG_PARAM] = ud->name[CLOOG_PARAM];
-
-  CloogOptions *cloog_option = cloog_options_malloc(state);
-  cloog_option->quiet = 1;
-  cloog_option->openscop = 1;
-  cloog_option->scop = new_scop;
-  cloog_option->esp = 1;
-  cloog_option->strides = 1;
-  CloogProgram *cloog_program = cloog_program_alloc(new_context,
-      new_ud, cloog_option);
-  cloog_program = cloog_program_generate(cloog_program, cloog_option);
-
-  cloog_program_pprint(stderr, cloog_program, cloog_option);
-
-  cloog_option->openscop = 0;
-  cloog_option->scop = NULL;
-  cloog_program_free(cloog_program);
-  free(cloog_option);
-  exit(1);
-
 }
 
 void acr_code_generation_generate_tiling_library(

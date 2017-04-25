@@ -123,6 +123,7 @@ void acr_runtime_apply_reduction_function(
     bool keep_parameters);
 
 void acr_generation_generate_tiling_alternatives(
+    FILE *out,
     size_t grid_size,
     size_t first_monitor_dimension,
     size_t num_monitor_dimensions,

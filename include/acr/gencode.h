@@ -159,23 +159,6 @@ void acr_print_static_function(FILE* out,
  * \param[in] build_options The build options.
  * \sa build_pragma
  */
-void acr_print_node_init_function_call_for_max_perf_run(FILE *out,
-    const acr_compute_node node,
-    const struct acr_build_options *build_options);
-
-struct monitoring_statement {
-  char *main_statement;
-  char *init_statement;
-  char *end_statement;
-};
-
-struct monitoring_statement get_main_statements(
-    enum acr_monitor_processing_funtion processing_function,
-    const char *monitor_array_name,
-    const acr_option monitor,
-    size_t num_monitor_dims);
-
-const char** acr_get_monitor_id_list(const acr_option monitor);
 
 #endif // __ACR_GENCODE_H
 
