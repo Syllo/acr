@@ -1822,7 +1822,6 @@ static void simplify_osl_for_printing(osl_scop_p scop) {
 
 static void acr_print_static_tiled_scop_function(
     FILE* out,
-    const char* file,
     osl_scop_p scop,
     acr_compute_node node) {
 
@@ -1902,7 +1901,7 @@ static void acr_generate_code_static(
       const char* prefix = acr_get_scop_prefix(node);
       acr_print_scop_in_file(temp_buffer, prefix, scop);
 
-      acr_print_static_tiled_scop_function(stderr, prefix, scop, node);
+      acr_print_static_tiled_scop_function(temp_buffer, scop, node);
 
       if (!acr_print_static_alternative_tab(
             temp_buffer, node, scop, build_options)) {
@@ -2346,62 +2345,139 @@ void acr_scop_coord_to_acr_coord(
   *end = current_position;
 }
 
-static void acr_apply_alternative_to_cloog_ud(CloogUnionDomain *ud,
-    const enum acr_runtime_alternative_type alt_type, intmax_t param_val) {
+static char* reprep(char* initial, const char* torep, const char* rep) {
+  char* subpos;
+  size_t sizerep = strlen(rep);
+  size_t sizetorep = strlen(torep);
+  do {
+    subpos = strstr(initial, torep);
+    if (subpos) {
+      size_t size_initial = strlen(initial);
+      size_t remaining_space = strlen(subpos) - sizetorep;
+      if (sizerep > sizetorep) {
+        initial = realloc(initial,
+            (size_initial+1+sizerep-sizetorep) * sizeof(*initial));
+        subpos = strstr(initial, torep);
+      }
+      memmove(subpos+sizerep, subpos+sizetorep, remaining_space+1);
+      memcpy(subpos, rep, sizerep);
+      if (sizerep < sizetorep) {
+        initial = realloc(initial,
+            (size_initial+1-(sizetorep-sizerep)) * sizeof(*initial));
+      }
+    }
+  } while (subpos);
+  return initial;
+}
+
+static void acr_apply_alternative_to_cloog_ud(
+    const osl_scop_p scop, CloogUnionDomain *ud,
+    const acr_option alternative,
+    const enum acr_runtime_alternative_type alt_type, intmax_t param_val,
+    size_t grid_size,
+    size_t first_mon_dim,
+    size_t num_mon_dim) {
   isl_val *parameter_value;
   isl_val *negone = isl_val_negone(isl_set_get_ctx((isl_set*)ud->domain->domain));
-  isl_set *empty_domain;
-  isl_map *empty_map;
-  CloogNamedDomainList *statement;
   switch (alt_type) {
     case acr_runtime_alternative_parameter:
-      fprintf(stderr, "Generating alternative parameter\n");
-      parameter_value =
-        isl_val_int_from_si(isl_set_get_ctx((isl_set*)ud->domain->domain),
-            param_val);
-      statement = ud->domain;
-      while (statement) {
-        isl_set *domain = (isl_set*) statement->domain;
-        isl_map *scatt = (isl_map*) statement->scattering;
-        scatt = isl_map_remove_dims(scatt, isl_dim_param, 0, 1);
-        isl_local_space *const lspace =
-          isl_local_space_from_space(isl_set_get_space(domain));
-        isl_constraint *parameter_constraint =
-          isl_constraint_alloc_equality(lspace);
-        parameter_constraint =
-          isl_constraint_set_constant_val(parameter_constraint,
-              isl_val_copy(parameter_value));
-        parameter_constraint =
-          isl_constraint_set_coefficient_val(parameter_constraint, isl_dim_param,
-              0, isl_val_copy(negone));
-        domain = isl_set_add_constraint(domain, parameter_constraint);
-        domain = isl_set_project_out(domain, isl_dim_param, 0, 1);
-        statement->domain = (CloogDomain*) domain;
-        statement->scattering = (CloogScattering*) scatt;
-        statement = statement->next;
+      {
+        fprintf(stderr, "Generating alternative parameter\n");
+        char* name = acr_alternative_get_object_to_swap_name(alternative);
+        osl_strings_p parameters =
+          osl_generic_lookup(scop->parameters, OSL_URI_STRINGS);
+        size_t parampos = osl_strings_find(parameters, name);
+        parameter_value =
+          isl_val_int_from_si(isl_set_get_ctx((isl_set*)ud->domain->domain),
+              param_val);
+        CloogNamedDomainList *statement = ud->domain;
+        while (statement) {
+          isl_set *domain = (isl_set*) statement->domain;
+          isl_map *scatt = (isl_map*) statement->scattering;
+          scatt = isl_map_remove_dims(scatt, isl_dim_param, (unsigned int)parampos, 1);
+          isl_local_space *const lspace =
+            isl_local_space_from_space(isl_set_get_space(domain));
+          isl_constraint *parameter_constraint =
+            isl_constraint_alloc_equality(lspace);
+          parameter_constraint =
+            isl_constraint_set_constant_val(parameter_constraint,
+                isl_val_copy(parameter_value));
+          parameter_constraint =
+            isl_constraint_set_coefficient_val(parameter_constraint, isl_dim_param,
+                (int)parampos, isl_val_copy(negone));
+          domain = isl_set_add_constraint(domain, parameter_constraint);
+          domain = isl_set_project_out(domain, isl_dim_param, (unsigned int)parampos, 1);
+          statement->domain = (CloogDomain*) domain;
+          statement->scattering = (CloogScattering*) scatt;
+          statement = statement->next;
+        }
+        isl_val_free(parameter_value);
       }
-      isl_val_free(parameter_value);
       break;
     case acr_runtime_alternative_function:
-      fprintf(stderr, "Generating alternative function\n");
-      empty_domain =
-        isl_set_empty(isl_set_get_space((isl_set*)ud->domain->domain));
-      empty_map =
-        isl_map_empty(isl_map_get_space((isl_map*)ud->domain->scattering));
-      cloog_union_domain_add_domain(
-          ud,
-          NULL,
-          ud->domain->domain,
-          ud->domain->scattering,
-          NULL);
-      ud->domain->domain = (CloogDomain*) empty_domain;
-      ud->domain->scattering = (CloogScattering*) empty_map;
+      {
+        fprintf(stderr, "Generating alternative function\n");
+        osl_statement_p statement = scop->statement;
+        char* torep = acr_alternative_get_object_to_swap_name(alternative);
+        char* rep = acr_alternative_get_replacement_function(alternative);
+        while (statement) {
+          osl_body_p body = osl_statement_get_body(statement);
+          body->expression->string[0] = reprep(body->expression->string[0], torep, rep);
+          statement = statement->next;
+        }
+      }
       break;
     case acr_runtime_alternative_zero_computation:
-      fprintf(stderr, "Generating alternative zero compute\n");
+      {
+        fprintf(stderr, "Generating alternative zero compute\n");
+        CloogNamedDomainList *statement = ud->domain;
+        while (statement) {
+          isl_set *domain = (isl_set*) statement->domain;
+          isl_set *empty_domain = isl_set_empty(isl_set_get_space(domain));
+          domain = isl_set_intersect(domain, empty_domain);
+          statement->domain = cloog_domain_from_isl_set(domain);
+          statement = statement->next;
+        }
+      }
       break;
     case acr_runtime_alternative_corner_computation:
-      fprintf(stderr, "Generating alternative corner compute\n");
+      {
+        fprintf(stderr, "Generating alternative corner compute\n");
+        CloogNamedDomainList *statement = ud->domain;
+        while (statement) {
+          isl_set **restricted_domains = (isl_set**) &statement->domain;
+          size_t last_mon_dim = first_mon_dim + num_mon_dim;
+          size_t statement_n_dim = isl_set_n_dim(*restricted_domains);
+          for (size_t i = first_mon_dim; i < statement_n_dim && i < last_mon_dim; ++i) {
+            isl_set *original_domain = *restricted_domains;
+            isl_val *tiling_size_val = isl_val_sub_ui(isl_val_int_from_ui(
+                  isl_set_get_ctx(*restricted_domains), grid_size), 1);
+            isl_set *left_border = isl_set_copy(original_domain);
+            left_border = isl_set_add_dims(left_border, isl_dim_set, 1);
+            isl_constraint *c = isl_constraint_alloc_equality(
+                isl_local_space_from_space(isl_set_get_space(left_border)));
+            unsigned int added_dim_pos = isl_set_n_dim(left_border);
+            c = isl_constraint_set_coefficient_val(
+                c, isl_dim_set, (int)added_dim_pos-1, isl_val_copy(tiling_size_val));
+            c = isl_constraint_set_coefficient_si(c, isl_dim_set, (int)i, -1);
+            left_border = isl_set_add_constraint(left_border, c);
+            left_border = isl_set_project_out(left_border, isl_dim_set, added_dim_pos-1, 1);
+            isl_set *right_border = original_domain;
+            right_border = isl_set_add_dims(right_border, isl_dim_set, 1);
+            c = isl_constraint_alloc_equality(
+                isl_local_space_from_space(isl_set_get_space(right_border)));
+            added_dim_pos = isl_set_n_dim(right_border);
+            c = isl_constraint_set_coefficient_val(
+                c, isl_dim_set, (int)added_dim_pos-1, tiling_size_val);
+            c = isl_constraint_set_coefficient_si(c, isl_dim_set, (int)i, -1);
+            c = isl_constraint_set_constant_si(c, 1);
+            right_border = isl_set_add_constraint(right_border, c);
+            right_border = isl_set_project_out(right_border, isl_dim_set, added_dim_pos-1, 1);
+            *restricted_domains = isl_set_union(left_border, right_border);
+            statement = statement->next;
+          }
+        }
+      }
       break;
     case acr_runtime_alternative_full_computation:
       fprintf(stderr, "Generating alternative full compute\n");
@@ -2426,7 +2502,7 @@ static inline CloogUnionDomain* acr_copy_cloog_ud(CloogUnionDomain const *ud) {
   ud_copy->n_name[CLOOG_SCAT]  = ud->n_name[CLOOG_SCAT];
 
   if (ud->name[CLOOG_PARAM]) {
-    ud_copy->name[CLOOG_PARAM] = malloc(ud_copy->n_name[CLOOG_PARAM] * sizeof(*ud_copy->name[CLOOG_PARAM]));
+    ud_copy->name[CLOOG_PARAM] = malloc((size_t)ud_copy->n_name[CLOOG_PARAM] * sizeof(*ud_copy->name[CLOOG_PARAM]));
 
     for (int i = 0; i < ud_copy->n_name[CLOOG_PARAM]; ++i) {
       ud_copy->name[CLOOG_PARAM][i] = acr_strdup(ud->name[CLOOG_PARAM][i]);
@@ -2438,7 +2514,7 @@ static inline CloogUnionDomain* acr_copy_cloog_ud(CloogUnionDomain const *ud) {
   if (ud->name[CLOOG_ITER]) {
     ud_copy->name[CLOOG_ITER] =
       malloc(
-          ud_copy->n_name[CLOOG_ITER] * sizeof(*ud_copy->name[CLOOG_ITER]));
+          (size_t)ud_copy->n_name[CLOOG_ITER] * sizeof(*ud_copy->name[CLOOG_ITER]));
     for (int i = 0; i < ud_copy->n_name[CLOOG_ITER]; ++i) {
       ud_copy->name[CLOOG_ITER][i] = acr_strdup(ud->name[CLOOG_ITER][i]);
     }
@@ -2449,7 +2525,7 @@ static inline CloogUnionDomain* acr_copy_cloog_ud(CloogUnionDomain const *ud) {
   if (ud->name[CLOOG_SCAT]) {
     ud_copy->name[CLOOG_SCAT] =
       malloc(
-          ud_copy->n_name[CLOOG_SCAT] * sizeof(*ud_copy->name[CLOOG_SCAT]));
+          (size_t)ud_copy->n_name[CLOOG_SCAT] * sizeof(*ud_copy->name[CLOOG_SCAT]));
     for (int i = 0; i < ud_copy->n_name[CLOOG_SCAT]; ++i) {
       ud_copy->name[CLOOG_SCAT][i] = acr_strdup(ud->name[CLOOG_SCAT][i]);
     }
@@ -2457,6 +2533,42 @@ static inline CloogUnionDomain* acr_copy_cloog_ud(CloogUnionDomain const *ud) {
     ud_copy->name[CLOOG_SCAT] = NULL;
   }
   return ud_copy;
+}
+
+static void acr_print_tiling_alternative_function_call(
+    FILE *out,
+    const char *prefix,
+    size_t alternative_num,
+    size_t num_alternatives,
+    size_t num_monitor_dims,
+    const acr_compute_node node,
+    enum acr_monitor_processing_funtion process_fun) {
+  fprintf(out, "void _acr_%s_alternative_%zu", prefix, alternative_num);
+  acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
+  acr_print_parameters(out, init);
+  if(fseek(out, ftell(out)-1, SEEK_SET)) {
+    perror("fseek");
+    exit(1);
+  }
+  for (size_t i = 0; i < num_monitor_dims; ++i) {
+    fprintf(out, ", intmax_t acr_monitor_dimension_lower_%zu"
+                 ", intmax_t acr_monitor_dimension_upper_%zu", i+1, i+1);
+  }
+  fprintf(out, ", void **__acr_next_function_pointer, const void *const*const __acr_alternative_functions) {\n");
+  switch (process_fun) {
+    case acr_monitor_function_min:
+      fprintf(out, "unsigned char __acr_tmp = %zu;\n", num_alternatives-1);
+      break;
+    case acr_monitor_function_avg:
+      fprintf(out, "size_t __acr_num_values = 0;\n");
+      fprintf(out, "size_t __acr_tmp = 0;\n");
+      break;
+    case acr_monitor_function_max:
+      fprintf(out, "unsigned char __acr_tmp = 0;\n");
+      break;
+    case acr_monitor_function_unknown:
+      break;
+  }
 }
 
 void acr_generation_generate_tiling_alternatives(
@@ -2552,9 +2664,7 @@ void acr_generation_generate_tiling_alternatives(
       ++num_strategy;
     }
     if (acr_option_get_type(current_option) == acr_type_alternative) {
-      ++num_alternatives;
-    }
-  }
+      ++num_alternatives; } }
   acr_option_list strategy_list = acr_new_option_list(num_strategy);
   size_t *strategy_to_alternative_index =
     malloc(num_strategy * sizeof(*strategy_to_alternative_index));
@@ -2568,6 +2678,7 @@ void acr_generation_generate_tiling_alternatives(
       alternative_list,
       strategy_to_alternative_index);
 
+  char *prefix = acr_get_scop_prefix(node);
   for (size_t i = 0; i < num_alternatives; ++i) {
     const acr_option alternative =
       acr_option_list_get_option(i, alternative_list);
@@ -2596,9 +2707,14 @@ void acr_generation_generate_tiling_alternatives(
         alt_type = acr_runtime_alternative_full_computation;
         break;
     }
+    enum acr_monitor_processing_funtion process_fun = acr_monitor_get_function(monitor);
+    acr_print_tiling_alternative_function_call(
+        out, prefix, i, num_alternatives, num_monitor_dimensions, node, process_fun);
     CloogUnionDomain *ud_copy = acr_copy_cloog_ud(ud);
 
-    acr_apply_alternative_to_cloog_ud(ud_copy, alt_type, param_val);
+    osl_scop_p alternative_scop = osl_scop_clone(scop);
+    acr_apply_alternative_to_cloog_ud(alternative_scop, ud_copy, alternative,
+        alt_type, param_val, grid_size, first_monitor_dimension, num_monitor_dimensions);
 
     CloogUnionDomain *new_ud;
     osl_scop_p new_scop;
@@ -2619,7 +2735,7 @@ void acr_generation_generate_tiling_alternatives(
     osl_statement_p statement = new_scop->statement;
     new_scop->statement = NULL;
     osl_scop_free(new_scop);
-    osl_statement_p last_statement = scop->statement;
+    osl_statement_p last_statement = alternative_scop->statement;
     while (last_statement != NULL && last_statement->next != NULL) {
       last_statement = last_statement->next;
     }
@@ -2628,22 +2744,33 @@ void acr_generation_generate_tiling_alternatives(
     CloogOptions *cloog_option = cloog_options_malloc(state);
     cloog_option->quiet = 1;
     cloog_option->openscop = 1;
-    cloog_option->scop = scop;
+    cloog_option->scop = alternative_scop;
     cloog_option->esp = 1;
     cloog_option->strides = 1;
+    cloog_option->backtrack = 1;
     CloogProgram *cloog_program = cloog_program_alloc(new_context,
         ud_copy, cloog_option);
     cloog_program = cloog_program_generate(cloog_program, cloog_option);
 
-    cloog_program_pprint(stderr, cloog_program, cloog_option);
+    cloog_program_pprint(out, cloog_program, cloog_option);
 
+    cloog_program_free(cloog_program);
     cloog_option->openscop = 0;
     cloog_option->scop = NULL;
-    cloog_program_free(cloog_program);
     free(cloog_option);
-    osl_statement_free(last_statement->next);
-    last_statement->next = NULL;
+    osl_scop_free(alternative_scop);
+    if (process_fun == acr_monitor_function_avg) {
+      fprintf(out, "__acr_tmp /= __acr_num_values;\n");
+    }
+    fprintf(out, "*__acr_next_function_pointer = __acr_alternative_functions[__acr_tmp];\n");
+    fprintf(out, "}\n\n");
   }
+  free(strategy_list);
+  free(alternative_list);
+  free(strategy_to_alternative_index);
+  free(scan_code);
+  cloog_union_domain_free(ud);
+  cloog_domain_free(context);
+  cloog_state_free(state);
 
-  exit(1);
 }
