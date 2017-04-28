@@ -1990,7 +1990,7 @@ static void acr_generate_code_static(
           acr_position_of_init_in_node(node), all_options);
 
       const char* prefix = acr_get_scop_prefix(node);
-      acr_print_scop_in_file(temp_buffer, prefix, scop);
+      osl_generic_remove(&scop->extension, OSL_URI_COORDINATES);
 
       acr_print_static_tiled_scop_function(temp_buffer, scop, node);
 
