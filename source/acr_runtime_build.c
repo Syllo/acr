@@ -138,6 +138,8 @@ TCCState* acr_compile_with_tcc(
 
 #endif
 
+/*
+
 void acr_code_generation_compile_and_get_functions(
     struct acr_runtime_data_static *static_data,
     const char *library_code) {
@@ -197,3 +199,5 @@ void acr_code_generation_compile_and_get_functions(
 
   acr_free_compile_flags(compile_options);
 }
+
+*/

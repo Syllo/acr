@@ -369,56 +369,25 @@ size_t acr_runtime_get_num_alternatives(struct acr_runtime_data*data) {
   return data->num_alternatives;
 }
 
-void init_acr_static_data(
-    struct acr_runtime_data_static *static_data,
-    char *scop,
-    size_t scop_size) {
-  static_data->scop = acr_read_scop_from_buffer(scop, scop_size);
-  static_data->state = cloog_state_malloc();
-  CloogInput *cloog_inputs = cloog_input_from_osl_scop(static_data->state, static_data->scop);
-  static_data->union_domain = cloog_inputs->ud;
-  static_data->context = cloog_inputs->context;
-  free(cloog_inputs);
-#ifndef NDEBUG
-    isl_ctx *ctx = isl_set_get_ctx((isl_set*)static_data->context);
-    isl_options_set_on_error(ctx, ISL_ON_ERROR_ABORT);
-#endif
-
-  struct acr_runtime_data data_runtime = {
-    .osl_relation = static_data->scop,
-    .num_alternatives = static_data->num_alternatives,
-    .alternatives = static_data->alternatives};
-  acr_gencode_init_scop_to_match_alternatives(&data_runtime);
-}
-
-void free_acr_static_data(struct acr_runtime_data_static *static_data) {
-  osl_scop_free(static_data->scop);
-  cloog_union_domain_free(static_data->union_domain);
-  cloog_domain_free(static_data->context);
-  cloog_state_free(static_data->state);
-  dlclose(static_data->dl_handle);
-}
-
 void acr_static_data_init_grid(struct acr_runtime_data_static *static_data) {
-  /*acr_static_data_init_lexicographic_min_max(static_data);*/
 
-
-  acr_time t1, t2;
-  acr_get_current_time(&t1);
-  char *tile_library_c_code;
-  acr_code_generation_generate_tiling_library(
-      static_data, &tile_library_c_code);
-
-  FILE *library_code_file = fopen("lib_acr_code.c", "w");
-  fprintf(library_code_file, "%s", tile_library_c_code);
-  fclose(library_code_file);
-
-  acr_code_generation_compile_and_get_functions(static_data, tile_library_c_code);
-
-  acr_get_current_time(&t2);
-  fprintf(stderr, "LIBRARY CODE in %f sec ####\n", acr_difftime(t1,t2));
-
-  free(tile_library_c_code);
+  static_data->total_functions = 1;
+  for (size_t i = 0; i < static_data->num_monitor_dimensions; ++i) {
+    intmax_t this_dim_total = static_data->min_max[i][1] - static_data->min_max[i][0];
+    if (this_dim_total < 0) {
+      static_data->total_functions = 0;
+      break;
+    } else {
+      if ((size_t)this_dim_total % static_data->grid_size != 0)
+        this_dim_total += 1;
+      static_data->total_functions *= (size_t) this_dim_total;
+    }
+  }
+  static_data->all_functions =
+    malloc(static_data->total_functions * sizeof(*static_data->all_functions));
+  for (size_t i = 0; i < static_data->total_functions; ++i) {
+    static_data->all_functions[i] = static_data->alternative_functions[0];
+  }
 }
 
 void acr_runtime_data_specialize_alternative_domain(
@@ -476,4 +445,10 @@ void acr_runtime_data_specialize_alternative_domain(
         break;
     }
   }
+}
+
+void free_acr_static_data(struct acr_runtime_data_static *static_data) {
+  free(static_data->all_functions);
+  free(static_data->min_max);
+  static_data->is_uninitialized = 1;
 }

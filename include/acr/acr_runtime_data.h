@@ -167,52 +167,23 @@ enum acr_static_data_reduction_function {
  * \brief Data structure used in static kernel during runtime
  */
 struct acr_runtime_data_static {
-  /** \brief The functions */
-  void **functions;
-  /** \brief The number of functions generated for each alternatives */
-  size_t num_fun_per_alt;
+  /** \brief set as true if the not yet initialized */
+  bool is_uninitialized;
   /** \brief The array where all the generated functions pointer are stored */
   void **all_functions;
   /** \brief The number of alternatives */
-  const size_t num_alternatives;
-  /** \brief The alternatives array */
-  struct runtime_alternative *alternatives;
-  /** \brief The OpenScop format of the kernel */
-  struct osl_scop *scop;
-  /** \brief The first monitor dimension */
-  const size_t first_monitor_dimension;
+  size_t num_alternatives;
+  /** \brief The alternatives */
+  void **alternative_functions;
   /** \brief The number of monitoring dimensions */
   const size_t num_monitor_dimensions;
   /** \brief The tiling size */
   const size_t grid_size;
-  /** \brief The statements in CLooG representation */
-  CloogUnionDomain *union_domain;
-  /** \brief The context */
-  CloogDomain *context;
-  /** \brief The CLooG state */
-  CloogState *state;
-  /** \brief The reduction function */
-  const enum acr_static_data_reduction_function reduction_function;
-  /** \brief The scanning corpse for acr */
-  char const*const scan_corpse;
-  /** \brief Null terminated iterators ids */
-  char const*const*const iterators;
-  /** \brief Function parameters for tiles */
-  char const*const function_parameters;
-  /** \brief dlopen handle */
-  void *dl_handle;
+  /** \beirf Runtime lexicographic minimum and maximum */
+  intmax_t (*min_max)[2];
+  /** \brief The total size of the function array */
+  size_t total_functions;
 };
-
-/**
- * \brief Initialize static runtime data structure
- * \param[in,out] static_data The targeted structure
- * \param[in] scop The OpenScop format from the kernel
- * \param[in] scop_size The number of characters of the scop string
- */
-void init_acr_static_data(
-    struct acr_runtime_data_static *static_data,
-    char *scop,
-    size_t scop_size);
 
 /**
  * \brief Free the data structure used by a static kernel
@@ -281,7 +252,7 @@ size_t acr_runtime_get_num_alternatives(struct acr_runtime_data*data);
 
 /**
  * \brief Initialize the grid with static functions
- * \param[in,out] static_data The static data structure
+ * \param[in,out] static_data The static data structure.
  */
 void acr_static_data_init_grid(struct acr_runtime_data_static *static_data);
 
