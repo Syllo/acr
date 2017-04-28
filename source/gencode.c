@@ -98,8 +98,6 @@ static void lex_min_max_access_strings(isl_set *set, char**lexmaxstring, char **
   fclose(lexmin_stream);
   isl_ast_expr_free(minlexbuild);
   isl_ast_expr_free(maxlexbuild);
-  isl_pw_multi_aff_free(minlex);
-  isl_pw_multi_aff_free(maxlex);
   isl_ast_build_free(islbuild);
 
   *lexmaxstring = lexmax_string;
@@ -108,6 +106,10 @@ static void lex_min_max_access_strings(isl_set *set, char**lexmaxstring, char **
 
 static char* get_lex_min_max_access_val_dim(
     char* lex_min_max_access, size_t dim_num ,size_t *size) {
+  if (lex_min_max_access == NULL) {
+    *size = 0;
+    return NULL;
+  }
   size_t string_length = strlen(lex_min_max_access);
   size_t size_access = 0;
   size_t access_num = 0;
@@ -1833,12 +1835,12 @@ static void acr_print_static_main_function(
     isl_constraint *c = isl_constraint_alloc_equality(
         isl_local_space_from_space(isl_set_get_space(domain)));
     c = isl_constraint_set_coefficient_si(c, isl_dim_set, (int) i, -1);
-    c = isl_constraint_set_coefficient_val(c, isl_dim_set, (int) num_dims, grid_val);
+    c = isl_constraint_set_coefficient_val(c, isl_dim_set, (int) num_dims, isl_val_copy(grid_val));
     domain = isl_set_add_constraint(domain, c);
     domain = isl_set_project_out(domain, isl_dim_set, num_dims, 1);
   }
   isl_val_free(grid_val);
-  unsigned int n_param = isl_set_n_param(domain);
+  unsigned int n_param = ud->n_name[CLOOG_PARAM];
   CloogUnionDomain *udgen = cloog_union_domain_alloc((int)n_param);
   udgen->name[CLOOG_PARAM] = ud->name[CLOOG_PARAM];
   ud->name[CLOOG_PARAM] = NULL;
@@ -1872,7 +1874,7 @@ static void acr_print_static_main_function(
   acr_print_static_function_call(corpse_stream, node, num_monitor_dims);
   fclose(corpse_stream);
   free(iterators_names);
-  char *lexmax_string, *lexmin_string;
+  char *lexmax_string = NULL, *lexmin_string = NULL;
 
   lex_min_max_access_strings(unaffected_domain, &lexmax_string, &lexmin_string);
   isl_set_free(unaffected_domain);
@@ -2030,6 +2032,7 @@ static void acr_generate_code_static(
       fprintf(new_file, "%s", buffer);
       free(buffer);
     }
+    osl_scop_free(scop);
   }
   fseek(current_file, 0, SEEK_END);
   size_t end_file = (size_t) ftell(current_file);
