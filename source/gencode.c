@@ -2665,7 +2665,7 @@ void acr_generation_generate_tiling_alternatives(
   /*isl_set_print_internal((isl_set*)context, stderr, 0);*/
   CloogUnionDomain *ud = input->ud;
   size_t previous_num_params = (size_t) ud->n_name[CLOOG_PARAM];
-  ud->n_name[CLOOG_PARAM] += 2*num_monitor_dimensions;
+  ud->n_name[CLOOG_PARAM] += (int)(2*num_monitor_dimensions);
   size_t num_params = (size_t) ud->n_name[CLOOG_PARAM];
   ud->name[CLOOG_PARAM] = realloc(ud->name[CLOOG_PARAM],
       num_params * sizeof(*ud->name[CLOOG_PARAM]));

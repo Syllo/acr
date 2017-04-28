@@ -24,7 +24,6 @@ bool acr_verify_me(size_t size_buffers,
     unsigned char const*const restrict current,
     unsigned char const*const restrict more_recent) {
   bool same = true;
-#pragma omp simd reduction(&&:same)
   for(size_t i = 0; i < size_buffers; i++) {
     same = same && (current[i] <= more_recent[i]);
   }
