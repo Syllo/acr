@@ -246,11 +246,11 @@ void init_acr_runtime_data_thread_specific(struct acr_runtime_data *data) {
  */
 static void init_num_threads(size_t *restrict codegen, size_t *restrict compile) {
   char *codegen_env = getenv("ACR_GEN_THREADS");
-  long num_threads = sysconf(_SC_NPROCESSORS_ONLN);
-  num_threads /= 2;
-  num_threads = num_threads == 0 ? 1 : num_threads;
+  /*long num_threads = sysconf(_SC_NPROCESSORS_ONLN);*/
+  /*num_threads /= 2;*/
+  /*num_threads = num_threads == 0 ? 1 : num_threads;*/
   if (codegen_env == NULL) {
-    *codegen = (size_t) num_threads;
+    *codegen = 2;
   } else {
     long env_threads;
     int num_matched = sscanf(codegen_env, "%ld", &env_threads);
@@ -258,8 +258,8 @@ static void init_num_threads(size_t *restrict codegen, size_t *restrict compile)
       fprintf(stderr,
           "Warning: Bad value \"%s\" in ACR_GEN_THREADS environment"
           " variable.\n"
-          "         Default to %ld threads.\n", codegen_env, num_threads);
-      *codegen = (size_t) num_threads;
+          "         Default to %d threads.\n", codegen_env, 2);
+      *codegen = 2;
     } else {
       env_threads = env_threads < 0 ? -env_threads : env_threads;
       *codegen = (size_t) env_threads;
@@ -268,7 +268,7 @@ static void init_num_threads(size_t *restrict codegen, size_t *restrict compile)
   }
   char *compile_env = getenv("ACR_COMPILE_THREADS");
   if (compile_env == NULL) {
-    *compile = (size_t) num_threads;
+    *compile = 1;
   } else {
     long env_threads;
     int num_matched = sscanf(compile_env, "%ld", &env_threads);
@@ -276,8 +276,8 @@ static void init_num_threads(size_t *restrict codegen, size_t *restrict compile)
       fprintf(stderr,
           "Warning: Bad value \"%s\" in ACR_COMPILE_THREADS environment"
           " variable.\n"
-          "         Default to %ld threads.\n", compile_env, num_threads);
-      *compile = (size_t) num_threads;
+          "         Default to %d threads.\n", compile_env, 2);
+      *compile = 1;
     } else {
       env_threads = env_threads < 0 ? -env_threads : env_threads;
       *compile = (size_t) env_threads;
@@ -290,6 +290,17 @@ void init_acr_runtime_data(
     struct acr_runtime_data* data,
     char *scop,
     size_t scop_size) {
+  char *info_flag = getenv("ACR_INIT_GET_INFO_AND_DIE");
+  if (info_flag) {
+    unsigned long mindim = data->monitor_dim_max[0];
+    for (size_t i = 0; i < data->num_monitor_dims; ++i) {
+      if (data->monitor_dim_max[i] < mindim)
+        mindim = data->monitor_dim_max[i];
+    }
+    fprintf(stderr, "\nACR info minsize:%ld\n", mindim);
+    _exit(0);
+  }
+
   init_num_threads(&data->num_codegen_threads, &data->num_compile_threads);
   data->osl_relation = acr_read_scop_from_buffer(scop, scop_size);
 
