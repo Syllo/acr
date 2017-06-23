@@ -209,7 +209,6 @@ list(APPEND ACR_RUNTIME_LIBRARY_C_FILES
   source/acr_runtime_code_generation.c
   source/acr_runtime_data.c
   source/acr_runtime_osl.c
-  source/acr_runtime_perf.c
   source/acr_runtime_threads.c
   source/acr_runtime_verify.c
   source/acr_stats.c)
@@ -307,17 +306,17 @@ install(TARGETS acr_exe
   RUNTIME DESTINATION bin)
 install(TARGETS acr acrrun
   LIBRARY DESTINATION lib)
-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include"
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
   DESTINATION include
   FILES_MATCHING PATTERN *.h)
-install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/autogen/include"
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/autogen/include/"
   DESTINATION include
   FILES_MATCHING PATTERN *.h)
-install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/dep-install/bin"
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/dep-install/bin/"
   DESTINATION bin)
-install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/dep-install/include"
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/dep-install/include/"
   DESTINATION include)
-install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/dep-install/lib"
+install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/dep-install/lib/"
   DESTINATION lib)
 
 # Uninstall
