@@ -392,9 +392,7 @@ static void acr_print_acr_alternatives(FILE *out,
           name);
       switch (options->type) {
           case acr_regular_build:
-          case acr_perf_kernel_only:
-          case acr_perf_compile_time_zero:
-          case acr_perf_compile_time_zero_run:
+          case acr_optimal_generate:
             fprintf(out,
                 " , .alt.parameter.parameter_id = %zu"
                 " , .alt.parameter.function_matching_alternative ="
@@ -406,6 +404,8 @@ static void acr_print_acr_alternatives(FILE *out,
                 " , .alt.parameter.parameter_id = %zu"
                 " } "
                 , osl_strings_find(pragma_alternative_parameters, name));
+            break;
+          case acr_optimal_run:
             break;
         }
         break;
@@ -967,49 +967,13 @@ static void acr_print_acr_runtime_init(FILE* out,
           prefix);
   }
 
-  fprintf(out, "};\n");
+  if (build_options->type == acr_optimal_generate) {
+      fprintf(out, "  .generate_optimum_function = true,\n");
+  } else {
+      fprintf(out, "  .generate_optimum_function = false,\n");
+  }
 
-  switch (build_options->type) {
-    case acr_regular_build:
-      break;
-    case acr_perf_compile_time_zero_run:
-      fprintf(out, "#include \"acr_perf_%s\"\n", prefix);
-    case acr_perf_kernel_only:
-    case acr_perf_compile_time_zero:
-      fprintf(out,
-          "static struct acr_runtime_perf %s_runtime_perf = {\n"
-          "  .monitor_sleep_cond = PTHREAD_COND_INITIALIZER,\n"
-          "  .coordinator_continue_cond = PTHREAD_COND_INITIALIZER,\n"
-          "  .rdata = &%s_runtime_data,\n"
-          "  .list_head = NULL,\n"
-          "  .compilation_list = NULL,\n"
-          "  .list_size = 0,\n"
-          , prefix, prefix);
-      break;
-    case acr_static_kernel:
-      break;
-  }
-  switch (build_options->type) {
-    case acr_regular_build:
-      break;
-    case acr_perf_kernel_only:
-      fprintf(out,
-          "  .type = acr_runtime_perf_kernel_only,\n"
-          "};\n");
-      break;
-    case acr_perf_compile_time_zero:
-      fprintf(out,
-          "  .type = acr_runtime_perf_compilation_time_zero,\n"
-          "};\n");
-      break;
-    case acr_perf_compile_time_zero_run:
-      fprintf(out,
-          "  .type = acr_runtime_perf_compilation_time_zero_run,\n"
-          "};\n");
-      break;
-    case acr_static_kernel:
-      break;
-  }
+  fprintf(out, "};\n");
 
   fprintf(out, "static void %s_acr_runtime_init", prefix);
   acr_print_parameters(out, init);
@@ -1020,18 +984,14 @@ static void acr_print_acr_runtime_init(FILE* out,
   acr_print_monitor_max_dims(out, prefix, bounds, tiling_size, scop);
 
   switch (build_options->type) {
-    case acr_perf_compile_time_zero_run:
-      fprintf(out,
-          "  acr_recover_perf_%s(&%s_runtime_perf);\n",
-          prefix, prefix);
     case acr_regular_build:
+    case acr_optimal_generate:
     fprintf(out,
         "  init_acr_runtime_data_thread_specific(&%s_runtime_data);\n",
         prefix);
       break;
-    case acr_perf_kernel_only:
-    case acr_perf_compile_time_zero:
     case acr_static_kernel:
+    case acr_optimal_run:
       break;
   }
   fprintf(out,
@@ -1057,21 +1017,14 @@ static void acr_print_acr_runtime_init(FILE* out,
   acr_print_init_function_call(out, init, build_options);
   switch (build_options->type) {
     case acr_regular_build:
+    case acr_optimal_generate:
     fprintf(out,
         "  pthread_create(&%s_runtime_data.monitor_thread, NULL,\n"
         "    acr_verification_and_coordinator_function, &%s_runtime_data);\n",
         prefix, prefix);
       break;
-    case acr_perf_compile_time_zero_run:
-    fprintf(out,
-        "  %s_runtime_perf.rdata = &%s_runtime_data;\n"
-        "  pthread_create(&%s_runtime_data.monitor_thread, NULL,\n"
-        "    acr_runtime_perf_compile_time_zero, &%s_runtime_perf);\n",
-        prefix, prefix, prefix, prefix);
-      break;
-    case acr_perf_kernel_only:
-    case acr_perf_compile_time_zero:
     case acr_static_kernel:
+    case acr_optimal_run:
       break;
   }
   fprintf(out, "}\n\n");
@@ -1106,10 +1059,8 @@ bool acr_print_node_initialization(FILE* in, FILE* out,
   acr_option init;
   char *prefix = acr_get_scop_prefix(node);
   switch (options->type) {
+    case acr_optimal_generate:
     case acr_regular_build:
-    case acr_perf_kernel_only:
-    case acr_perf_compile_time_zero:
-    case acr_perf_compile_time_zero_run:
       fprintf(out, "#define %s_acr &%s_runtime_data\n", prefix, prefix);
       init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
       if (init == NULL) {
@@ -1122,6 +1073,8 @@ bool acr_print_node_initialization(FILE* in, FILE* out,
       break;
     case acr_static_kernel:
       fprintf(out, "#define %s_acr &%s_static_runtime\n", prefix, prefix);
+      break;
+    case acr_optimal_run:
       break;
   }
   return true;
@@ -1187,45 +1140,48 @@ void acr_print_node_init_function_call(FILE* out,
       , prefix, prefix, prefix, prefix, prefix);
 
   fprintf(out,
-      "#ifdef ACR_STATS_ENABLED\n"
-      "  acr_time t1;\n"
-      "  acr_get_current_time(&t1);\n"
-      "  %s_runtime_data.acr_stats->sim_stats.total_time += acr_difftime(t0, t1);\n"
-      "  %s_runtime_data.acr_stats->sim_stats.num_simmulation_step += 1;\n"
-      "#endif\n"
-      "  pthread_cond_signal(&%s_runtime_data.monitor_sleep_cond);\n"
-      "  void *acr_potential_new_function = atomic_exchange_explicit(\n"
-      "      &%s_runtime_data.alternative_function, NULL,\n"
-      "      memory_order_relaxed);\n"
-      "  if (acr_potential_new_function != NULL) {\n"
-      "    %s = (void (*)",
-      prefix, prefix, prefix, prefix, prefix);
+        "#ifdef ACR_STATS_ENABLED\n"
+        "  acr_time t1;\n"
+        "  acr_get_current_time(&t1);\n"
+        "  %s_runtime_data.acr_stats->sim_stats.total_time += acr_difftime(t0, t1);\n"
+        "  %s_runtime_data.acr_stats->sim_stats.num_simmulation_step += 1;\n"
+        "#endif\n"
+        "  pthread_cond_signal(&%s_runtime_data.monitor_sleep_cond);\n",
+        prefix, prefix, prefix);
+  if (b_options->type == acr_optimal_generate) {
+    fprintf(out,
+        "  void *acr_potential_new_function = NULL;\n"
+        "  do {\n"
+        "    acr_potential_new_function = atomic_exchange_explicit(\n"
+        "      &%s_runtime_data.alternative_function, NULL,\n"
+        "      memory_order_relaxed);\n"
+        "  } while(acr_potential_new_function == NULL);\n",
+        prefix);
+  } else {
+    fprintf(out,
+        "  void *acr_potential_new_function = atomic_exchange_explicit(\n"
+        "      &%s_runtime_data.alternative_function, NULL,\n"
+        "      memory_order_relaxed);\n",
+        prefix);
+  }
+  fprintf(out,
+        "  if (acr_potential_new_function != NULL) {\n"
+        "    %s = (void (*)",
+        prefix);
   acr_print_parameters(out, init);
-
   fprintf(out,
       ") acr_potential_new_function;\n"
       "  }\n");
 }
 
-static void acr_print_node_init_function_call_for_max_perf_run(FILE *out,
-    const acr_compute_node node, const struct acr_build_options *build_options) {
-  char* prefix = acr_get_scop_prefix(node);
-  acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
-  acr_print_init_function_call(out, init, build_options);
-  fprintf(out, "  %s = (void (*)", prefix);
-  acr_print_parameters(out, init);
-  fprintf(out, ") acr_runntime_perf_end_step(&%s_runtime_perf);", prefix);
-}
-
 static void acr_print_init_function_call(FILE* out, const acr_option init,
     const struct acr_build_options *build_options) {
   switch (build_options->type) {
+    case acr_optimal_generate:
     case acr_regular_build:
-    case acr_perf_kernel_only:
-    case acr_perf_compile_time_zero:
-    case acr_perf_compile_time_zero_run:
       fprintf(out, "%s", acr_init_get_function_name(init));
       break;
+    case acr_optimal_run:
     case acr_static_kernel:
       break;
   }
@@ -1274,32 +1230,22 @@ static void acr_print_scop_in_file(FILE* output,
 static void acr_print_destroy(FILE* out, const char *prefix,
     struct acr_build_options const*build_options) {
   switch (build_options->type) {
+    case acr_optimal_generate:
     case acr_regular_build:
       fprintf(out,
           "  free_acr_runtime_data_thread_specific(&%s_runtime_data);\n"
           "  free_acr_runtime_data(&%s_runtime_data);\n",
           prefix, prefix);
       break;
-    case acr_perf_kernel_only:
-    case acr_perf_compile_time_zero:
-      fprintf(out,
-          "  acr_runtime_perf_clean(&%s_runtime_perf);\n"
-          ,prefix);
-      break;
-    case acr_perf_compile_time_zero_run:
-      fprintf(out,
-          "  free_acr_runtime_data_thread_specific(&%s_runtime_data);\n"
-          "  acr_runtime_clean_time_zero_run(&%s_runtime_perf);\n",
-          prefix, prefix);
-      break;
     case acr_static_kernel:
       fprintf(out,
           "  free_acr_static_data(&%s_static_runtime);\n", prefix);
       break;
+    case acr_optimal_run:
+      break;
   }
   switch (build_options->type) {
     case acr_regular_build:
-    case acr_perf_compile_time_zero_run:
       fprintf(out,
           "#ifdef ACR_STATS_ENABLED\n"
           "  acr_print_stats(stderr, %s_runtime_data.kernel_prefix,"
@@ -1840,7 +1786,7 @@ static void acr_print_static_main_function(
     domain = isl_set_project_out(domain, isl_dim_set, num_dims, 1);
   }
   isl_val_free(grid_val);
-  unsigned int n_param = ud->n_name[CLOOG_PARAM];
+  unsigned int n_param = (unsigned int) ud->n_name[CLOOG_PARAM];
   CloogUnionDomain *udgen = cloog_union_domain_alloc((int)n_param);
   udgen->name[CLOOG_PARAM] = ud->name[CLOOG_PARAM];
   ud->name[CLOOG_PARAM] = NULL;
@@ -2156,12 +2102,8 @@ static void acr_generate_code_dynamic(
 
       switch (build_options->type) {
         case acr_regular_build:
-        case acr_perf_compile_time_zero_run:
+        case acr_optimal_generate:
           acr_print_node_init_function_call(temp_buffer, node, build_options);
-          break;
-        case acr_perf_kernel_only:
-        case acr_perf_compile_time_zero:
-          acr_print_node_init_function_call_for_max_perf_run(temp_buffer, node, build_options);
           break;
         case acr_static_kernel:
           break;

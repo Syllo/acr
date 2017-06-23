@@ -29,7 +29,6 @@
 #include "acr/acr_runtime_build.h"
 #include "acr/acr_runtime_code_generation.h"
 #include "acr/acr_runtime_data.h"
-#include "acr/acr_runtime_perf.h"
 #include "acr/acr_runtime_verify.h"
 #include "acr/acr_stats.h"
 
@@ -733,6 +732,203 @@ static void acr_kernel_versioning(
   free(maximized_version);
 }
 
+static void write_function_to_caller(
+    size_t function_num, size_t current_function_num,
+    FILE *function_call_function, const char *function) {
+  fprintf(function_call_function, "  [%zu] = %.24s_%zu,\n",
+      function_num, function+43, current_function_num);
+}
+
+static void write_new_function_to_pool(
+    size_t function_num, size_t current_function_num,
+    FILE *pool, FILE *function_call_function, const char* function) {
+  fprintf(pool, "%.29s_%zu%s",
+      function + 38, current_function_num, function + 67);
+  write_function_to_caller(
+      function_num, current_function_num, function_call_function, function);
+}
+
+static void acr_kernel_sequential_optimum_gencode(
+    struct acr_runtime_data *const init_data,
+    struct acr_avaliable_functions *const functions,
+    struct acr_monitoring_computation *const monitor_data,
+    struct acr_runtime_threads_compile_data *const compile_threads_data,
+    struct acr_runtime_threads_cloog_gencode *const cloog_thread_data) {
+
+  FILE *pool_file, *function_call_function;
+  char *buffer_function_call_function;
+  size_t characters_written_function_call_function;
+  pool_file = fopen("acr_local_simulation_all_functions.c", "w");
+  function_call_function = open_memstream(&buffer_function_call_function,
+      &characters_written_function_call_function);
+
+  fprintf(pool_file, "#include \"acr_required_definitions.h\"\n");
+  fprintf(function_call_function, "static void* function_pointer_array[] = {\n");
+
+  enum acr_kernel_function_type function_used_by_kernel_type =
+    acr_kernel_function_initial;
+  unsigned char *valid_monitor_result = NULL;
+  unsigned char *invalid_monitor_result =
+    malloc(init_data->monitor_total_size * sizeof(*monitor_data->shared_buffer->scrap_values));
+  unsigned char *maximized_version;
+  switch (init_data->kernel_strategy_type) {
+    case acr_kernel_strategy_simple:
+      break;
+    case acr_kernel_strategy_versioning:
+    case acr_kernel_strategy_stencil:
+      maximized_version =
+        malloc(init_data->monitor_total_size *
+            sizeof(*monitor_data->shared_buffer->scrap_values));
+      break;
+    case acr_kernel_strategy_unknown:
+      return;
+      break;
+  }
+
+  do {
+    if (!atomic_flag_test_and_set_explicit(
+          &init_data->monitor_thread_continue, memory_order_relaxed))
+      goto end_generate_kernel;
+    acr_get_most_recent_monitor_result(&valid_monitor_result,
+        &invalid_monitor_result,
+        monitor_data);
+  } while (valid_monitor_result == NULL);
+
+  size_t most_recent_function = 0;
+  size_t function_used_by_kernel = functions->total_functions - 1;
+  size_t function_num = 0, current_function_num = 0;
+  goto starting_generation;
+
+  do {
+    /*void *function_pointer;*/
+    /*do {*/
+      /*function_pointer = atomic_load_explicit(*/
+          /*&init_data->alternative_function,*/
+          /*memory_order_relaxed);*/
+    /*} while (function_pointer != NULL);*/
+
+    do {
+      if (!atomic_flag_test_and_set_explicit(
+        &init_data->monitor_thread_continue, memory_order_relaxed))
+        goto end_generate_kernel;
+      acr_get_most_recent_monitor_result(&valid_monitor_result,
+          &invalid_monitor_result,
+          monitor_data);
+    } while (valid_monitor_result == NULL);
+
+    bool validity = false;
+    bool required_compilation;
+    double delta;
+    switch (init_data->kernel_strategy_type) {
+      case acr_kernel_strategy_simple:
+        validity = acr_verify_me(init_data->monitor_total_size,
+            functions->function_priority[most_recent_function]->monitor_result,
+            valid_monitor_result);
+        break;
+      case acr_kernel_strategy_versioning:
+        acr_verify_versioning(init_data->monitor_total_size,
+            functions->function_priority[most_recent_function]->monitor_result,
+            valid_monitor_result, maximized_version, init_data->num_alternatives,
+            &delta, &validity);
+        break;
+      case acr_kernel_strategy_stencil:
+        acr_verify_2dstencil(
+            (unsigned char) (init_data->num_alternatives - 1),
+            init_data->monitor_dim_max,
+            valid_monitor_result,
+            functions->function_priority[most_recent_function]->monitor_result,
+            maximized_version, &required_compilation, &validity);
+        break;
+      case acr_kernel_strategy_unknown:
+        break;
+    }
+    function_num += 1;
+    if (validity) { // Current function is still valid
+      write_function_to_caller(function_num, current_function_num,
+          function_call_function, functions->function_priority[most_recent_function]->generated_code);
+      atomic_store_explicit(&init_data->alternative_function,
+          functions->function_priority[most_recent_function]->tcc_function,
+          memory_order_relaxed);
+      invalid_monitor_result = valid_monitor_result;
+      valid_monitor_result = NULL;
+    } else { // The function is no more valid -> compilation
+starting_generation:
+      function_used_by_kernel_type = acr_kernel_function_initial;
+      pthread_mutex_lock(&cloog_thread_data->mutex);
+      most_recent_function = acr_next_free_function_position(
+          most_recent_function,
+          function_used_by_kernel,
+          function_used_by_kernel,
+          functions);
+      acr_cloog_compilation(&valid_monitor_result,
+          &invalid_monitor_result,
+          most_recent_function,
+          functions,
+          cloog_thread_data);
+      enum acr_avaliable_function_type most_recent_function_type;
+      do {
+        most_recent_function_type =
+          atomic_load_explicit(
+              &functions->function_priority[most_recent_function]->type,
+              memory_order_acquire);
+      } while (most_recent_function_type != acr_function_finished_cloog_gen);
+
+      current_function_num += 1;
+      write_new_function_to_pool(function_num, current_function_num,
+          pool_file, function_call_function,
+          functions->function_priority[most_recent_function]->generated_code);
+
+      size_t no_care;
+      acr_valid_function_switch_to(most_recent_function_type,
+          &function_used_by_kernel_type,
+          &function_used_by_kernel,
+          &no_care,
+          most_recent_function,
+          init_data,
+          functions,
+          compile_threads_data);
+      do {
+        most_recent_function_type =
+          atomic_load_explicit(
+              &functions->function_priority[most_recent_function]->type,
+              memory_order_acquire);
+#ifdef TCC_PRESENT
+      } while (most_recent_function_type != acr_function_tcc_and_shared);
+#else
+      } while (most_recent_function_type != acr_function_shared_object_lib);
+#endif
+      acr_valid_function_switch_to(most_recent_function_type,
+          &function_used_by_kernel_type,
+          &function_used_by_kernel,
+          &no_care,
+          most_recent_function,
+          init_data,
+          functions,
+          compile_threads_data);
+    }
+    function_num += 1;
+
+  } while (atomic_flag_test_and_set_explicit(
+        &init_data->monitor_thread_continue, memory_order_relaxed));
+
+end_generate_kernel:
+  fprintf(function_call_function, "};");
+  fclose(function_call_function);
+  fprintf(pool_file, "%s\n", buffer_function_call_function);
+  free(buffer_function_call_function);
+  fclose(pool_file);
+  switch (init_data->kernel_strategy_type) {
+    case acr_kernel_strategy_simple:
+    case acr_kernel_strategy_unknown:
+      break;
+    case acr_kernel_strategy_versioning:
+    case acr_kernel_strategy_stencil:
+      free(maximized_version);
+      break;
+  }
+  free(invalid_monitor_result);
+}
+
 static void acr_kernel_simple(
     struct acr_runtime_data *const init_data,
     struct acr_avaliable_functions *const functions,
@@ -971,26 +1167,30 @@ void* acr_verification_and_coordinator_function(void *in_data) {
         (void*)&cloog_thread_data);
   }
 
-  switch (init_data->kernel_strategy_type) {
-    case acr_kernel_strategy_simple:
-      acr_kernel_simple(init_data,
+  if (init_data->generate_optimum_function)
+      acr_kernel_sequential_optimum_gencode(init_data,
           &functions, &monitor_data, &compile_threads_data, &cloog_thread_data);
-      break;
-    case acr_kernel_strategy_versioning:
-      acr_kernel_versioning(init_data,
-          &functions, &monitor_data, &compile_threads_data, &cloog_thread_data);
-      break;
-    case acr_kernel_strategy_stencil:
-      acr_kernel_stencil(init_data,
-          &functions, &monitor_data, &compile_threads_data, &cloog_thread_data);
-      break;
-    case acr_kernel_strategy_unknown:
-    default:
-      fprintf(stderr, "Warning unknown strategy number %d\n",
-          init_data->kernel_strategy_type);
-      exit(1);
-      break;
-  }
+  else
+    switch (init_data->kernel_strategy_type) {
+      case acr_kernel_strategy_simple:
+        acr_kernel_simple(init_data,
+            &functions, &monitor_data, &compile_threads_data, &cloog_thread_data);
+        break;
+      case acr_kernel_strategy_versioning:
+        acr_kernel_versioning(init_data,
+            &functions, &monitor_data, &compile_threads_data, &cloog_thread_data);
+        break;
+      case acr_kernel_strategy_stencil:
+        acr_kernel_stencil(init_data,
+            &functions, &monitor_data, &compile_threads_data, &cloog_thread_data);
+        break;
+      case acr_kernel_strategy_unknown:
+      default:
+        fprintf(stderr, "Warning unknown strategy number %d\n",
+            init_data->kernel_strategy_type);
+        exit(1);
+        break;
+    }
 
   // Quit compile threads
   pthread_mutex_lock(&compile_threads_data.mutex);
@@ -1364,84 +1564,6 @@ static void* acr_runtime_compile_thread(void* in_data) {
 #endif
   pthread_mutex_unlock(&input_data->mutex);
 #endif
-
-  pthread_exit(NULL);
-}
-
-void* acr_runtime_perf_compile_time_zero(void* in_data) {
-  struct acr_runtime_perf *perf = (struct acr_runtime_perf*) in_data;
-
-  struct acr_runtime_data * const rdata = perf->rdata;
-
-  // Monitoring thread
-  pthread_t monitoring_thread;
-  struct acr_monitoring_shared shared_monitor_data = {
-    .current_valid_computation = NULL,
-    .scrap_values = NULL,
-  };
-  struct acr_monitoring_computation monitor_data = {
-    .monitoring_function = rdata->monitoring_function,
-    .shared_buffer = &shared_monitor_data,
-    .monitor_result_size = rdata->monitor_total_size,
-    .end_yourself = ATOMIC_FLAG_INIT,
-#ifdef ACR_STATS_ENABLED
-    .num_mesurement = 0,
-    .total_time = 0.,
-#endif
-  };
-  atomic_flag_test_and_set(&monitor_data.end_yourself);
-
-  monitor_data.shared_buffer->scrap_values =
-    malloc(rdata->monitor_total_size * sizeof(*monitor_data.shared_buffer->scrap_values));
-  pthread_create(&monitoring_thread, NULL, acr_runtime_monitoring_function,
-      (void*) &monitor_data);
-
-  unsigned char *invalid_monitor_result =
-    malloc(rdata->monitor_total_size * sizeof(*invalid_monitor_result));
-  unsigned char *valid_monitor_result = NULL;
-
-  const struct acr_performance_list *current_element = perf->compilation_list;
-
-  while (atomic_flag_test_and_set_explicit(
-        &rdata->monitor_thread_continue, memory_order_relaxed) &&
-      current_element != NULL) {
-    while (valid_monitor_result == NULL) {
-      acr_get_most_recent_monitor_result(&valid_monitor_result,
-                                        &invalid_monitor_result,
-                                        &monitor_data);
-    }
-    if (acr_verify_me(rdata->monitor_total_size,
-          current_element->element.monitor_result,
-          valid_monitor_result)) { // Valid function
-
-      atomic_store_explicit(
-          &rdata->alternative_function,
-          current_element->element.function,
-          memory_order_relaxed);
-      atomic_store_explicit(
-          &rdata->current_monitoring_data,
-          current_element->element.monitor_result,
-          memory_order_relaxed);
-    } else {
-      atomic_store_explicit(
-          &rdata->alternative_function,
-          rdata->original_function,
-          memory_order_relaxed);
-      atomic_store_explicit(
-          &rdata->current_monitoring_data,
-          NULL,
-          memory_order_relaxed);
-      current_element = current_element->next;
-    }
-    invalid_monitor_result = valid_monitor_result;
-    valid_monitor_result = NULL;
-  }
-
-  atomic_flag_clear(&monitor_data.end_yourself);
-
-
-  pthread_join(monitoring_thread, NULL);
-  free(invalid_monitor_result);
 
   pthread_exit(NULL);
 }

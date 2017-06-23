@@ -26,7 +26,7 @@
 
 #include "acr/gencode.h"
 
-static const char opt_options[] = "sabpvVhxyz";
+static const char opt_options[] = "sabpvVhxy";
 
 int main(int argc, char** argv) {
 
@@ -51,13 +51,10 @@ int main(int argc, char** argv) {
         build_options.kernel_version = acr_runtime_kernel_stencil;
         break;
       case 'x':
-        build_options.type = acr_perf_compile_time_zero_run;
-        break;
-      case 'z':
-        build_options.type = acr_perf_kernel_only;
+        build_options.type = acr_optimal_generate;
         break;
       case 'y':
-        build_options.type = acr_perf_compile_time_zero;
+        build_options.type = acr_optimal_run;
         break;
       case 'h':
         fprintf(stdout, help);

@@ -43,15 +43,10 @@ enum acr_build_type {
   /** \brief Build a version that will output the sequential code to run only
    * the kernel
    */
-  acr_perf_kernel_only,
-  /** \brief Build a version that will generate all the functions in the working
-   * directory.
+  acr_optimal_generate,
+  /** \brief Run a previously optimal generated file
    */
-  acr_perf_compile_time_zero,
-  /** \brief Build a version that will run the generated functions instead of
-   * ACR runtime thus providing an approximation of ACR without compile time.
-   */
-  acr_perf_compile_time_zero_run,
+  acr_optimal_run,
   /** \brief Build a version where the tiles are pre-computed and can be
    * computed in parallel
    */

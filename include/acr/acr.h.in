@@ -57,9 +57,8 @@ static const char help[] = "Usage acr [options] file\n\n"
   "   -h              Display this help and exit\n"
   "   -v              Display version information and exit\n"
   "   -p              Print acr data structure and openscop and exit\n"
-  "   -x              Run the generated zero compile time\n"
-  "   -y              Generate a zero compile time build\n"
-  "   -z              Generate a max performance build for comparison purpose\n";
+  "   -x              Generate file for optimal run\n"
+  "   -y              Build with generated file for optimal run\n";
 
 /**
  * \brief Version string

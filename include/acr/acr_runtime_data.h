@@ -149,6 +149,7 @@ struct acr_runtime_data {
 #endif
   /** The kernel strategy type */
   enum acr_kernel_strategy_type kernel_strategy_type;
+  bool generate_optimum_function;
 };
 
 /**
