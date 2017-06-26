@@ -2146,6 +2146,125 @@ static void acr_generate_code_dynamic(
   free(option_to_apply_in_the_future);
 }
 
+static void acr_print_generated_optimal_call(
+    FILE *out, const acr_compute_node node) {
+  const char* prefix = acr_get_scop_prefix(node);
+  fprintf(out, " void (*__acr_current_funcall)");
+  acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
+  acr_print_parameters(out, init);
+  fprintf(out, "= (void (*)");
+  acr_print_parameters(out, init);
+  fprintf(out,
+      ") acr_optimum_function_%s();\n"
+      "__acr_current_funcall", prefix);
+  fprintf(out, "(");
+  size_t num_parameters = acr_init_get_num_parameters(init);
+  acr_parameter_declaration_list declaration_list =
+    acr_init_get_parameter_list(init);
+  if (num_parameters != 1 ||
+      (num_parameters == 1 && strcmp(
+        acr_parameter_declaration_get_parameter_name(declaration_list, 0),
+        "void") != 0))
+  for (size_t i = 0; i < num_parameters; ++i) {
+    if (i != 0)
+      fprintf(out, ", ");
+    fprintf(out, "%s",
+        acr_parameter_declaration_get_parameter_name(declaration_list,i));
+  }
+  fprintf(out, ");\n");
+}
+
+static void acr_generate_optimal_run(
+    const char* filename,
+    FILE *current_file,
+    const acr_compute_node all_options,
+    const acr_compute_node_list node_list) {
+
+  char* new_file_name = acr_new_file_name(filename);
+  FILE* new_file = fopen(new_file_name, "w");
+  if (!new_file) {
+    perror("fopen");
+    return;
+  }
+
+  const size_t list_size = acr_compute_node_list_get_size(node_list);
+  size_t position_in_input = 0;
+  fseek(current_file, (long)position_in_input, SEEK_SET);
+  for (size_t i = 0; i < list_size; ++i) {
+    acr_compute_node node = acr_compute_node_list_get_node(i, node_list);
+    osl_scop_p scop = acr_extract_scop_in_compute_node(
+        node, current_file, filename);
+    if (scop) {
+      if (scop->next) {
+        osl_scop_free(scop->next);
+        scop->next = NULL;
+      }
+    }
+    char *buffer;
+    size_t size_buffer;
+    FILE* temp_buffer = open_memstream(&buffer, &size_buffer);
+    fprintf(temp_buffer, "#include <acr/acr_runtime.h>\n");
+    size_t kernel_start, kernel_end;
+    acr_scop_coord_to_acr_coord(current_file, scop, node,
+        &kernel_start, &kernel_end);
+    fseek(current_file, (long)position_in_input, SEEK_SET);
+    position_in_input = acr_copy_from_file_avoiding_pragmas(
+        current_file, temp_buffer, position_in_input,
+        acr_position_of_init_in_node(node), all_options);
+
+    acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
+    fprintf(temp_buffer, "static void %s_acr_initial", acr_init_get_function_name(init));
+    acr_print_parameters(temp_buffer, init);
+    fprintf(temp_buffer, " {\n");
+    fseek(current_file, (long) kernel_start, SEEK_SET);
+    acr_copy_from_file_to_file(current_file, temp_buffer, kernel_start, kernel_end);
+    fprintf(temp_buffer, "\n}\n\n");
+
+    fprintf(temp_buffer,
+        "#include \"acr_local_simulation_all_functions.c\"\n");
+
+    const char* prefix = acr_get_scop_prefix(node);
+    fprintf(temp_buffer,
+        "extern void *acr_optimum_function_%s(void);\n"
+        "static struct acr_runtime_data *%s_acr = NULL;\n",
+        prefix, prefix);
+
+    fseek(current_file, (long)position_in_input, SEEK_SET);
+    position_in_input = acr_copy_from_file_avoiding_pragmas(
+        current_file,
+        temp_buffer,
+        position_in_input, kernel_start,
+        all_options);
+
+    acr_print_generated_optimal_call(temp_buffer, node);
+
+    position_in_input = kernel_end;
+    fseek(current_file, (long)position_in_input, SEEK_SET);
+
+    acr_option destroy =
+      acr_compute_node_get_option_of_type(acr_type_destroy, node, 1);
+    size_t destroy_pos = acr_destroy_get_pragma_position(destroy);
+    position_in_input = acr_copy_from_file_avoiding_pragmas(
+        current_file,
+        temp_buffer,
+        position_in_input, destroy_pos,
+        all_options);
+
+    fclose(temp_buffer);
+    fprintf(new_file, "%s", buffer);
+    free(buffer);
+    osl_scop_free(scop);
+  }
+  fseek(current_file, 0, SEEK_END);
+  size_t end_file = (size_t) ftell(current_file);
+  fseek(current_file, (long)position_in_input, SEEK_SET);
+  position_in_input = acr_copy_from_file_avoiding_pragmas(
+      current_file, new_file, position_in_input,
+      end_file, all_options);
+  free(new_file_name);
+  fclose(new_file);
+}
+
 void acr_generate_code(const char* filename,
     struct acr_build_options *build_options) {
   FILE* current_file = fopen(filename, "r");
@@ -2173,6 +2292,10 @@ void acr_generate_code(const char* filename,
 
   if (node_list) {
     switch (build_options->type) {
+      case acr_optimal_run:
+        acr_generate_optimal_run(filename,
+            current_file, all_options, node_list);
+        break;
       case acr_static_kernel:
         acr_generate_code_static(filename, build_options,
             current_file, all_options, node_list,

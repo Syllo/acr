@@ -742,10 +742,21 @@ static void write_function_to_caller(
 static void write_new_function_to_pool(
     size_t function_num, size_t current_function_num,
     FILE *pool, FILE *function_call_function, const char* function) {
-  fprintf(pool, "%.29s_%zu%s",
+  fprintf(pool, "static %.29s_%zu%s",
       function + 38, current_function_num, function + 67);
   write_function_to_caller(
       function_num, current_function_num, function_call_function, function);
+}
+
+static void print_pool_caller_function(const char *prefix, FILE *out) {
+  fprintf(out,
+      "static void * acr_optimum_function_%s() {\n"
+      "  static size_t index = 0;\n"
+      "  void *current_func = function_pointer_array[index];\n"
+      "  index += 1;\n"
+      "  return current_func;\n"
+      "}\n",
+      prefix);
 }
 
 static void acr_kernel_sequential_optimum_gencode(
@@ -762,8 +773,12 @@ static void acr_kernel_sequential_optimum_gencode(
   function_call_function = open_memstream(&buffer_function_call_function,
       &characters_written_function_call_function);
 
-  fprintf(pool_file, "#include \"acr_required_definitions.h\"\n");
-  fprintf(function_call_function, "static void* function_pointer_array[] = {\n");
+  fprintf(pool_file,
+      "#include <stdlib.h>\n"
+      "#include \"acr_required_definitions.h\"\n"
+      );
+  fprintf(function_call_function, "static void* function_pointer_array[] = {\n"
+      "  [0] = %s_acr_initial,\n", init_data->kernel_prefix);
 
   enum acr_kernel_function_type function_used_by_kernel_type =
     acr_kernel_function_initial;
@@ -830,6 +845,10 @@ static void acr_kernel_sequential_optimum_gencode(
             functions->function_priority[most_recent_function]->monitor_result,
             valid_monitor_result, maximized_version, init_data->num_alternatives,
             &delta, &validity);
+        invalid_monitor_result = maximized_version;
+        maximized_version = valid_monitor_result;
+        valid_monitor_result = invalid_monitor_result;
+        invalid_monitor_result = NULL;
         break;
       case acr_kernel_strategy_stencil:
         acr_verify_2dstencil(
@@ -838,11 +857,14 @@ static void acr_kernel_sequential_optimum_gencode(
             valid_monitor_result,
             functions->function_priority[most_recent_function]->monitor_result,
             maximized_version, &required_compilation, &validity);
+        invalid_monitor_result = maximized_version;
+        maximized_version = valid_monitor_result;
+        valid_monitor_result = invalid_monitor_result;
+        invalid_monitor_result = NULL;
         break;
       case acr_kernel_strategy_unknown:
         break;
     }
-    function_num += 1;
     if (validity) { // Current function is still valid
       write_function_to_caller(function_num, current_function_num,
           function_call_function, functions->function_priority[most_recent_function]->generated_code);
@@ -915,6 +937,9 @@ end_generate_kernel:
   fprintf(function_call_function, "};");
   fclose(function_call_function);
   fprintf(pool_file, "%s\n", buffer_function_call_function);
+  print_pool_caller_function(
+     init_data->kernel_prefix,
+     pool_file);
   free(buffer_function_call_function);
   fclose(pool_file);
   switch (init_data->kernel_strategy_type) {
