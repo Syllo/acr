@@ -135,7 +135,7 @@ void acr_verify_2dstencil(
   }
   size_t total_computation = isize * jsize;
   if ((double) too_much_precision / (double)total_computation > 0.15) {
-    fprintf(stderr, "Compile because too much diff\n");
+    /*fprintf(stderr, "Compile because too much diff\n");*/
     required_compilation_local = true;
   }
 

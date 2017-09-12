@@ -811,7 +811,7 @@ static void acr_kernel_sequential_optimum_gencode(
 
   size_t most_recent_function = 0;
   size_t function_used_by_kernel = functions->total_functions - 1;
-  size_t function_num = 0, current_function_num = 0;
+  size_t function_num = 1, current_function_num = 1;
   goto starting_generation;
 
   do {
@@ -832,7 +832,7 @@ static void acr_kernel_sequential_optimum_gencode(
     } while (valid_monitor_result == NULL);
 
     bool validity = false;
-    bool required_compilation;
+    bool required_compilation = false;
     double delta;
     switch (init_data->kernel_strategy_type) {
       case acr_kernel_strategy_simple:
@@ -865,7 +865,7 @@ static void acr_kernel_sequential_optimum_gencode(
       case acr_kernel_strategy_unknown:
         break;
     }
-    if (validity) { // Current function is still valid
+    if (validity && !required_compilation) { // Current function is still valid
       write_function_to_caller(function_num, current_function_num,
           function_call_function, functions->function_priority[most_recent_function]->generated_code);
       atomic_store_explicit(&init_data->alternative_function,

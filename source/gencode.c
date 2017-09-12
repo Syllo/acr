@@ -2225,9 +2225,8 @@ static void acr_generate_optimal_run(
 
     const char* prefix = acr_get_scop_prefix(node);
     fprintf(temp_buffer,
-        "extern void *acr_optimum_function_%s(void);\n"
         "static struct acr_runtime_data *%s_acr = NULL;\n",
-        prefix, prefix);
+        prefix);
 
     fseek(current_file, (long)position_in_input, SEEK_SET);
     position_in_input = acr_copy_from_file_avoiding_pragmas(
