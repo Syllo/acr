@@ -394,10 +394,10 @@ void acr_static_data_init_grid(struct acr_runtime_data_static *static_data) {
       static_data->total_functions *= (size_t) this_dim_total;
     }
   }
-  static_data->all_functions =
-    malloc(static_data->total_functions * sizeof(*static_data->all_functions));
+  static_data->precision_array =
+    malloc(static_data->total_functions * sizeof(*static_data->precision_array));
   for (size_t i = 0; i < static_data->total_functions; ++i) {
-    static_data->all_functions[i] = static_data->alternative_functions[0];
+    static_data->precision_array[i] = 0;
   }
 }
 
@@ -459,7 +459,7 @@ void acr_runtime_data_specialize_alternative_domain(
 }
 
 void free_acr_static_data(struct acr_runtime_data_static *static_data) {
-  free(static_data->all_functions);
+  free(static_data->precision_array);
   free(static_data->min_max);
   static_data->is_uninitialized = 1;
 }

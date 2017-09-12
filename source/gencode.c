@@ -836,15 +836,8 @@ static bool acr_print_static_runtime_init(FILE* out,
       "  .total_functions = 0,\n"
       "  .min_max = NULL,\n"
       "  .num_monitor_dimensions = %zu,\n"
-      "  .grid_size = %zu,\n"
-      "  .alternative_functions = (void*[%zu]) {\n"
-      , prefix, num_monitor_dims, acr_grid_get_grid_size(grid), num_alternatives);
-  for (size_t i = 0; i < num_alternatives; ++i) {
-    if (i)
-      fprintf(out, ", ");
-    fprintf(out, "_acr_%s_alternative_%zu", prefix, i);
-  }
-  fprintf(out, "},\n};\n");
+      "  .grid_size = %zu\n};\n"
+      , prefix, num_monitor_dims, acr_grid_get_grid_size(grid));
 
   return true;
 }
@@ -1083,40 +1076,42 @@ bool acr_print_node_initialization(FILE* in, FILE* out,
 static void acr_print_static_function_call(FILE* out,
     const acr_compute_node node,
     size_t num_monitor_dims) {
+
+  size_t num_alternatives = 0;
+  size_t size_list = acr_compute_node_get_option_list_size(node);
+  acr_option_list options = acr_compute_node_get_option_list(node);
+  for (size_t i = 0; i < size_list; ++i) {
+    acr_option current_option = acr_option_list_get_option(i, options);
+    if (acr_option_get_type(current_option) == acr_type_alternative) {
+      ++num_alternatives;
+    }
+  }
+
   const char* prefix = acr_get_scop_prefix(node);
   fprintf(out,
-      "  size_t __acr_function_offset = 0;\n"
-      "    void (*__acr_function_call)");
+      "  switch (%s_static_runtime.precision_array[__acr_iterator_]) {\n", prefix);
   acr_option init = acr_compute_node_get_option_of_type(acr_type_init, node, 1);
-  acr_print_parameters(out, init);
-  if(fseek(out, ftell(out)-3, SEEK_SET)) {
-    perror("fseek");
-    exit(1);
+  for (size_t i = 0; i < num_alternatives; ++i) {
+    fprintf(out, "    case %zu:\n"
+                 "      _acr_%s_alternative_%zu",
+        i, prefix, i);
+    struct acr_build_options build_options;
+    build_options.type = acr_static_kernel;
+    acr_print_init_function_call(out, init, &build_options);
+    if(fseek(out, ftell(out)-3, SEEK_SET)) {
+      perror("fseek");
+      exit(1);
+    }
+    for (size_t j = 0; j < num_monitor_dims; ++j) {
+      fprintf(out, ", acr_monitor_dimension_lower_%zu"
+          ", acr_monitor_dimension_upper_%zu", j+1, j+1);
+    }
+    fprintf(out,
+        ", &%s_static_runtime.precision_array[__acr_iterator_]);\n"
+        ,prefix);
+    fprintf(out, "    break;\n");
   }
-  for (size_t i = 0; i < num_monitor_dims; ++i) {
-    fprintf(out, ", intmax_t, intmax_t");
-  }
-  fprintf(out,
-      ", void **, const void *const*const)"
-      " = %s_static_runtime.all_functions[__acr_function_offset];\n"
-      "    __acr_function_call"
-      , prefix);
-  struct acr_build_options build_options;
-  build_options.type = acr_static_kernel;
-  acr_print_init_function_call(out, init, &build_options);
-  if(fseek(out, ftell(out)-3, SEEK_SET)) {
-    perror("fseek");
-    exit(1);
-  }
-  for (size_t i = 0; i < num_monitor_dims; ++i) {
-    fprintf(out, ", acr_monitor_dimension_lower_%zu"
-                 ", acr_monitor_dimension_upper_%zu", i+1, i+1);
-  }
-  fprintf(out,
-      ", &%s_static_runtime.all_functions[__acr_function_offset]"
-      ",%s_static_runtime.alternative_functions);\n"
-      " __acr_function_offset += 1;\n"
-      ,prefix, prefix);
+  fprintf(out, "  }\n  __acr_iterator_++;");
 }
 
 void acr_print_node_init_function_call(FILE* out,
@@ -1817,6 +1812,7 @@ static void acr_print_static_main_function(
     free(upper_names[i]);
     free(lower_names[i]);
   }
+  fprintf(out, "  size_t __acr_iterator_ = 0;\n");
   acr_print_static_function_call(corpse_stream, node, num_monitor_dims);
   fclose(corpse_stream);
   free(iterators_names);
@@ -2694,7 +2690,7 @@ static void acr_print_tiling_alternative_function_call(
     fprintf(out, ", intmax_t acr_monitor_dimension_lower_%zu"
                  ", intmax_t acr_monitor_dimension_upper_%zu", i+1, i+1);
   }
-  fprintf(out, ", void **__acr_next_function_pointer, const void *const*const __acr_alternative_functions) {\n");
+  fprintf(out, ", unsigned char *__acr_next_function_precision) {\n");
   switch (process_fun) {
     case acr_monitor_function_min:
       fprintf(out, "unsigned char __acr_tmp = %zu;\n", num_alternatives-1);
@@ -2902,7 +2898,7 @@ void acr_generation_generate_tiling_alternatives(
     if (process_fun == acr_monitor_function_avg) {
       fprintf(out, "__acr_tmp /= __acr_num_values;\n");
     }
-    fprintf(out, "*__acr_next_function_pointer = __acr_alternative_functions[__acr_tmp];\n");
+    fprintf(out, "*__acr_next_function_precision = __acr_tmp;\n");
     fprintf(out, "}\n\n");
   }
   free(strategy_list);

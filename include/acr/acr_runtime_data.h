@@ -171,11 +171,7 @@ struct acr_runtime_data_static {
   /** \brief set as true if the not yet initialized */
   bool is_uninitialized;
   /** \brief The array where all the generated functions pointer are stored */
-  void **all_functions;
-  /** \brief The number of alternatives */
-  size_t num_alternatives;
-  /** \brief The alternatives */
-  void **alternative_functions;
+  unsigned char *precision_array;
   /** \brief The number of monitoring dimensions */
   const size_t num_monitor_dimensions;
   /** \brief The tiling size */
