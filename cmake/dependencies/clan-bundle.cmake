@@ -6,7 +6,7 @@ if(CLAN_BUNDLED OR ALL_DEP_BUNDLED)
     GIT_TAG dev
     UPDATE_COMMAND ""
     CMAKE_ARGS "-DCMAKE_INSTALL_PREFIX=${DEP_INSTALL_DIR}"
-               "-DCMAKE_LIBRARY_PATH=${DEP_INSTALL_DIR}"
+               "-DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}"
                "-DCMAKE_SKIP_RPATH=TRUE"
                "-DCMAKE_BUILD_TYPE=Release")
   if(TARGET osl_external)
