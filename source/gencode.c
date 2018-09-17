@@ -92,6 +92,7 @@ static void lex_min_max_access_strings(isl_set *set, char**lexmaxstring, char **
   splinter = isl_printer_print_ast_expr(splinter, minlexbuild);
   isl_printer_free(splinter);
   splinter = isl_printer_to_file(isl_set_get_ctx(set), lexmax_stream);
+  splinter = isl_printer_set_output_format(splinter, ISL_FORMAT_C);
   splinter = isl_printer_print_ast_expr(splinter, maxlexbuild);
   isl_printer_free(splinter);
   fclose(lexmax_stream);
