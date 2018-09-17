@@ -1840,7 +1840,22 @@ static void acr_print_static_main_function(
   }
   fprintf(out,
       "  acr_static_data_init_grid(&%s_static_runtime);\n"
-      "  %s_static_runtime.is_uninitialized = 0;\n}\n",
+      "  %s_static_runtime.is_uninitialized = 0;\n"
+      "  char *info_flag = getenv(\"ACR_INIT_GET_INFO_AND_DIE\");\n"
+      "  if (info_flag) {\n"
+      "    intmax_t mindim = %s_static_runtime.min_max[0][1];\n"
+      "    for (unsigned long i = 0; i < %s_static_runtime.num_monitor_dimensions; ++i) {\n"
+      "      if (%s_static_runtime.min_max[i][1] < mindim)\n"
+      "        mindim = %s_static_runtime.min_max[i][1];\n"
+      "    }\n"
+      "    fprintf(stderr, \"\\nACR info minsize:%%\" PRIdMAX \"\\n\", mindim);\n"
+      "    _exit(0);\n"
+      "  }\n"
+      "}\n",
+      prefix,
+      prefix,
+      prefix,
+      prefix,
       prefix,
       prefix);
 
@@ -2319,7 +2334,10 @@ void acr_generate_preamble(FILE* file, const char* filename) {
       "   Do not read the following line.\n"
       "   If you read this know that you don't deserve candy!\n"
       " */\n\n"
-      "#include <acr/acr_runtime.h>\n\n", filename);
+      "#include <acr/acr_runtime.h>\n"
+      "#include <stddef.h>\n"
+      "#include <inttypes.h>\n\n"
+      , filename);
       // # include here
 }
 

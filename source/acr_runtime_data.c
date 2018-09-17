@@ -29,6 +29,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <unistd.h>
+#include <inttypes.h>
 
 #ifndef NDEBUG
 #include <isl/options.h>
@@ -292,12 +293,12 @@ void init_acr_runtime_data(
     size_t scop_size) {
   char *info_flag = getenv("ACR_INIT_GET_INFO_AND_DIE");
   if (info_flag) {
-    unsigned long mindim = data->monitor_dim_max[0];
+    intmax_t mindim = data->monitor_dim_max[0];
     for (size_t i = 0; i < data->num_monitor_dims; ++i) {
       if (data->monitor_dim_max[i] < mindim)
         mindim = data->monitor_dim_max[i];
     }
-    fprintf(stderr, "\nACR info minsize:%ld\n", mindim);
+    fprintf(stderr, "\nACR info minsize:%" PRIiMAX "\n", mindim);
     _exit(0);
   }
 
